@@ -1,0 +1,19 @@
+# Global environments & cluster configurations
+ref_genome: "/mnt/disks/staff/ref/GRCh38_full_analysis_set_plus_decoy_hla.fa"
+lab_dir: "/mnt/disks/lab"
+staff_dir: "/mnt/disks/staff"
+placeholder_file: "test.txt"
+
+# Google Cloud Storage (GCS) Buckets
+# - lab_bucket: The source GCS bucket where input CRAM files are stored (mounts to /mnt/disks/lab)
+# - staff_bucket: The output GCS bucket where unmapped reads are deposited (mounts to /mnt/disks/staff)
+lab_bucket: "ml-phi-abyzov-alexej-m124423-rsa-us-central1-p-d3c4"
+staff_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"
+
+# Module-specific metadata (Project-level configuration)
+module: "SSC"
+phase: "4"
+project: "Project_REI_12386_B01_GRM_WGS.cram.2017-06-02"
+
+# Path to the sample metadata list
+samples_list: "samples_p4_clean_base"

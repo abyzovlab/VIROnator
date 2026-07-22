@@ -1,0 +1,114 @@
+# =========================================================================================================================
+# example job file
+
+#job_name=SSC_UNMAPPED
+#job_identifier=phase1_[ARRAY]
+
+job_name=SSC_UNMAPPED
+job_identifier=phase{phase}_[SAMPLE]
+
+
+####
+#### Buckets
+####
+
+# bucket location to read inputs 
+input_bucket=gs://{staff_bucket}/jobexec_unmapped/input
+# bucket location to write outputs 
+output_bucket=gs://{staff_bucket}/jobexec_unmapped/output
+
+# bucket location to write log outputs 
+log_bucket=gs://{staff_bucket}/jobexec_unmapped/logs
+
+
+####
+#### Inputs
+####
+
+# inputs to load from input_bucket (if bucket not specified in the path the input bucket is prepended) 
+#input=*.txt
+
+####
+#### Tools
+####
+
+repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
+tool=samtools
+#repo=gs://ml-phi-staff-m199584-p-rsa-us-central1-p-d707/repositories/rocky8.repo
+#tool=cnvpytor
+
+####
+#### Outputs
+####
+
+# outputs to copy to output_bucket (supports wildcards, bare path assumes local_storage_output, 
+# $JOBEXEC_OUTPUT prefix is the same. $JOBEXEC_PROCESS copies from local_storage_path )
+#output=*
+
+####
+#### Logs
+####
+
+# outputs to copy to the log_bucket ( bare path assumes local_storage_output, $JOBEXEC_OUTPUT 
+# prefix is the same. $JOBEXEC_PROCESS copies from local_storage_path )
+#log="$JOBEXEC_PROCESS/${job_identifier}_system_stats"
+
+####
+#### Post-Job Configuration
+####
+
+# purge $JOBEXEC_OUTPUT upon completion
+clear_output=true
+
+# purge $JOBEXEC_INPUT upon completion
+clear_input=true 
+
+
+####
+#### Script to run
+####
+
+# commands and scripts (executed in sequence). Executing in $JOBEXEC_PROCESS. 
+commands_start
+
+set -ex
+
+echo "Start: $(date)"
+
+# Consolidated global variables
+REF_GENOME="{ref_genome}"
+PHASE="{phase}"
+PROJECT="{project}"
+SAMPLE="[SAMPLE]"
+
+CRAM="{lab_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${SAMPLE}.final.cram"
+OUT_DIR="{staff_dir}/SSC_hg38_unmapped/phase${PHASE}/${PROJECT}"
+OUT_CRAM="${OUT_DIR}/${SAMPLE}.unmapped.cram"
+
+echo "INPUT CRAM: ${CRAM}"
+echo "OUTPUT CRAM: ${OUT_CRAM}"
+
+# Partition 1: Read unmapped, mate mapped, excluding secondary/supplementary alignments
+samtools view -@ 4 -T "${REF_GENOME}" -f 4 -F 264 -u -o "${SAMPLE}.tmps1.bam" "${CRAM}"
+
+# Partition 2: Read mapped, mate unmapped, excluding secondary/supplementary alignments
+samtools view -@ 4 -T "${REF_GENOME}" -f 8 -F 260 -u -o "${SAMPLE}.tmps2.bam" "${CRAM}"
+
+# Partition 3: Both read and mate unmapped, excluding secondary/supplementary alignments
+samtools view -@ 4 -T "${REF_GENOME}" -f 12 -F 256 -u -o "${SAMPLE}.tmps3.bam" "${CRAM}"
+
+# Merge partitions to avoid duplicates
+samtools merge -f -@ 4 "${SAMPLE}.unmapped.bam" "${SAMPLE}.tmps1.bam" "${SAMPLE}.tmps2.bam" "${SAMPLE}.tmps3.bam"
+
+# Convert to CRAM format
+samtools view -@ 4 -C -T "${REF_GENOME}" -o "${OUT_CRAM}" "${SAMPLE}.unmapped.bam"
+
+# Cleanup temporary files
+rm "${SAMPLE}.tmps1.bam" "${SAMPLE}.tmps2.bam" "${SAMPLE}.tmps3.bam" "${SAMPLE}.unmapped.bam"
+
+# Verify output integrity
+samtools quickcheck "${OUT_CRAM}"
+
+echo "End: $(date)"
+
+# =========================================================================================================================
