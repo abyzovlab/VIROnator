@@ -8,6 +8,9 @@ def main(reads_ids_file):
 
     # Read from stdin (the output of samtools view)
     for line in sys.stdin:
+        if line.startswith('@'):
+            print(line, end='')
+            continue
         # Extract the read ID from the SAM/BAM line (assuming it's the first column)
         read_id = line.split('\t')[0]
         if read_id in reads_ids:

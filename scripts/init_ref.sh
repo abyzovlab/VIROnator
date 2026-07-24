@@ -1,18 +1,28 @@
 #!/bin/bash
 
-USAGE_1="Usage: `basename $0` -i input.fa -v viral.fa -o output.fa"
+USAGE_1="Usage: `basename $0` -i input.fa -v viral.fa -o output.fa [-b /path/to/bwa]"
 combined_refs="/research/labs/res-users/m277455/genomes/refs/combined_refs"
 
 ARG_REF=""
 ARG_OUT=""
 ARG_HVR=""
+BWA_BIN="bwa"  # default: auto-discover from PATH
+
 # read input args
 while [[ "$#" -gt 0 ]]; do case $1 in
   -i|--inref) ARG_REF="$2"; shift;;
   -v|--viral) ARG_HVR="$2"; shift;;
   -o|--outref) ARG_OUT="$2"; shift;;
+  -b|--bwa) BWA_BIN="$2"; shift;;
   *) echo "Unknown parameter passed: $1"; exit 1;;
 esac; shift; done
+
+# Auto-discover bwa if the configured path is not found
+if ! command -v "${BWA_BIN}" &> /dev/null; then
+    BWA_BIN=$(which bwa 2>/dev/null || echo "bwa")
+fi
+echo "Using BWA binary: ${BWA_BIN}"
+
 if [ "$ARG_REF" == "" ]; then
   echo
   echo "-i input missing"
@@ -53,4 +63,4 @@ ARG_OUT_NO_EXTENSION=$(basename $ARG_OUT | cut -f 1 -d '.')
 cat $ARG_REF $HVR > $ARG_OUT
 samtools faidx $ARG_OUT
 python $make_json $HVR $n_contigs $combined_refs/$ARG_OUT_NO_EXTENSION.exogene.json
-bwa index $ARG_OUT
+"${BWA_BIN}" index $ARG_OUT

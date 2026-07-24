@@ -84,6 +84,11 @@ VIRAL_CONTIGS="{viral_contigs_path}"
 VIRAL_BED="{viral_bed_path}"
 
 BWA_BIN="{bwa_bin}"
+# Auto-discover bwa at runtime if the configured path is not found
+if ! command -v "${BWA_BIN}" &> /dev/null; then
+    BWA_BIN=$(which bwa 2>/dev/null || echo "bwa")
+fi
+echo "Using BWA binary: ${BWA_BIN}"
 EXOGENE_PYTHON_DIR="{exogene_python_dir}"
 INIT_REF_SCRIPT="{init_ref_script_path}"
 COMBINED_REFS_DIR="{combined_refs_dir_path}"
@@ -144,7 +149,7 @@ if [ "${ALIGNMENT_MODE}" = "align_and_filter" ]; then
 
     # Create combined reference if it doesn't exist OR if it is older than input references
     if [ ! -f "${COMBINED_REF}" ] || [ "${REF_VIRAL}" -nt "${COMBINED_REF}" ] || [ "${REF_HUMAN_NO_EBV}" -nt "${COMBINED_REF}" ]; then
-        bash "${INIT_REF_SCRIPT}" -i "${REF_HUMAN_NO_EBV}" -v "${REF_VIRAL}" -o "${COMBINED_REF}"
+        bash "${INIT_REF_SCRIPT}" -i "${REF_HUMAN_NO_EBV}" -v "${REF_VIRAL}" -o "${COMBINED_REF}" -b "${BWA_BIN}"
         "${BWA_BIN}" index "${COMBINED_REF}"
         samtools faidx "${COMBINED_REF}"
         echo "Combined reference created and indexed: ${COMBINED_REF}"
@@ -160,11 +165,10 @@ if [ "${ALIGNMENT_MODE}" = "align_and_filter" ]; then
 
     # 2. Step 1: Alignment to the viral database
     echo "STEP 1) ALIGNMENT TO VIRAL DATABASE"
-    samtools view -F 2048 -T "${REF_HUMAN_FULL}" "${INPUT_CRAM}" \
-        | awk '{print "@"$1"\n"$10"\n+\n"$11}' \
+    samtools fastq -@ 4 -F 2048 -T "${REF_HUMAN_FULL}" "${INPUT_CRAM}" \
         | "${BWA_BIN}" mem -k 30 -t 20 "${REF_VIRAL}" - \
         | egrep -v '^@' \
-        | awk '{ if ($3 != "*") print $0 }' \
+        | awk '$3 != "*"' \
         > "${OUT_DIR}/viral_reads_se.reads_temp"
 
     # Filter temp mapping against viral contig names
@@ -193,29 +197,26 @@ if [ "${ALIGNMENT_MODE}" = "align_and_filter" ]; then
 
     # 5. Step 4: Alignment to combined reference & decoy/RNA filtering
     echo "STEP 4) ALIGNMENT TO COMBINED REFERENCE"
-    "${BWA_BIN}" mem -Y -k 30 -t 20 -v 2 "${COMBINED_REF}" "${OUT_DIR}/viral_1.fq" "${OUT_DIR}/viral_2.fq" 2> "${OUT_DIR}/bwa.log" > "${OUT_DIR}/Viral.sam"
-    samtools view -bS "${OUT_DIR}/Viral.sam" > "${OUT_DIR}/Viral.bam"
-    
-    # Sort and Index
-    samtools sort -@ 3 -T "${OUT_DIR}/Viral.bam" -o "${OUT_DIR}/Viral.sort.bam" "${OUT_DIR}/Viral.bam"
+    "${BWA_BIN}" mem -Y -k 30 -t 20 -v 2 "${COMBINED_REF}" "${OUT_DIR}/viral_1.fq" "${OUT_DIR}/viral_2.fq" 2> "${OUT_DIR}/bwa.log" \
+        | samtools sort -@ 3 -o "${OUT_DIR}/Viral.sort.bam" -
     samtools index "${OUT_DIR}/Viral.sort.bam"
 
     # Align to Decoys & RNA
     echo "ALIGN TO DECOYS"
-    "${BWA_BIN}" mem -Y -k 30 -t 20 "${REF_RNA}" "${OUT_DIR}/viral_reads_se.fa" > "${OUT_DIR}/bwa_output.sam" 2> "${OUT_DIR}/errors.log"
-    cat "${OUT_DIR}/bwa_output.sam" | python "${EXOGENE_PYTHON_DIR}/aln_match_filter_py3.py" 90 > "${OUT_DIR}/rna_hits.ids" 2>> "${OUT_DIR}/errors.log"
+    "${BWA_BIN}" mem -Y -k 30 -t 20 "${REF_RNA}" "${OUT_DIR}/viral_reads_se.fa" 2> "${OUT_DIR}/errors.log" \
+        | python "${EXOGENE_PYTHON_DIR}/aln_match_filter_py3.py" 90 > "${OUT_DIR}/rna_hits.ids" 2>> "${OUT_DIR}/errors.log"
     
-    "${BWA_BIN}" mem -Y -k 30 -t 20 "${REF_DECOY}" "${OUT_DIR}/viral_reads_se.fa" | python "${EXOGENE_PYTHON_DIR}/aln_match_filter_py3.py" 90 > "${OUT_DIR}/decoy_hits.ids" 2>> "${OUT_DIR}/errors.log"
+    "${BWA_BIN}" mem -Y -k 30 -t 20 "${REF_DECOY}" "${OUT_DIR}/viral_reads_se.fa" 2>> "${OUT_DIR}/errors.log" \
+        | python "${EXOGENE_PYTHON_DIR}/aln_match_filter_py3.py" 90 > "${OUT_DIR}/decoy_hits.ids" 2>> "${OUT_DIR}/errors.log"
     
     sort "${OUT_DIR}/rna_hits.ids" "${OUT_DIR}/decoy_hits.ids" | uniq > "${OUT_DIR}/bad.list"
     
     # Subtract decoys/RNA hits and create final exogeneSR_viral.bam
-    samtools view -h "${OUT_DIR}/Viral.sort.bam" | fgrep -v -w -f "${OUT_DIR}/bad.list" > "${OUT_DIR}/exogeneSR_viral.sam"
-    samtools view -Sb "${OUT_DIR}/exogeneSR_viral.sam" > "${OUT_DIR}/exogeneSR_viral.bam"
+    samtools view -h "${OUT_DIR}/Viral.sort.bam" | fgrep -v -w -f "${OUT_DIR}/bad.list" | samtools view -Sb - > "${OUT_DIR}/exogeneSR_viral.bam"
     samtools index "${OUT_DIR}/exogeneSR_viral.bam"
     
-    # Clean up intermediate SAM/BAM files
-    rm -f "${OUT_DIR}/Viral.bam" "${OUT_DIR}/Viral.sort.bam" "${OUT_DIR}/Viral.sort.bam.bai"
+    # Clean up intermediate files
+    rm -f "${OUT_DIR}/Viral.sort.bam" "${OUT_DIR}/Viral.sort.bam.bai"
     echo "STEP 4 DONE"
 
 fi
@@ -248,23 +249,14 @@ samtools view -F 2048 -F 12 -q 20 "${OUT_DIR}/exogeneSR_viral.bam" --region-file
     | cut -f1 | sort | uniq -c | awk '$1=="2"' | awk '{print $2}' \
     > "${OUT_DIR}/reads.flags.ids"
 
-# Extract filtered alignments using exogene python scripts
-samtools view -F 2048 "${OUT_DIR}/exogeneSR_viral.bam" | python "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads.ids" > "${OUT_DIR}/exogeneSR_viral_filtered_body.sam"
-samtools view -F 2048 "${OUT_DIR}/exogeneSR_viral.bam" | python "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads.flags.ids" > "${OUT_DIR}/exogeneSR_viral_filtered_body.flags.sam"
+# Extract and sort filtered alignments using streaming pipes
+samtools view -h -F 2048 "${OUT_DIR}/exogeneSR_viral.bam" \
+    | python "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads.ids" \
+    | samtools sort -o "${OUT_DIR}/exogeneSR_viral_filtered.sorted.bam" -
 
-samtools view -H "${OUT_DIR}/exogeneSR_viral.bam" > "${OUT_DIR}/exogeneSR_viral_filtered_header.sam"
-samtools view -H "${OUT_DIR}/exogeneSR_viral.bam" > "${OUT_DIR}/exogeneSR_viral_filtered_header.flags.sam"
-
-cat "${OUT_DIR}/exogeneSR_viral_filtered_header.sam" "${OUT_DIR}/exogeneSR_viral_filtered_body.sam" > "${OUT_DIR}/exogeneSR_viral_filtered.sam"
-cat "${OUT_DIR}/exogeneSR_viral_filtered_header.flags.sam" "${OUT_DIR}/exogeneSR_viral_filtered_body.flags.sam" > "${OUT_DIR}/exogeneSR_viral_filtered.flags.sam"
-
-# Convert filtered alignments to BAM
-samtools view -bS "${OUT_DIR}/exogeneSR_viral_filtered.sam" > "${OUT_DIR}/exogeneSR_viral_filtered.bam"
-samtools view -bS "${OUT_DIR}/exogeneSR_viral_filtered.flags.sam" > "${OUT_DIR}/exogeneSR_viral_filtered.flags.bam"
-
-# Sort filtered BAM files
-samtools sort "${OUT_DIR}/exogeneSR_viral_filtered.bam" -o "${OUT_DIR}/exogeneSR_viral_filtered.sorted.bam"
-samtools sort "${OUT_DIR}/exogeneSR_viral_filtered.flags.bam" -o "${OUT_DIR}/exogeneSR_viral_filtered.sorted.flags.bam"
+samtools view -h -F 2048 "${OUT_DIR}/exogeneSR_viral.bam" \
+    | python "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads.flags.ids" \
+    | samtools sort -o "${OUT_DIR}/exogeneSR_viral_filtered.sorted.flags.bam" -
 
 # Convert to CRAM format
 samtools view -T "${COMBINED_REF}" -C -o "${OUT_DIR}/exogeneSR_viral_filtered.sorted.cram" "${OUT_DIR}/exogeneSR_viral_filtered.sorted.bam" 
