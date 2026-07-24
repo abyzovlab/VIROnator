@@ -22,7 +22,7 @@ phase: "2"
 project: ""
 
 # Path to the sample metadata list
-samples_list: "samples_p2_base"
+samples_list: "../samples_p2_base"
 
 # Base directory for all external reference genomes (GCS mount)
 ref_dir: "/mnt/disks/staff/refs"
