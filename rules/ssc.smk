@@ -10,7 +10,7 @@ rule create_output_directory:
     """
     input:
         placeholder=config["placeholder_file"],
-        config="config/ssc_config.yaml"
+        config_file="config/ssc_config.yaml"
     output:
         token="config/unmapped_dir.created"
     shell:
@@ -26,7 +26,7 @@ rule generate_job_file:
     """
     input:
         template="config/ssc_unmapped.job.template",
-        config="config/ssc_config.yaml"
+        config_file="config/ssc_config.yaml"
     output:
         job="config/ssc_unmapped.job"
     run:
@@ -55,9 +55,9 @@ rule generate_resources_config:
     """
     input:
         template="config/batch_jobexec_resources.config.template",
-        config="config/ssc_config.yaml"
+        config_file="config/ssc_config.yaml"
     output:
-        config="config/batch_jobexec_resources.config"
+        resources_config="config/batch_jobexec_resources.config"
     run:
         with open(input.template, "r") as f:
             content = f.read()
@@ -72,7 +72,7 @@ rule generate_resources_config:
             .replace("{unmapped_jobexec_dirname}", str(config["unmapped_jobexec_dirname"]))
         )
         
-        with open(output.config, "w") as f:
+        with open(output.resources_config, "w") as f:
             f.write(formatted_content)
 
 rule create_vironator_directory:
@@ -81,7 +81,7 @@ rule create_vironator_directory:
     """
     input:
         placeholder=config["placeholder_file"],
-        config="config/ssc_config.yaml"
+        config_file="config/ssc_config.yaml"
     output:
         token="config/vironator_dir.created"
     shell:
@@ -97,7 +97,7 @@ rule generate_align_job_file:
     """
     input:
         template="config/ssc_align.job.template",
-        config="config/ssc_config.yaml"
+        config_file="config/ssc_config.yaml"
     output:
         job="config/ssc_align.job"
     run:
