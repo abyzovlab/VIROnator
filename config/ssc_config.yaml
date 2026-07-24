@@ -3,7 +3,7 @@
 # ==============================================================================
 lab_dir: "/mnt/disks/lab"
 staff_dir: "/mnt/disks/staff"
-work_dir: "/home/ext_djonovic_milana_mayo_edu/VIROnator"
+work_dir: "/home/ext_djonovic_milana_mayo_edu/working"
 placeholder_file: "test.txt"
 
 # Google Cloud Storage (GCS) Buckets
@@ -22,7 +22,7 @@ phase: "2"
 project: ""
 
 # Path to the sample metadata list
-samples_list: "../samples_p2_base"
+samples_list: "samples_p2_base"
 
 # Base directory for all external reference genomes (GCS mount)
 ref_dir: "/mnt/disks/staff/refs"
