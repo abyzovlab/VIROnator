@@ -95,8 +95,13 @@ PROJECT="{project}"
 SAMPLE="[SAMPLE]"
 
 # Directories
-INPUT_CRAM="{output_dir}/{unmapped_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}.unmapped.cram"
-OUT_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
+if [ -z "${PROJECT}" ]; then
+    INPUT_CRAM="{output_dir}/{unmapped_out_dirname}/phase${PHASE}/${SAMPLE}.unmapped.cram"
+    OUT_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${SAMPLE}"
+else
+    INPUT_CRAM="{output_dir}/{unmapped_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}.unmapped.cram"
+    OUT_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
+fi
 
 echo "INPUT CRAM: ${INPUT_CRAM}"
 echo "OUTPUT DIR: ${OUT_DIR}"

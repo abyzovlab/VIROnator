@@ -26,8 +26,8 @@ vironator_out_dirname: "SSC_hg38_vironator"
 unmapped_jobexec_dirname: "jobexec_unmapped"
 vironator_jobexec_dirname: "jobexec_vironator"
 
-# Module-specific metadata (Project-level configuration)
-module: "SSC"
+# Dataset-specific metadata (Project-level configuration)
+dataset: "SSC"
 phase: "2"
 project: ""
 

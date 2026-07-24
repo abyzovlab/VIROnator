@@ -86,32 +86,30 @@ if [ -z "${PROJECT}" ]; then
 else
     CRAM="{data_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${SAMPLE}.final.cram"
 fi
-OUT_DIR="{output_dir}/{unmapped_out_dirname}/phase${PHASE}/${PROJECT}"
+if [ -z "${PROJECT}" ]; then
+    OUT_DIR="{output_dir}/{unmapped_out_dirname}/phase${PHASE}"
+else
+    OUT_DIR="{output_dir}/{unmapped_out_dirname}/phase${PHASE}/${PROJECT}"
+fi
 OUT_CRAM="${OUT_DIR}/${SAMPLE}.unmapped.cram"
 
 echo "INPUT CRAM: ${CRAM}"
 echo "OUTPUT CRAM: ${OUT_CRAM}"
 
-# Partition 1: Read unmapped, mate mapped, excluding secondary/supplementary alignments
-samtools view -@ 4 -T "${REF_GENOME}" -f 4 -F 264 -u -o "${SAMPLE}.tmps1.bam" "${CRAM}"
+echo "$(date) Starting extraction: ${SAMPLE}"
+samtools view -@ 4 -T "${REF_GENOME}" -F 256 --rf 12 -C -o "${OUT_CRAM}" "${CRAM}"
+status=$?
+echo "$(date) samtools exit code: ${status}"
 
-# Partition 2: Read mapped, mate unmapped, excluding secondary/supplementary alignments
-samtools view -@ 4 -T "${REF_GENOME}" -f 8 -F 260 -u -o "${SAMPLE}.tmps2.bam" "${CRAM}"
+if [ $status -ne 0 ]; then
+    echo "$(date) EXTRACTION FAILED"
+    exit $status
+fi
 
-# Partition 3: Both read and mate unmapped, excluding secondary/supplementary alignments
-samtools view -@ 4 -T "${REF_GENOME}" -f 12 -F 256 -u -o "${SAMPLE}.tmps3.bam" "${CRAM}"
+echo "$(date) EXTRACTION FINISHED SUCCESSFULLY"
 
-# Merge partitions to avoid duplicates
-samtools merge -f -@ 4 "${SAMPLE}.unmapped.bam" "${SAMPLE}.tmps1.bam" "${SAMPLE}.tmps2.bam" "${SAMPLE}.tmps3.bam"
-
-# Convert to CRAM format
-samtools view -@ 4 -C -T "${REF_GENOME}" -o "${OUT_CRAM}" "${SAMPLE}.unmapped.bam"
-
-# Cleanup temporary files
-rm "${SAMPLE}.tmps1.bam" "${SAMPLE}.tmps2.bam" "${SAMPLE}.tmps3.bam" "${SAMPLE}.unmapped.bam"
-
-# Verify output integrity
-samtools quickcheck "${OUT_CRAM}"
+samtools quickcheck "${OUT_CRAM}" && \
+    echo "$(date) OUTPUT CRAM VERIFIED"
 
 echo "End: $(date)"
 

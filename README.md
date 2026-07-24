@@ -35,16 +35,19 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
 > This pipeline is designed to run on Google Cloud Platform. Ensure that your GCS parameters (such as `data_bucket`, `output_bucket`, and project details) are properly configured to point to your GCP cloud buckets.
 
 ##### 1. Common / Joint Variables
-* **`data_dir` / `output_dir`**: local folder mount paths. `data_dir` is the path where raw input datasets (BAM/CRAM files) are stored/mounted. `output_dir` is the path where the preprocessed unmapped reads and all final output files will be written.
+* **`data_bucket`**: The name of the GCS source bucket where your raw CRAM files are stored.
+* **`data_dir`**: The local folder mount path on the server for `data_bucket` (where raw inputs are read).
+* **`output_bucket`**: The name of the GCS destination bucket where outputs/logs are deposited. (Note: this is the name of the cloud bucket itself, whereas `output_dir` is the local directory path on the server where this bucket is mounted).
+* **`output_dir`**: The local folder mount path on the server for `output_bucket` (where outputs will be written).
+* **`work_dir`**: The path to your cloned repository folder on the server (which acts as your active working directory).
+* **`scripts_dir`**: The folder inside the repository containing custom Python helper scripts.
+* **`db_metadata_dir`**: The folder inside the repository containing BED and contig database files.
+* **`samples_list`**: The name of the sample ID list file copied into the repository folder (must have its first line/header written as `SAMPLE`).
+* **`dataset` / `phase` / `project`**: Dataset run metadata:
+  - **`dataset`**: The prefix/label of the dataset cohort (e.g., `"SSC"`).
+  - **`phase`**: The dataset phase number (e.g., `"2"`).
+  - **`project`**: An optional sub-project folder identifier.
 * **`placeholder_file`**: An empty text file (e.g. `test.txt`) used for creating the file structure/hierarchy on Google Cloud Storage (GCS). Because GCS is an object store, directories do not exist on the cloud unless they contain at least one file.
-* **`data_bucket`**: The name of the source GCS bucket where input CRAM files are stored.
-* **`output_bucket`**: The name of the destination GCS bucket where outputs/logs are deposited. (Note: this is the name of the cloud bucket itself, whereas `output_dir` is the local directory path on the server where this bucket is mounted).
-* **`module` / `phase` / `project`**: Dataset run metadata.
-* **`samples_list`**: Sample ID list path (the file must have its first line/header written as `SAMPLE` and be copied into the repository folder as specified in Phase 1).
-* **`work_dir`**: The absolute path to your cloned repository folder on your machine (e.g., `/home/user/working/VIROnator`).
-* **`ref_dir`**: Base directory for all reference genomes (GCS mount; all reference files must reside directly in this directory with no subfolders).
-* **`scripts_dir`**: Folder in the repo containing custom python scripts (e.g. `scripts/`).
-* **`db_metadata_dir`**: Folder in the repo containing BED and contig lists (e.g. `config/db_metadata/`).
 
 ##### 2. Extraction Variables (Configure ONLY if running the Unmapped Extraction module)
 * **`unmapped_extraction`**: Switch (`"on"` or `"off"`) to enable/disable extraction.
@@ -56,6 +59,37 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
 * **Metadata files (`viral_contigs_file`, `viral_bed_file`)**: File names stored in `db_metadata_dir`.
 * **Tool paths (`bwa_bin`)**: Path to BWA binary.
 * **`alignment_mode`**: Select `"align_and_filter"` to run full alignments, or `"filter_only"` to run final read filtering on existing BAMs.
+
+#### Directory & Folder Hierarchy Schema
+To help you understand how files are organized and how to configure the path variables, here is the structure of the cloned repository folder on your server:
+
+```text
+VIROnator/                                    <-- Cloned Repository folder (This is your work_dir)
+├── Snakefile                                 <-- Snakemake workflow executor blueprint
+├── test.txt                                  <-- Empty placeholder file (placeholder_file)
+├── samples_p2_base                           <-- Your sample ID list file (Copied here in Phase 1)
+│
+├── config/                                   <-- Configuration templates folder
+│   ├── ssc_config.yaml                       <-- Main configuration file (Your settings go here)
+│   ├── batch_jobexec_resources.config.template
+│   ├── ssc_unmapped.job.template
+│   └── ssc_align.job.template
+│
+├── config/db_metadata/                       <-- Database region coordinate folder (db_metadata_dir)
+│   ├── targeted_contigs.txt                  <-- List of target viral chromosomes
+│   └── targeted_regions.bed                  <-- Coordinates of target viral regions
+│
+└── scripts/                                  <-- Python helper scripts folder (scripts_dir)
+    ├── init_ref.sh                           <-- Script to initialize and index reference genomes
+    ├── fq_to_bam_py3.py                      <-- Script to convert FASTQ reads back to BAM format
+    ├── aln_match_filter_py3.py               <-- Script to map and match alignments
+    └── filter_reads.py                       <-- Script to run final target read filtering
+```
+
+* **`VIROnator/` (Repository Root / `work_dir`):** The primary folder where Snakemake is executed. You copy your sample list text file (e.g. `samples_p2_base`) directly here.
+* **`config/`:** Holds Snakemake compilation rules and batch job templates.
+* **`config/db_metadata/` (`db_metadata_dir`):** Holds the specific coordinates and chromosome lists used during the alignment module to filter reads down to targets.
+* **`scripts/` (`scripts_dir`):** Holds the custom helper Python and Bash scripts that Snakemake compiles and runs on the cloud batch nodes.
 
 #### Phase 3: Compile and Execute
 
