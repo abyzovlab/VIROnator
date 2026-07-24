@@ -40,15 +40,17 @@ Open `config/ssc_config.yaml` in a text editor. Here are the key variables you n
 > This pipeline is designed to run on Google Cloud Platform. Ensure that your GCS parameters (such as `data_bucket`, `output_bucket`, and project details) are properly configured to point to your GCP cloud buckets.
 
 #### Global Settings:
-* **`data_bucket`**: The name of your Google Cloud storage bucket where the raw input dataset (CRAM files) is stored.
-* **`output_bucket`**: The name of your Google Cloud storage bucket where you want all output files, results, and logs to be saved.
+* **`data_dir` / `output_dir`**: local folder mount paths on the server. `data_dir` is the directory where raw input datasets (BAM/CRAM files) are stored/mounted. `output_dir` is the directory where the preprocessed unmapped reads and all final output files will be written.
+* **`placeholder_file`**: An empty text file (e.g. `test.txt`) used for creating the file structure/hierarchy on Google Cloud Storage (GCS). Because GCS is an object store, directories do not exist on the cloud unless they contain at least one file.
+* **`data_bucket`**: The name of the GCS source bucket where your raw CRAM files are stored.
+* **`output_bucket`**: The name of the GCS destination bucket where outputs/logs are written. (Note: this is the name of the cloud bucket itself, whereas `output_dir` is the local directory path on the server where this bucket is mounted).
 * **`work_dir`**: The absolute path to your cloned repository folder on your machine (e.g., `/home/user/working/VIROnator`).
 * **`samples_list`**: The name of the sample list file you copied into the repository in Phase 1 (e.g., `samples_p2_base`).
 
 #### Module Toggles (ON / OFF):
 You specify which parts of the pipeline to run by setting these switches to `"on"` or `"off"`:
-* **`unmapped_extraction`**: Set to `"on"` to extract human unmapped reads from CRAM files. Set to `"off"` to skip this step.
-* **`viral_db_alignment`**: Set to `"on"` to align the preprocessed unmapped reads to the viral database. Set to `"off"` to skip this step.
+* **`unmapped_extraction`**: Set to `"on"` to extract human unmapped reads from CRAM files. Set to `"off"` to skip this step. *(Note: If this is ON, you must configure the "Extraction Variables" section in your YAML).*
+* **`viral_db_alignment`**: Set to `"on"` to align the preprocessed unmapped reads to the viral database. Set to `"off"` to skip this step. *(Note: If this is ON, or if you are running both modules sequentially, you must configure the "Alignment Variables" section in your YAML).*
 * *Toggling these determines which batch job files Snakemake compiles and which command you run in Step 4.*
 
 ### Phase 3: Compile and Execute

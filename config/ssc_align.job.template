@@ -95,8 +95,8 @@ PROJECT="{project}"
 SAMPLE="[SAMPLE]"
 
 # Directories
-INPUT_CRAM="{staff_dir}/{unmapped_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}.unmapped.cram"
-OUT_DIR="{staff_dir}/{vironator_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
+INPUT_CRAM="{output_dir}/{unmapped_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}.unmapped.cram"
+OUT_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
 
 echo "INPUT CRAM: ${INPUT_CRAM}"
 echo "OUTPUT DIR: ${OUT_DIR}"

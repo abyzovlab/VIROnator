@@ -1,8 +1,8 @@
 # ==============================================================================
 # 1. COMMON / JOINT VARIABLES (Global parameters used across modules)
 # ==============================================================================
-lab_dir: "/mnt/disks/lab"
-staff_dir: "/mnt/disks/staff"
+data_dir: "/mnt/disks/lab"
+output_dir: "/mnt/disks/staff"
 work_dir: "/home/ext_djonovic_milana_mayo_edu/working"
 placeholder_file: "test.txt"
 
@@ -18,7 +18,7 @@ pi: "MDJ"
 pau: 0
 task_name: "mdj_test"
 
-# GCS output folder names (located inside staff_dir)
+# GCS output folder names (located inside output_dir)
 unmapped_out_dirname: "SSC_hg38_unmapped"
 vironator_out_dirname: "SSC_hg38_vironator"
 

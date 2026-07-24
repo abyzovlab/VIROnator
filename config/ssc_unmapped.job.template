@@ -82,11 +82,11 @@ PROJECT="{project}"
 SAMPLE="[SAMPLE]"
 
 if [ -z "${PROJECT}" ]; then
-    CRAM="{lab_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${SAMPLE}.final.cram"
+    CRAM="{data_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${SAMPLE}.final.cram"
 else
-    CRAM="{lab_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${SAMPLE}.final.cram"
+    CRAM="{data_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${SAMPLE}.final.cram"
 fi
-OUT_DIR="{staff_dir}/{unmapped_out_dirname}/phase${PHASE}/${PROJECT}"
+OUT_DIR="{output_dir}/{unmapped_out_dirname}/phase${PHASE}/${PROJECT}"
 OUT_CRAM="${OUT_DIR}/${SAMPLE}.unmapped.cram"
 
 echo "INPUT CRAM: ${CRAM}"

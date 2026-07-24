@@ -12,21 +12,21 @@ This workflow works modularly to process and align sequencing datasets. It consi
 Configure these settings in the file `config/ssc_config.yaml` before running the pipeline:
 
 #### 1. Common / Joint Variables
-* **`lab_dir` / `staff_dir`**: Directory mount paths.
-* **`placeholder_file`**: GCS folder placeholder (`test.txt`).
-* **`data_bucket`**: Source GCS bucket where input CRAM files are stored.
-* **`output_bucket`**: Destination GCS bucket where outputs/logs are deposited.
+* **`data_dir` / `output_dir`**: local folder mount paths. `data_dir` is the path where raw input datasets (BAM/CRAM files) are stored/mounted. `output_dir` is the path where the preprocessed unmapped reads and all final output files will be written.
+* **`placeholder_file`**: An empty text file (e.g. `test.txt`) used for creating the file structure/hierarchy on Google Cloud Storage (GCS). Because GCS is an object store, directories do not exist on the cloud unless they contain at least one file.
+* **`data_bucket`**: The name of the source GCS bucket where input CRAM files are stored.
+* **`output_bucket`**: The name of the destination GCS bucket where outputs/logs are deposited. (Note: this is the name of the cloud bucket itself, whereas `output_dir` is the local directory path on the server where this bucket is mounted).
 * **`module` / `phase` / `project`**: Dataset run metadata.
 * **`samples_list`**: Sample ID list path (the file must have its first line/header written as `SAMPLE`).
 * **`ref_dir`**: Base directory for all reference genomes (GCS mount; all reference files must reside directly in this directory with no subfolders).
 * **`scripts_dir`**: Folder in the repo containing custom python scripts (e.g. `scripts/`).
 * **`db_metadata_dir`**: Folder in the repo containing BED and contig lists (e.g. `config/db_metadata/`).
 
-#### 2. Extraction Variables
+#### 2. Extraction Variables (Configure ONLY if running the Unmapped Extraction module)
 * **`unmapped_extraction`**: Switch (`"on"` or `"off"`) to enable/disable extraction.
 * **`ref_genome`**: Full reference genome path.
 
-#### 3. Alignment Variables
+#### 3. Alignment Variables (Configure if running the Alignment module OR both Extraction + Alignment)
 * **`viral_db_alignment`**: Switch (`"on"` or `"off"`) to enable/disable viral database alignment.
 * **References (`ref_human_no_ebv`, `ref_human_full`, `ref_viral`, etc.)**: Path names relative to `ref_dir`.
 * **Metadata files (`viral_contigs_file`, `viral_bed_file`)**: File names stored in `db_metadata_dir`.
