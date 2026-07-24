@@ -38,9 +38,29 @@ This workflow contains two main modules:
 4. **Submit Batch Jobs:**
    - **For Unmapped Extraction:**
      ```bash
-     batchRun -multibatch samples_p2_base -config config/batch_jobexec_resources.config -non-spot config/ssc_unmapped.job
+     batchRun -multibatch ../samples_p2_base -config config/batch_jobexec_resources.config -non-spot config/ssc_unmapped.job -investigator MDJ -pau 0
      ```
    - **For Viral Alignment:**
      ```bash
-     batchRun -multibatch samples_p2_base -config config/batch_jobexec_resources.config -non-spot config/ssc_align.job
+     batchRun -multibatch ../samples_p2_base -config config/batch_jobexec_resources.config -non-spot config/ssc_align.job -investigator MDJ -pau 0
      ```
+
+---
+
+### 💡 Running Test Runs / Dry Runs
+Before running a full production pipeline, it is recommended to run a test run to verify the setup. To isolate your test outputs from production, change these four variables in `config/ssc_config.yaml`:
+
+1. **GCS Output Folders:**
+   * `unmapped_out_dirname: "SSC_hg38_unmapped_test"`
+   * `vironator_out_dirname: "SSC_hg38_vironator_test"`
+2. **Jobexec State Folders:**
+   * `unmapped_jobexec_dirname: "jobexec_unmapped_test"`
+   * `vironator_jobexec_dirname: "jobexec_vironator_test"`
+
+*Remember to run `snakemake --cores 1` (or `snakemake --cores 1 -f` to force recompile) after changing the YAML file to compile these new paths into your batch job scripts.*
+
+---
+
+### ⚠️ Sample List Path Resolution
+* **Relative Paths:** If you specify a relative path for `samples_list` (e.g., `"samples_p2_base"`), Snakemake dynamically appends it to the `work_dir` configured in the YAML file (e.g. `work_dir/samples_p2_base`).
+* **Absolute Paths:** If your samples list is stored outside the working directory, you must provide an absolute path starting with `/` (e.g. `/home/user/working/samples_p2_base`) to bypass automatic appending.
