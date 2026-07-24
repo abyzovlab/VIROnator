@@ -13,12 +13,12 @@ job_identifier=phase{phase}_[SAMPLE]
 ####
 
 # bucket location to read inputs 
-input_bucket=gs://{staff_bucket}/jobexec_unmapped/input
+input_bucket=gs://{staff_bucket}/{unmapped_jobexec_dirname}/input
 # bucket location to write outputs 
-output_bucket=gs://{staff_bucket}/jobexec_unmapped/output
+output_bucket=gs://{staff_bucket}/{unmapped_jobexec_dirname}/output
 
 # bucket location to write log outputs 
-log_bucket=gs://{staff_bucket}/jobexec_unmapped/logs
+log_bucket=gs://{staff_bucket}/{unmapped_jobexec_dirname}/logs
 
 
 ####

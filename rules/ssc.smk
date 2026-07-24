@@ -40,6 +40,7 @@ rule generate_job_file:
             .replace("{staff_dir}", str(config["staff_dir"]))
             .replace("{staff_bucket}", str(config["staff_bucket"]))
             .replace("{unmapped_out_dirname}", str(config["unmapped_out_dirname"]))
+            .replace("{unmapped_jobexec_dirname}", str(config["unmapped_jobexec_dirname"]))
         )
         
         with open(output.job, "w") as f:
@@ -61,6 +62,11 @@ rule generate_resources_config:
         formatted_content = (
             content.replace("{staff_bucket}", str(config["staff_bucket"]))
             .replace("{lab_bucket}", str(config["lab_bucket"]))
+            .replace("{gcp_account}", str(config["gcp_account"]))
+            .replace("{pi}", str(config["pi"]))
+            .replace("{pau}", str(config["pau"]))
+            .replace("{task_name}", str(config["task_name"]))
+            .replace("{unmapped_jobexec_dirname}", str(config["unmapped_jobexec_dirname"]))
         )
         
         with open(output.config, "w") as f:
@@ -114,6 +120,8 @@ rule generate_align_job_file:
             .replace("{alignment_mode}", str(config["alignment_mode"]))
             .replace("{unmapped_out_dirname}", str(config["unmapped_out_dirname"]))
             .replace("{vironator_out_dirname}", str(config["vironator_out_dirname"]))
+            .replace("{unmapped_jobexec_dirname}", str(config["unmapped_jobexec_dirname"]))
+            .replace("{vironator_jobexec_dirname}", str(config["vironator_jobexec_dirname"]))
         )
         
         with open(output.job, "w") as f:

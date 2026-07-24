@@ -1,10 +1,10 @@
 ## GCP Service Account & Project Configuration
-account=vaults6-m277455-p-1733249128@ml-fpt-rsa-aproject1-p-581c.iam.gserviceaccount.com
-pi=MDJ
-pau=0
+account={gcp_account}
+pi={pi}
+pau={pau}
 
 ## Job & Task Identifiers
-task=mdj_test
+task={task_name}
 
 ## Machine & Hardware Resources
 machine_type=n1-standard-4
@@ -20,6 +20,6 @@ boot_storage=50
 container=us-central1-docker.pkg.dev/ml-fpt-rsa-aproject1-p-581c/gsu1/jobexec-rocky8:0.2.6
 
 ## Google Cloud Storage (GCS) Paths & Mounts
-path=gs://{staff_bucket}/jobexec_unmapped
+path=gs://{staff_bucket}/{unmapped_jobexec_dirname}
 mapped_bucket={staff_bucket}:/mnt/disks/staff
 mapped_bucket={lab_bucket}:/mnt/disks/lab

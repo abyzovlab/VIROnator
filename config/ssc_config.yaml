@@ -12,9 +12,19 @@ placeholder_file: "test.txt"
 lab_bucket: "ml-phi-abyzov-alexej-m124423-rsa-us-central1-p-d3c4"
 staff_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"
 
+# GCP Service Account & Billing Parameters
+gcp_account: "vaults6-m277455-p-1733249128@ml-fpt-rsa-aproject1-p-581c.iam.gserviceaccount.com"
+pi: "MDJ"
+pau: 0
+task_name: "mdj_test"
+
 # GCS output folder names (located inside staff_dir)
 unmapped_out_dirname: "SSC_hg38_unmapped"
 vironator_out_dirname: "SSC_hg38_vironator"
+
+# Jobexec orchestrator folder names (located in staff_bucket)
+unmapped_jobexec_dirname: "jobexec_unmapped"
+vironator_jobexec_dirname: "jobexec_vironator"
 
 # Module-specific metadata (Project-level configuration)
 module: "SSC"
