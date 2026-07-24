@@ -12,6 +12,10 @@ placeholder_file: "test.txt"
 lab_bucket: "ml-phi-abyzov-alexej-m124423-rsa-us-central1-p-d3c4"
 staff_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"
 
+# GCS output folder names (located inside staff_dir)
+unmapped_out_dirname: "SSC_hg38_unmapped"
+vironator_out_dirname: "SSC_hg38_vironator"
+
 # Module-specific metadata (Project-level configuration)
 module: "SSC"
 phase: "2"

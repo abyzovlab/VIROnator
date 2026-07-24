@@ -89,7 +89,7 @@ if [ -z "${PROJECT}" ]; then
 else
     CRAM="{lab_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${SAMPLE}.final.cram"
 fi
-OUT_DIR="{staff_dir}/SSC_hg38_unmapped/phase${PHASE}/${PROJECT}"
+OUT_DIR="{staff_dir}/{unmapped_out_dirname}/phase${PHASE}/${PROJECT}"
 OUT_CRAM="${OUT_DIR}/${SAMPLE}.unmapped.cram"
 
 echo "INPUT CRAM: ${CRAM}"

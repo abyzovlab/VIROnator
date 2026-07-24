@@ -10,7 +10,7 @@ rule create_output_directory:
     input:
         placeholder=config["placeholder_file"]
     output:
-        placeholder=os.path.join(config["staff_dir"], "SSC_hg38_unmapped/phase{phase}/{project}/test.txt")
+        placeholder=os.path.join(config["staff_dir"], config["unmapped_out_dirname"], "phase{phase}/{project}/test.txt")
     shell:
         """
         out_dir=$(dirname {output.placeholder})
@@ -20,11 +20,11 @@ rule create_output_directory:
 
 rule generate_job_file:
     """
-    Generates the final ssc_unmapped.job file from ssc.job.template inside the config directory
+    Generates the final ssc_unmapped.job file from ssc_unmapped.job.template inside the config directory
     by substituting variables defined in the Snakemake configuration.
     """
     input:
-        template="config/ssc.job.template"
+        template="config/ssc_unmapped.job.template"
     output:
         job="config/ssc_unmapped.job"
     run:
@@ -39,6 +39,7 @@ rule generate_job_file:
             .replace("{lab_dir}", str(config["lab_dir"]))
             .replace("{staff_dir}", str(config["staff_dir"]))
             .replace("{staff_bucket}", str(config["staff_bucket"]))
+            .replace("{unmapped_out_dirname}", str(config["unmapped_out_dirname"]))
         )
         
         with open(output.job, "w") as f:
@@ -73,7 +74,7 @@ rule create_vironator_directory:
     input:
         placeholder=config["placeholder_file"]
     output:
-        placeholder=os.path.join(config["staff_dir"], "SSC_hg38_vironator/phase{phase}/{project}/test.txt")
+        placeholder=os.path.join(config["staff_dir"], config["vironator_out_dirname"], "phase{phase}/{project}/test.txt")
     shell:
         """
         out_dir=$(dirname {output.placeholder})
@@ -113,6 +114,8 @@ rule generate_align_job_file:
             .replace("{init_ref_script_path}", os.path.join(config["scripts_dir"], config["init_ref_script"]))
             .replace("{combined_refs_dir_path}", os.path.join(config["ref_dir"], config["combined_refs_dir"]))
             .replace("{alignment_mode}", str(config["alignment_mode"]))
+            .replace("{unmapped_out_dirname}", str(config["unmapped_out_dirname"]))
+            .replace("{vironator_out_dirname}", str(config["vironator_out_dirname"]))
         )
         
         with open(output.job, "w") as f:
