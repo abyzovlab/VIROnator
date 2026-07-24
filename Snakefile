@@ -25,26 +25,12 @@ targets.append("config/batch_jobexec_resources.config")
 
 # Module 1: Unmapped extraction
 if config.get("unmapped_extraction", "on") == "on":
-    targets.append(
-        os.path.join(
-            config["staff_dir"],
-            config["unmapped_out_dirname"],
-            f"phase{config['phase']}",
-            f"{project_part}test.txt"
-        )
-    )
+    targets.append("config/unmapped_dir.created")
     targets.append("config/ssc_unmapped.job")
 
 # Module 2: Viral DB alignment (VIROnator)
 if config.get("viral_db_alignment", "on") == "on":
-    targets.append(
-        os.path.join(
-            config["staff_dir"],
-            config["vironator_out_dirname"],
-            f"phase{config['phase']}",
-            f"{project_part}test.txt"
-        )
-    )
+    targets.append("config/vironator_dir.created")
     targets.append("config/ssc_align.job")
 
 rule all:

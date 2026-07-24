@@ -6,18 +6,16 @@ project_part = f"{config['project']}/" if config["project"] else ""
 
 rule create_output_directory:
     """
-    Creates the target output directory and copies the placeholder file
-    into it to ensure directory persistence on GCS.
+    Initializes the target unmapped output directory on GCS using gsutil.
     """
     input:
         placeholder=config["placeholder_file"]
     output:
-        placeholder=os.path.join(config["staff_dir"], config["unmapped_out_dirname"], f"phase{config['phase']}", f"{project_part}test.txt")
+        token="config/unmapped_dir.created"
     shell:
         """
-        out_dir=$(dirname {output.placeholder})
-        mkdir -p "$out_dir"
-        cp {input.placeholder} {output.placeholder}
+        gsutil cp {input.placeholder} gs://{config[staff_bucket]}/{config[unmapped_out_dirname]}/phase{config[phase]}/{project_part}test.txt
+        touch {output.token}
         """
 
 rule generate_job_file:
@@ -70,18 +68,16 @@ rule generate_resources_config:
 
 rule create_vironator_directory:
     """
-    Creates the target vironator output directory and copies the placeholder file
-    into it to ensure directory persistence on GCS.
+    Initializes the target vironator output directory on GCS using gsutil.
     """
     input:
         placeholder=config["placeholder_file"]
     output:
-        placeholder=os.path.join(config["staff_dir"], config["vironator_out_dirname"], f"phase{config['phase']}", f"{project_part}test.txt")
+        token="config/vironator_dir.created"
     shell:
         """
-        out_dir=$(dirname {output.placeholder})
-        mkdir -p "$out_dir"
-        cp {input.placeholder} {output.placeholder}
+        gsutil cp {input.placeholder} gs://{config[staff_bucket]}/{config[vironator_out_dirname]}/phase{config[phase]}/{project_part}test.txt
+        touch {output.token}
         """
 
 rule generate_align_job_file:
