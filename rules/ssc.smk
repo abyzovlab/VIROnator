@@ -2,6 +2,8 @@
 
 import os
 
+project_part = f"{config['project']}/" if config["project"] else ""
+
 rule create_output_directory:
     """
     Creates the target output directory and copies the placeholder file
@@ -10,7 +12,7 @@ rule create_output_directory:
     input:
         placeholder=config["placeholder_file"]
     output:
-        placeholder=os.path.join(config["staff_dir"], config["unmapped_out_dirname"], "phase{phase}/{project}/test.txt")
+        placeholder=os.path.join(config["staff_dir"], config["unmapped_out_dirname"], f"phase{config['phase']}", f"{project_part}test.txt")
     shell:
         """
         out_dir=$(dirname {output.placeholder})
@@ -74,7 +76,7 @@ rule create_vironator_directory:
     input:
         placeholder=config["placeholder_file"]
     output:
-        placeholder=os.path.join(config["staff_dir"], config["vironator_out_dirname"], "phase{phase}/{project}/test.txt")
+        placeholder=os.path.join(config["staff_dir"], config["vironator_out_dirname"], f"phase{config['phase']}", f"{project_part}test.txt")
     shell:
         """
         out_dir=$(dirname {output.placeholder})

@@ -15,6 +15,8 @@ if not os.path.exists(samples_list_path):
         f"Samples list file not found at: {samples_list_path}. Please place it in your working directory."
     )
 
+project_part = f"{config['project']}/" if config["project"] else ""
+
 # Build targets dynamically based on config switches
 targets = []
 
@@ -26,7 +28,9 @@ if config.get("unmapped_extraction", "on") == "on":
     targets.append(
         os.path.join(
             config["staff_dir"],
-            f"SSC_hg38_unmapped/phase{config['phase']}/{config['project']}/test.txt"
+            config["unmapped_out_dirname"],
+            f"phase{config['phase']}",
+            f"{project_part}test.txt"
         )
     )
     targets.append("config/ssc_unmapped.job")
@@ -36,7 +40,9 @@ if config.get("viral_db_alignment", "on") == "on":
     targets.append(
         os.path.join(
             config["staff_dir"],
-            f"SSC_hg38_vironator/phase{config['phase']}/{config['project']}/test.txt"
+            config["vironator_out_dirname"],
+            f"phase{config['phase']}",
+            f"{project_part}test.txt"
         )
     )
     targets.append("config/ssc_align.job")
