@@ -71,6 +71,9 @@ clear_input=true
 # commands and scripts (executed in sequence). Executing in $JOBEXEC_PROCESS. 
 commands_start
 
+# Load cluster modules before execution
+module load samtools bwa python jobexec/2.0.1
+
 set -ex
 
 echo "Start: $(date)"
@@ -81,7 +84,11 @@ PHASE="{phase}"
 PROJECT="{project}"
 SAMPLE="[SAMPLE]"
 
-CRAM="{lab_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${SAMPLE}.final.cram"
+if [ -z "${PROJECT}" ]; then
+    CRAM="{lab_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${SAMPLE}.final.cram"
+else
+    CRAM="{lab_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${SAMPLE}.final.cram"
+fi
 OUT_DIR="{staff_dir}/SSC_hg38_unmapped/phase${PHASE}/${PROJECT}"
 OUT_CRAM="${OUT_DIR}/${SAMPLE}.unmapped.cram"
 

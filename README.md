@@ -2,40 +2,66 @@
 
 A tool for sensitive detection of viral presence in human samples sequenced by WGS.
 
-## SSC Unmapped Read Extraction Module
+## SSC Workflow Modules
 
-This module prepares output directories on cloud mounts and configures the batch submission template (`config/ssc.job`) and resource file (`config/batch_jobexec_resources.config`) for a selected project and phase.
+This workflow contains two main modules:
+1. **Unmapped Extraction Module:** Extracts unmapped human reads from CRAM files.
+2. **Viral DB Alignment Module (VIROnator):** Maps unmapped reads to the viral database, filters out decoys/RNA, and runs final read filtering based on targeted BED regions.
 
 ### Configuration Variables
 
-Set these variables in the configuration file `config/ssc_config.yaml` before running the pipeline:
+Configure these settings in the file `config/ssc_config.yaml` before running the pipeline:
 
-* **`phase`**: The target phase of the dataset (e.g., `"4"`).
-* **`project`**: The target project directory containing raw samples (e.g., `"Project_REI_12386_B01_GRM_WGS.cram.2017-06-02"`).
-* **`lab_bucket`**: The source Google Cloud Storage (GCS) bucket where raw CRAM files are stored (mounts to `/mnt/disks/lab`).
-* **`staff_bucket`**: The destination GCS bucket where unmapped output CRAMs are deposited (mounts to `/mnt/disks/staff`).
+#### 1. Common / Joint Variables
+* **`lab_dir` / `staff_dir`**: Directory mount paths.
+* **`placeholder_file`**: GCS folder placeholder (`test.txt`).
+* **`lab_bucket`**: Source GCS bucket where input CRAM files are stored.
+* **`staff_bucket`**: Destination GCS bucket where outputs/logs are deposited.
+* **`module` / `phase` / `project`**: Dataset run metadata.
+* **`samples_list`**: Sample ID list path (the file must have its first line/header written as `SAMPLE`).
+* **`ref_dir`**: Base directory for all reference genomes (GCS mount; all reference files must reside directly in this directory with no subfolders).
+* **`scripts_dir`**: Folder in the repo containing custom python scripts (e.g. `scripts/`).
+* **`db_metadata_dir`**: Folder in the repo containing BED and contig lists (e.g. `config/db_metadata/`).
+
+#### 2. Extraction Variables
+* **`unmapped_extraction`**: Switch (`"on"` or `"off"`) to enable/disable extraction.
+* **`ref_genome`**: Full reference genome path.
+
+#### 3. Alignment Variables
+* **`viral_db_alignment`**: Switch (`"on"` or `"off"`) to enable/disable viral database alignment.
+* **References (`ref_human_no_ebv`, `ref_human_full`, `ref_viral`, etc.)**: Path names relative to `ref_dir`.
+* **Metadata files (`viral_contigs_file`, `viral_bed_file`)**: File names stored in `db_metadata_dir`.
+* **Tool paths (`bwa_bin`)**: Path to BWA binary.
+* **`alignment_mode`**: Select `"align_and_filter"` to run full alignments, or `"filter_only"` to run final read filtering on existing BAMs.
+
+---
 
 ### Usage Instructions
 
 For detailed documentation, see [docs/ssc_extraction.md](docs/ssc_extraction.md).
 
 #### 1. Configure the Run
-Open the configuration file `config/ssc_config.yaml` and set your target phase, project, and GCS buckets.
+Open `config/ssc_config.yaml` and configure target phase, project, buckets, and modules.
 
 #### 2. Run Snakemake
-Execute Snakemake locally to initialize the cloud directories and generate both configured config files:
+Execute Snakemake locally to initialize the cloud directories and generate both configured config/job files:
 ```bash
 snakemake --cores 1
 ```
 
 #### 3. Load Modules
-Load the execution modules on the cluster:
+Load the execution modules:
 ```bash
-module load samtools jobexec/2.0.1
+module load samtools bwa python jobexec/2.0.1
 ```
 
-#### 4. Submit the Batch Job
-Submit the parallel extraction jobs to the cloud:
-```bash
-batchRun -multibatch samples_p4_clean_base -config config/batch_jobexec_resources.config -non-spot config/ssc.job
-```
+#### 4. Submit the Batch Jobs
+Submit the parallel extraction/alignment jobs to the cloud:
+* **For Unmapped Extraction:**
+  ```bash
+  batchRun -multibatch samples_p2_base -config config/batch_jobexec_resources.config -non-spot config/ssc_unmapped.job
+  ```
+* **For Viral Alignment:**
+  ```bash
+  batchRun -multibatch samples_p2_base -config config/batch_jobexec_resources.config -non-spot config/ssc_align.job
+  ```
