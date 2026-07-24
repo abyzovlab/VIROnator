@@ -18,14 +18,17 @@ This workflow contains two main modules:
 ## Setup and Execution
 
 1. **Configure:** Open `config/ssc_config.yaml` to set up run parameters and toggle modules:
-   * **`work_dir`**: The path to your local repository folder (where the sample lists are stored).
-   * **Sample List format**: The sample list file (e.g., `samples_p2_clean_base`) **must** have its first line/header written as `SAMPLE`.
-   * **Module Switches**:
-     - To run extraction only: set `unmapped_extraction: "on"` and `viral_db_alignment: "off"`.
-     - To run alignment only: set `unmapped_extraction: "off"` and `viral_db_alignment: "on"`.
-     - To run both: set both to `"on"`.
+   > [!IMPORTANT]
+   > This pipeline is designed to run on Google Cloud Platform. Ensure that your GCS parameters (such as `lab_bucket`, `staff_bucket`, and project details) are properly configured to point to your GCP cloud buckets.
 
-2. **Initialize:** Run Snakemake locally to create directories and compile job files:
+   * **Module Switches:** Indicate with `"on"` or `"off"` which module you want to run:
+     - `unmapped_extraction`: Toggles the human unmapped reads extraction module.
+     - `viral_db_alignment`: Toggles the viral database alignment module.
+     *The setting you choose determines which batch job files are compiled by Snakemake and which command you run in Step 4.*
+   * **Repository & Working Directory:** It is recommended to set `work_dir` in the YAML to the path of your cloned repository, and place your sample list file (e.g., `samples_p2_base`) directly inside the cloned repository directory to keep paths simple.
+   * **Sample List Format:** The sample list file must have its first line/header written as `SAMPLE`.
+
+2. **Initialize:** Run Snakemake locally to compile the configurations:
    ```bash
    snakemake --cores 1
    ```
@@ -36,13 +39,14 @@ This workflow contains two main modules:
    ```
 
 4. **Submit Batch Jobs:**
+   Based on the module you set to `"on"` in Step 1, run the corresponding command:
    - **For Unmapped Extraction:**
      ```bash
-     batchRun -multibatch ../samples_p2_base -config config/batch_jobexec_resources.config -non-spot config/ssc_unmapped.job -investigator MDJ -pau 0
+     batchRun -multibatch <samples_file> -config config/batch_jobexec_resources.config -non-spot config/ssc_unmapped.job -investigator <pi_id> -pau <pau_id>
      ```
    - **For Viral Alignment:**
      ```bash
-     batchRun -multibatch ../samples_p2_base -config config/batch_jobexec_resources.config -non-spot config/ssc_align.job -investigator MDJ -pau 0
+     batchRun -multibatch <samples_file> -config config/batch_jobexec_resources.config -non-spot config/ssc_align.job -investigator <pi_id> -pau <pau_id>
      ```
 
 ---

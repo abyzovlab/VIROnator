@@ -41,29 +41,38 @@ Configure these settings in the file `config/ssc_config.yaml` before running the
 For detailed documentation, see [docs/ssc_extraction.md](docs/ssc_extraction.md).
 
 #### 1. Configure the Run
-Open `config/ssc_config.yaml` and configure target phase, project, buckets, and modules.
+Open `config/ssc_config.yaml` to set up run parameters and toggle modules:
+> [!IMPORTANT]
+> This pipeline is designed to run on Google Cloud Platform. Ensure that your GCS parameters (such as `lab_bucket`, `staff_bucket`, and project details) are properly configured to point to your GCP cloud buckets.
+
+* **Module Switches:** Indicate with `"on"` or `"off"` which module you want to run:
+  - `unmapped_extraction`: Toggles the human unmapped reads extraction module.
+  - `viral_db_alignment`: Toggles the viral database alignment module.
+  *Toggling these determines which batch job files are compiled by Snakemake and which command you run in Step 4.*
+* **Repository & Working Directory:** It is recommended to set `work_dir` in the YAML to the path of your cloned repository, and place your sample list file (e.g., `samples_p2_base`) directly inside the cloned repository directory to keep paths simple.
+* **Sample List Format:** The sample list file must have its first line/header written as `SAMPLE`.
 
 #### 2. Run Snakemake
-Execute Snakemake locally to initialize the cloud directories and generate both configured config/job files:
+Execute Snakemake locally to compile the configurations:
 ```bash
 snakemake --cores 1
 ```
 
 #### 3. Load Modules
-Load the execution modules:
+Load the execution modules on the head node:
 ```bash
 module load samtools bwa python jobexec/2.0.1
 ```
 
 #### 4. Submit the Batch Jobs
-Submit the parallel extraction/alignment jobs to the cloud:
+Based on the module you set to `"on"` in Step 1, run the corresponding command:
 * **For Unmapped Extraction:**
   ```bash
-  batchRun -multibatch ../samples_p2_base -config config/batch_jobexec_resources.config -non-spot config/ssc_unmapped.job -investigator MDJ -pau 0
+  batchRun -multibatch <samples_file> -config config/batch_jobexec_resources.config -non-spot config/ssc_unmapped.job -investigator <pi_id> -pau <pau_id>
   ```
 * **For Viral Alignment:**
   ```bash
-  batchRun -multibatch ../samples_p2_base -config config/batch_jobexec_resources.config -non-spot config/ssc_align.job -investigator MDJ -pau 0
+  batchRun -multibatch <samples_file> -config config/batch_jobexec_resources.config -non-spot config/ssc_align.job -investigator <pi_id> -pau <pau_id>
   ```
 
 ---

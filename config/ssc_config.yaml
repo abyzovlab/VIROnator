@@ -62,7 +62,7 @@ ref_genome: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla_modif
 # ==============================================================================
 # 3. VIRAL DB ALIGNMENT MODULE (VIROnator)
 # ==============================================================================
-viral_db_alignment: "on"  # Switch: "on" or "off"
+viral_db_alignment: "off"  # Switch: "on" or "off"
 
 # Alignment References and Databases (relative to ref_dir)
 ref_human_no_ebv: "GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.fa"
