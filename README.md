@@ -7,34 +7,6 @@ This workflow works modularly to process and align sequencing datasets. It consi
 1. **Unmapped Extraction Module:** Extracts unmapped human reads from CRAM files. This preprocesses the reads for subsequent viral analysis.
 2. **Viral DB Alignment Module (VIROnator):** Maps the preprocessed unmapped reads to the viral database, filters out decoy/RNA sequences, and runs final read filtering based on targeted BED regions.
 
-### Configuration Variables
-
-Configure these settings in the file `config/ssc_config.yaml` before running the pipeline:
-
-#### 1. Common / Joint Variables
-* **`data_dir` / `output_dir`**: local folder mount paths. `data_dir` is the path where raw input datasets (BAM/CRAM files) are stored/mounted. `output_dir` is the path where the preprocessed unmapped reads and all final output files will be written.
-* **`placeholder_file`**: An empty text file (e.g. `test.txt`) used for creating the file structure/hierarchy on Google Cloud Storage (GCS). Because GCS is an object store, directories do not exist on the cloud unless they contain at least one file.
-* **`data_bucket`**: The name of the source GCS bucket where input CRAM files are stored.
-* **`output_bucket`**: The name of the destination GCS bucket where outputs/logs are deposited. (Note: this is the name of the cloud bucket itself, whereas `output_dir` is the local directory path on the server where this bucket is mounted).
-* **`module` / `phase` / `project`**: Dataset run metadata.
-* **`samples_list`**: Sample ID list path (the file must have its first line/header written as `SAMPLE`).
-* **`ref_dir`**: Base directory for all reference genomes (GCS mount; all reference files must reside directly in this directory with no subfolders).
-* **`scripts_dir`**: Folder in the repo containing custom python scripts (e.g. `scripts/`).
-* **`db_metadata_dir`**: Folder in the repo containing BED and contig lists (e.g. `config/db_metadata/`).
-
-#### 2. Extraction Variables (Configure ONLY if running the Unmapped Extraction module)
-* **`unmapped_extraction`**: Switch (`"on"` or `"off"`) to enable/disable extraction.
-* **`ref_genome`**: Full reference genome path.
-
-#### 3. Alignment Variables (Configure if running the Alignment module OR both Extraction + Alignment)
-* **`viral_db_alignment`**: Switch (`"on"` or `"off"`) to enable/disable viral database alignment.
-* **References (`ref_human_no_ebv`, `ref_human_full`, `ref_viral`, etc.)**: Path names relative to `ref_dir`.
-* **Metadata files (`viral_contigs_file`, `viral_bed_file`)**: File names stored in `db_metadata_dir`.
-* **Tool paths (`bwa_bin`)**: Path to BWA binary.
-* **`alignment_mode`**: Select `"align_and_filter"` to run full alignments, or `"filter_only"` to run final read filtering on existing BAMs.
-
----
-
 ### Usage Instructions
 
 For detailed documentation, see [docs/ssc_extraction.md](docs/ssc_extraction.md).
@@ -57,22 +29,33 @@ Before configuring any files, run these steps in your terminal:
      ```
 
 #### Phase 2: Configure your Settings
-Open `config/ssc_config.yaml` in a text editor. Here are the key variables you need to configure and what they mean in plain language:
+Open `config/ssc_config.yaml` in a text editor. Configure these settings before running the pipeline:
 
 > [!IMPORTANT]
 > This pipeline is designed to run on Google Cloud Platform. Ensure that your GCS parameters (such as `data_bucket`, `output_bucket`, and project details) are properly configured to point to your GCP cloud buckets.
 
-##### Global Settings:
-* **`data_bucket`**: The name of your Google Cloud storage bucket where the raw input dataset (CRAM files) is stored.
-* **`output_bucket`**: The name of your Google Cloud storage bucket where you want all output files, results, and logs to be saved.
+##### 1. Common / Joint Variables
+* **`data_dir` / `output_dir`**: local folder mount paths. `data_dir` is the path where raw input datasets (BAM/CRAM files) are stored/mounted. `output_dir` is the path where the preprocessed unmapped reads and all final output files will be written.
+* **`placeholder_file`**: An empty text file (e.g. `test.txt`) used for creating the file structure/hierarchy on Google Cloud Storage (GCS). Because GCS is an object store, directories do not exist on the cloud unless they contain at least one file.
+* **`data_bucket`**: The name of the source GCS bucket where input CRAM files are stored.
+* **`output_bucket`**: The name of the destination GCS bucket where outputs/logs are deposited. (Note: this is the name of the cloud bucket itself, whereas `output_dir` is the local directory path on the server where this bucket is mounted).
+* **`module` / `phase` / `project`**: Dataset run metadata.
+* **`samples_list`**: Sample ID list path (the file must have its first line/header written as `SAMPLE` and be copied into the repository folder as specified in Phase 1).
 * **`work_dir`**: The absolute path to your cloned repository folder on your machine (e.g., `/home/user/working/VIROnator`).
-* **`samples_list`**: The name of the sample list file you copied into the repository in Phase 1 (e.g., `samples_p2_base`).
+* **`ref_dir`**: Base directory for all reference genomes (GCS mount; all reference files must reside directly in this directory with no subfolders).
+* **`scripts_dir`**: Folder in the repo containing custom python scripts (e.g. `scripts/`).
+* **`db_metadata_dir`**: Folder in the repo containing BED and contig lists (e.g. `config/db_metadata/`).
 
-##### Module Toggles (ON / OFF):
-You specify which parts of the pipeline to run by setting these switches to `"on"` or `"off"`:
-* **`unmapped_extraction`**: Set to `"on"` to extract human unmapped reads from CRAM files. Set to `"off"` to skip this step.
-* **`viral_db_alignment`**: Set to `"on"` to align the preprocessed unmapped reads to the viral database. Set to `"off"` to skip this step.
-* *Toggling these determines which batch job files Snakemake compiles and which command you run in Step 4.*
+##### 2. Extraction Variables (Configure ONLY if running the Unmapped Extraction module)
+* **`unmapped_extraction`**: Switch (`"on"` or `"off"`) to enable/disable extraction.
+* **`ref_genome`**: Full reference genome path.
+
+##### 3. Alignment Variables (Configure if running the Alignment module OR both Extraction + Alignment)
+* **`viral_db_alignment`**: Switch (`"on"` or `"off"`) to enable/disable viral database alignment.
+* **References (`ref_human_no_ebv`, `ref_human_full`, `ref_viral`, etc.)**: Path names relative to `ref_dir`.
+* **Metadata files (`viral_contigs_file`, `viral_bed_file`)**: File names stored in `db_metadata_dir`.
+* **Tool paths (`bwa_bin`)**: Path to BWA binary.
+* **`alignment_mode`**: Select `"align_and_filter"` to run full alignments, or `"filter_only"` to run final read filtering on existing BAMs.
 
 #### Phase 3: Compile and Execute
 
