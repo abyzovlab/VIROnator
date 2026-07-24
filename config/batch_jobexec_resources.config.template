@@ -20,6 +20,6 @@ boot_storage=50
 container=us-central1-docker.pkg.dev/ml-fpt-rsa-aproject1-p-581c/gsu1/jobexec-rocky8:0.2.6
 
 ## Google Cloud Storage (GCS) Paths & Mounts
-path=gs://{staff_bucket}/{unmapped_jobexec_dirname}
-mapped_bucket={staff_bucket}:/mnt/disks/staff
-mapped_bucket={lab_bucket}:/mnt/disks/lab
+path=gs://{output_bucket}/{unmapped_jobexec_dirname}
+mapped_bucket={output_bucket}:/mnt/disks/staff
+mapped_bucket={data_bucket}:/mnt/disks/lab

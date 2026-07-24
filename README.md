@@ -2,11 +2,10 @@
 
 A tool for sensitive detection of viral presence in human samples sequenced by WGS.
 
-## SSC Workflow Modules
+This workflow works modularly to process and align sequencing datasets. It consists of two sequential modules whose parameters and execution are fully controlled by the user via the configuration file (`config/ssc_config.yaml`):
 
-This workflow contains two main modules:
-1. **Unmapped Extraction Module:** Extracts unmapped human reads from CRAM files.
-2. **Viral DB Alignment Module (VIROnator):** Maps unmapped reads to the viral database, filters out decoys/RNA, and runs final read filtering based on targeted BED regions.
+1. **Unmapped Extraction Module:** Extracts unmapped human reads from CRAM files. This preprocesses the reads for subsequent viral analysis.
+2. **Viral DB Alignment Module (VIROnator):** Maps the preprocessed unmapped reads to the viral database, filters out decoy/RNA sequences, and runs final read filtering based on targeted BED regions.
 
 ### Configuration Variables
 
@@ -15,8 +14,8 @@ Configure these settings in the file `config/ssc_config.yaml` before running the
 #### 1. Common / Joint Variables
 * **`lab_dir` / `staff_dir`**: Directory mount paths.
 * **`placeholder_file`**: GCS folder placeholder (`test.txt`).
-* **`lab_bucket`**: Source GCS bucket where input CRAM files are stored.
-* **`staff_bucket`**: Destination GCS bucket where outputs/logs are deposited.
+* **`data_bucket`**: Source GCS bucket where input CRAM files are stored.
+* **`output_bucket`**: Destination GCS bucket where outputs/logs are deposited.
 * **`module` / `phase` / `project`**: Dataset run metadata.
 * **`samples_list`**: Sample ID list path (the file must have its first line/header written as `SAMPLE`).
 * **`ref_dir`**: Base directory for all reference genomes (GCS mount; all reference files must reside directly in this directory with no subfolders).
@@ -40,29 +39,52 @@ Configure these settings in the file `config/ssc_config.yaml` before running the
 
 For detailed documentation, see [docs/ssc_extraction.md](docs/ssc_extraction.md).
 
-#### 1. Configure the Run
-Open `config/ssc_config.yaml` to set up run parameters and toggle modules:
+### Step-by-Step Setup
+
+#### Phase 1: Prepare your Workspace
+Before configuring any files, run these steps in your terminal:
+1. **Clone the repository:** Clone the `VIROnator` repository to your environment.
+2. **Move into the repository folder:**
+   ```bash
+   cd VIROnator
+   ```
+3. **Copy your sample list file here:** Copy the file containing the list of sample IDs you want to process directly into this cloned `VIROnator` folder.
+   * **What is in this file?** It is a simple text file listing one sample ID per line. The very first line (header) of the file **must** be the word `SAMPLE`. For example:
+     ```text
+     SAMPLE
+     sample_id_1
+     sample_id_2
+     ```
+
+#### Phase 2: Configure your Settings
+Open `config/ssc_config.yaml` in a text editor. Here are the key variables you need to configure and what they mean in plain language:
+
 > [!IMPORTANT]
-> This pipeline is designed to run on Google Cloud Platform. Ensure that your GCS parameters (such as `lab_bucket`, `staff_bucket`, and project details) are properly configured to point to your GCP cloud buckets.
+> This pipeline is designed to run on Google Cloud Platform. Ensure that your GCS parameters (such as `data_bucket`, `output_bucket`, and project details) are properly configured to point to your GCP cloud buckets.
 
-* **Module Switches:** Indicate with `"on"` or `"off"` which module you want to run:
-  - `unmapped_extraction`: Toggles the human unmapped reads extraction module.
-  - `viral_db_alignment`: Toggles the viral database alignment module.
-  *Toggling these determines which batch job files are compiled by Snakemake and which command you run in Step 4.*
-* **Repository & Working Directory:** It is recommended to set `work_dir` in the YAML to the path of your cloned repository, and place your sample list file (e.g., `samples_p2_base`) directly inside the cloned repository directory to keep paths simple.
-* **Sample List Format:** The sample list file must have its first line/header written as `SAMPLE`.
+##### Global Settings:
+* **`data_bucket`**: The name of your Google Cloud storage bucket where the raw input dataset (CRAM files) is stored.
+* **`output_bucket`**: The name of your Google Cloud storage bucket where you want all output files, results, and logs to be saved.
+* **`work_dir`**: The absolute path to your cloned repository folder on your machine (e.g., `/home/user/working/VIROnator`).
+* **`samples_list`**: The name of the sample list file you copied into the repository in Phase 1 (e.g., `samples_p2_base`).
 
-#### 2. Run Snakemake
-Execute Snakemake locally to compile the configurations:
-```bash
-snakemake --cores 1
-```
+##### Module Toggles (ON / OFF):
+You specify which parts of the pipeline to run by setting these switches to `"on"` or `"off"`:
+* **`unmapped_extraction`**: Set to `"on"` to extract human unmapped reads from CRAM files. Set to `"off"` to skip this step.
+* **`viral_db_alignment`**: Set to `"on"` to align the preprocessed unmapped reads to the viral database. Set to `"off"` to skip this step.
+* *Toggling these determines which batch job files Snakemake compiles and which command you run in Step 4.*
 
-#### 3. Load Modules
-Load the execution modules on the head node:
-```bash
-module load samtools bwa python jobexec/2.0.1
-```
+#### Phase 3: Compile and Execute
+
+1. **Run Snakemake:** Execute Snakemake locally to compile the configurations:
+   ```bash
+   snakemake --cores 1
+   ```
+
+2. **Load Modules:** Load the execution modules on the head node:
+   ```bash
+   module load samtools bwa python jobexec/2.0.1
+   ```
 
 #### 4. Submit the Batch Jobs
 Based on the module you set to `"on"` in Step 1, run the corresponding command:

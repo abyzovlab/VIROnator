@@ -1,8 +1,9 @@
 # SSC Dataset Extraction & Alignment Workflow
 
-This workflow contains two main modules:
-1. **Unmapped Extraction Module:** Extracts unmapped human reads from CRAM files.
-2. **Viral DB Alignment Module (VIROnator):** Maps unmapped reads to the viral database, filters out decoys/RNA, and runs final read filtering based on targeted BED regions.
+This tool works modularly to process and align sequencing datasets. It consists of two sequential modules whose parameters and execution are fully controlled by the user via the configuration file (`config/ssc_config.yaml`):
+
+1. **Unmapped Extraction Module:** Extracts unmapped human reads from CRAM files. This preprocesses the reads for subsequent viral analysis.
+2. **Viral DB Alignment Module (VIROnator):** Maps the preprocessed unmapped reads to the viral database, filters out decoy/RNA sequences, and runs final read filtering based on targeted BED regions.
 
 ## Prerequisites
 - Snakemake
@@ -17,23 +18,47 @@ This workflow contains two main modules:
 
 ## Setup and Execution
 
-1. **Configure:** Open `config/ssc_config.yaml` to set up run parameters and toggle modules:
-   > [!IMPORTANT]
-   > This pipeline is designed to run on Google Cloud Platform. Ensure that your GCS parameters (such as `lab_bucket`, `staff_bucket`, and project details) are properly configured to point to your GCP cloud buckets.
+### Phase 1: Prepare your Workspace
+Before configuring any files, run these steps in your terminal:
+1. **Clone the repository:** Clone the `VIROnator` repository to your environment.
+2. **Move into the repository folder:**
+   ```bash
+   cd VIROnator
+   ```
+3. **Copy your sample list file here:** Copy the file containing the list of sample IDs you want to process directly into this cloned `VIROnator` folder.
+   * **What is in this file?** It is a simple text file listing one sample ID per line. The very first line (header) of the file **must** be the word `SAMPLE`. For example:
+     ```text
+     SAMPLE
+     sample_id_1
+     sample_id_2
+     ```
 
-   * **Module Switches:** Indicate with `"on"` or `"off"` which module you want to run:
-     - `unmapped_extraction`: Toggles the human unmapped reads extraction module.
-     - `viral_db_alignment`: Toggles the viral database alignment module.
-     *The setting you choose determines which batch job files are compiled by Snakemake and which command you run in Step 4.*
-   * **Repository & Working Directory:** It is recommended to set `work_dir` in the YAML to the path of your cloned repository, and place your sample list file (e.g., `samples_p2_base`) directly inside the cloned repository directory to keep paths simple.
-   * **Sample List Format:** The sample list file must have its first line/header written as `SAMPLE`.
+### Phase 2: Configure your Settings
+Open `config/ssc_config.yaml` in a text editor. Here are the key variables you need to configure and what they mean in plain language:
 
-2. **Initialize:** Run Snakemake locally to compile the configurations:
+> [!IMPORTANT]
+> This pipeline is designed to run on Google Cloud Platform. Ensure that your GCS parameters (such as `data_bucket`, `output_bucket`, and project details) are properly configured to point to your GCP cloud buckets.
+
+#### Global Settings:
+* **`data_bucket`**: The name of your Google Cloud storage bucket where the raw input dataset (CRAM files) is stored.
+* **`output_bucket`**: The name of your Google Cloud storage bucket where you want all output files, results, and logs to be saved.
+* **`work_dir`**: The absolute path to your cloned repository folder on your machine (e.g., `/home/user/working/VIROnator`).
+* **`samples_list`**: The name of the sample list file you copied into the repository in Phase 1 (e.g., `samples_p2_base`).
+
+#### Module Toggles (ON / OFF):
+You specify which parts of the pipeline to run by setting these switches to `"on"` or `"off"`:
+* **`unmapped_extraction`**: Set to `"on"` to extract human unmapped reads from CRAM files. Set to `"off"` to skip this step.
+* **`viral_db_alignment`**: Set to `"on"` to align the preprocessed unmapped reads to the viral database. Set to `"off"` to skip this step.
+* *Toggling these determines which batch job files Snakemake compiles and which command you run in Step 4.*
+
+### Phase 3: Compile and Execute
+
+1. **Initialize:** Run Snakemake locally to compile the configurations:
    ```bash
    snakemake --cores 1
    ```
 
-3. **Load Environment:** Load the required environment modules:
+2. **Load Environment:** Load the required environment modules:
    ```bash
    module load samtools bwa python jobexec/2.0.1
    ```

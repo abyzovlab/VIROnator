@@ -7,10 +7,10 @@ work_dir: "/home/ext_djonovic_milana_mayo_edu/working"
 placeholder_file: "test.txt"
 
 # Google Cloud Storage (GCS) Buckets
-# - lab_bucket: Source bucket where raw CRAM files are stored (mounts to /mnt/disks/lab)
-# - staff_bucket: Destination bucket where outputs are deposited (mounts to /mnt/disks/staff)
-lab_bucket: "ml-phi-abyzov-alexej-m124423-rsa-us-central1-p-d3c4"
-staff_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"
+# - data_bucket: Source GCS bucket where raw CRAM files are stored (mounts to /mnt/disks/lab)
+# - output_bucket: Destination GCS bucket where outputs are deposited (mounts to /mnt/disks/staff)
+data_bucket: "ml-phi-abyzov-alexej-m124423-rsa-us-central1-p-d3c4"
+output_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"
 
 # GCP Service Account & Billing Parameters
 gcp_account: "vaults6-m277455-p-1733249128@ml-fpt-rsa-aproject1-p-581c.iam.gserviceaccount.com"
@@ -22,7 +22,7 @@ task_name: "mdj_test"
 unmapped_out_dirname: "SSC_hg38_unmapped"
 vironator_out_dirname: "SSC_hg38_vironator"
 
-# Jobexec orchestrator folder names (located in staff_bucket)
+# Jobexec orchestrator folder names (located in output_bucket)
 unmapped_jobexec_dirname: "jobexec_unmapped"
 vironator_jobexec_dirname: "jobexec_vironator"
 

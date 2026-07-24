@@ -15,7 +15,7 @@ rule create_output_directory:
         token="config/unmapped_dir.created"
     shell:
         """
-        gsutil cp {input.placeholder} gs://{config[staff_bucket]}/{config[unmapped_out_dirname]}/phase{config[phase]}/{project_part}test.txt
+        gsutil cp {input.placeholder} gs://{config[output_bucket]}/{config[unmapped_out_dirname]}/phase{config[phase]}/{project_part}test.txt
         touch {output.token}
         """
 
@@ -40,7 +40,7 @@ rule generate_job_file:
             .replace("{ref_genome}", str(config["ref_genome"]))
             .replace("{lab_dir}", str(config["lab_dir"]))
             .replace("{staff_dir}", str(config["staff_dir"]))
-            .replace("{staff_bucket}", str(config["staff_bucket"]))
+            .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{unmapped_out_dirname}", str(config["unmapped_out_dirname"]))
             .replace("{unmapped_jobexec_dirname}", str(config["unmapped_jobexec_dirname"]))
         )
@@ -63,8 +63,8 @@ rule generate_resources_config:
             content = f.read()
         
         formatted_content = (
-            content.replace("{staff_bucket}", str(config["staff_bucket"]))
-            .replace("{lab_bucket}", str(config["lab_bucket"]))
+            content.replace("{output_bucket}", str(config["output_bucket"]))
+            .replace("{data_bucket}", str(config["data_bucket"]))
             .replace("{gcp_account}", str(config["gcp_account"]))
             .replace("{pi}", str(config["pi"]))
             .replace("{pau}", str(config["pau"]))
@@ -86,7 +86,7 @@ rule create_vironator_directory:
         token="config/vironator_dir.created"
     shell:
         """
-        gsutil cp {input.placeholder} gs://{config[staff_bucket]}/{config[vironator_out_dirname]}/phase{config[phase]}/{project_part}test.txt
+        gsutil cp {input.placeholder} gs://{config[output_bucket]}/{config[vironator_out_dirname]}/phase{config[phase]}/{project_part}test.txt
         touch {output.token}
         """
 
@@ -108,7 +108,7 @@ rule generate_align_job_file:
         formatted_content = (
             content.replace("{phase}", str(config["phase"]))
             .replace("{project}", str(config["project"]))
-            .replace("{staff_bucket}", str(config["staff_bucket"]))
+            .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{staff_dir}", str(config["staff_dir"]))
             .replace("{ref_human_full}", os.path.join(config["ref_dir"], config["ref_human_full"]))
             .replace("{ref_human_no_ebv}", os.path.join(config["ref_dir"], config["ref_human_no_ebv"]))
