@@ -9,7 +9,8 @@ rule create_output_directory:
     Initializes the target unmapped output directory on GCS using gsutil.
     """
     input:
-        placeholder=config["placeholder_file"]
+        placeholder=config["placeholder_file"],
+        config="config/ssc_config.yaml"
     output:
         token="config/unmapped_dir.created"
     shell:
@@ -24,7 +25,8 @@ rule generate_job_file:
     by substituting variables defined in the Snakemake configuration.
     """
     input:
-        template="config/ssc_unmapped.job.template"
+        template="config/ssc_unmapped.job.template",
+        config="config/ssc_config.yaml"
     output:
         job="config/ssc_unmapped.job"
     run:
@@ -52,7 +54,8 @@ rule generate_resources_config:
     by substituting the GCS bucket variables defined in the Snakemake configuration.
     """
     input:
-        template="config/batch_jobexec_resources.config.template"
+        template="config/batch_jobexec_resources.config.template",
+        config="config/ssc_config.yaml"
     output:
         config="config/batch_jobexec_resources.config"
     run:
@@ -77,7 +80,8 @@ rule create_vironator_directory:
     Initializes the target vironator output directory on GCS using gsutil.
     """
     input:
-        placeholder=config["placeholder_file"]
+        placeholder=config["placeholder_file"],
+        config="config/ssc_config.yaml"
     output:
         token="config/vironator_dir.created"
     shell:
@@ -92,7 +96,8 @@ rule generate_align_job_file:
     by substituting variables defined in the Snakemake configuration.
     """
     input:
-        template="config/ssc_align.job.template"
+        template="config/ssc_align.job.template",
+        config="config/ssc_config.yaml"
     output:
         job="config/ssc_align.job"
     run:
