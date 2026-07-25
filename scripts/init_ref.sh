@@ -17,11 +17,49 @@ while [[ "$#" -gt 0 ]]; do case $1 in
   *) echo "Unknown parameter passed: $1"; exit 1;;
 esac; shift; done
 
-# Auto-discover bwa if the configured path is not found
-if ! command -v "${BWA_BIN}" &> /dev/null; then
-    BWA_BIN=$(which bwa 2>/dev/null || echo "bwa")
+# Multi-stage auto-discovery for bwa executable
+resolve_bwa() {
+    local target="$1"
+    if [ -n "$target" ] && command -v "$target" &>/dev/null; then
+        echo "$target"
+        return 0
+    fi
+    if command -v bwa &>/dev/null; then
+        which bwa
+        return 0
+    fi
+    for path in \
+        "/usr/local/bin/bwa" \
+        "/usr/bin/bwa" \
+        "/opt/conda/bin/bwa" \
+        "/opt/conda/envs/vironator/bin/bwa" \
+        "$HOME/miniconda3/bin/bwa" \
+        "$HOME/miniconda3/envs/vironator/bin/bwa" \
+        "$HOME/anaconda3/bin/bwa" \
+        "$HOME/anaconda3/envs/vironator/bin/bwa"
+    do
+        if [ -x "$path" ]; then
+            echo "$path"
+            return 0
+        fi
+    done
+    local found
+    found=$(find /opt /usr /home /root -name "bwa" -type f 2>/dev/null | head -n 1)
+    if [ -n "$found" ] && [ -x "$found" ]; then
+        echo "$found"
+        return 0
+    fi
+    return 1
+}
+
+BWA_RESOLVED=$(resolve_bwa "${BWA_BIN}")
+if [ $? -eq 0 ] && [ -n "${BWA_RESOLVED}" ]; then
+    BWA_BIN="${BWA_RESOLVED}"
+    echo "Using BWA binary: ${BWA_BIN}"
+else
+    echo "ERROR: Could not locate bwa executable." >&2
+    exit 127
 fi
-echo "Using BWA binary: ${BWA_BIN}"
 
 if [ "$ARG_REF" == "" ]; then
   echo
