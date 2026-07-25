@@ -84,20 +84,6 @@ VIRAL_CONTIGS="{viral_contigs_path}"
 VIRAL_BED="{viral_bed_path}"
 
 BWA_BIN="{bwa_bin}"
-
-# Resolve full path to bwa executable
-if [ -x "${BWA_BIN}" ]; then
-    echo "Using BWA binary from config: ${BWA_BIN}"
-else
-    BWA_PATH=$(which bwa 2>/dev/null)
-    if [ -n "${BWA_PATH}" ] && [ -x "${BWA_PATH}" ]; then
-        BWA_BIN="${BWA_PATH}"
-        echo "Using BWA binary from PATH: ${BWA_BIN}"
-    else
-        echo "ERROR: Could not find executable bwa in PATH. Ensure 'module load bwa' or environment setup is active before running." >&2
-        exit 127
-    fi
-fi
 EXOGENE_PYTHON_DIR="{exogene_python_dir}"
 INIT_REF_SCRIPT="{init_ref_script_path}"
 COMBINED_REFS_DIR="{combined_refs_dir_path}"

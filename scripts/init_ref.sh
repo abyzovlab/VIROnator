@@ -17,19 +17,7 @@ while [[ "$#" -gt 0 ]]; do case $1 in
   *) echo "Unknown parameter passed: $1"; exit 1;;
 esac; shift; done
 
-# Resolve full path to bwa executable
-if [ -x "${BWA_BIN}" ]; then
-    echo "Using BWA binary from argument/config: ${BWA_BIN}"
-else
-    BWA_PATH=$(which bwa 2>/dev/null)
-    if [ -n "${BWA_PATH}" ] && [ -x "${BWA_PATH}" ]; then
-        BWA_BIN="${BWA_PATH}"
-        echo "Using BWA binary from PATH: ${BWA_BIN}"
-    else
-        echo "ERROR: Could not find executable bwa in PATH. Ensure 'module load bwa' or environment setup is active before running." >&2
-        exit 127
-    fi
-fi
+
 
 if [ "$ARG_REF" == "" ]; then
   echo
