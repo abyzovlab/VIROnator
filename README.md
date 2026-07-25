@@ -130,6 +130,6 @@ Before running a full production pipeline, it is recommended to run a test run t
 
 ---
 
-### ⚠️ Sample List Path Resolution
+### Sample List Path Resolution
 * **Relative Paths:** If you specify a relative path for `samples_list` (e.g., `"samples_p2_base"`), Snakemake dynamically appends it to the `work_dir` configured in the YAML file (e.g. `work_dir/samples_p2_base`).
 * **Absolute Paths:** If your samples list is stored outside the working directory, you must provide an absolute path starting with `/` (e.g. `/home/user/working/samples_p2_base`) to bypass automatic appending.
