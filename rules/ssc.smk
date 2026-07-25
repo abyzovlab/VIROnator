@@ -92,11 +92,11 @@ rule create_vironator_directory:
 
 rule generate_align_job_file:
     """
-    Generates the final ssc_align.job file from ssc_align.job.template inside the config directory
+    Generates the final ssc_align.job file from ssc_alignment.job.template inside the config directory
     by substituting variables defined in the Snakemake configuration.
     """
     input:
-        template="config/ssc_align.job.template",
+        template="config/ssc_alignment.job.template",
         config_file="config/ssc_config.yaml"
     output:
         job="config/ssc_align.job"

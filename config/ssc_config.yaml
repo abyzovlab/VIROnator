@@ -77,7 +77,7 @@ viral_contigs_file: "HumanViral_Reference_02-07-2022_contigs.fa"
 viral_bed_file: "HumanViral_Reference_02-07-2022.bed"
 
 # Tool paths and script names (scripts are stored in scripts_dir)
-bwa_bin: "bwa"
+bwa_bin: "/mnt/disks/staff/bin/bwa"
 init_ref_script: "init_ref.sh"
 combined_refs_dir: "."  # Output folder for combined reference (resolves directly to ref_dir)
 

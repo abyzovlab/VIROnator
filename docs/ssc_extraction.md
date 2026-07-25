@@ -78,7 +78,7 @@ VIROnator/                                    <-- Cloned Repository folder (This
 │   ├── ssc_config.yaml                       <-- Main configuration file (Your settings go here)
 │   ├── batch_jobexec_resources.config.template
 │   ├── ssc_unmapped.job.template
-│   └── ssc_align.job.template
+│   └── ssc_alignment.job.template
 │
 ├── config/db_metadata/                       <-- Database region coordinate folder (db_metadata_dir)
 │   ├── targeted_contigs.txt                  <-- List of target viral chromosomes
