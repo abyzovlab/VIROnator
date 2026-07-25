@@ -85,74 +85,18 @@ VIRAL_BED="{viral_bed_path}"
 
 BWA_BIN="{bwa_bin}"
 
-# Multi-stage auto-discovery for bwa executable (supports Modules, Conda, System paths, and HPC dirs)
-resolve_bwa() {
-    local target="$1"
-    # 1. If explicit user path provided and executable, use it
-    if [ -n "$target" ] && [ "$target" != "bwa" ] && command -v "$target" &>/dev/null; then
-        echo "$target"
-        return 0
-    fi
-    # 2. Check current PATH
-    if command -v bwa &>/dev/null; then
-        which bwa
-        return 0
-    fi
-    # 3. Try loading module if environment-modules / Lmod available
-    if [ -f /etc/profile.d/modules.sh ]; then
-        source /etc/profile.d/modules.sh 2>/dev/null
-    fi
-    if type module &>/dev/null || command -v module &>/dev/null; then
-        module load bwa 2>/dev/null || module load bwa/0.7.17 2>/dev/null
-        if command -v bwa &>/dev/null; then
-            which bwa
-            return 0
-        fi
-    fi
-    # 4. Search standard system & HPC software paths
-    for path in \
-        "/usr/local/bin/bwa" \
-        "/usr/bin/bwa" \
-        "/apps/bwa/bin/bwa" \
-        "/software/bwa/bin/bwa" \
-        "/sw/bin/bwa" \
-        "/opt/bwa/bin/bwa" \
-        "/opt/conda/bin/bwa" \
-        "/opt/conda/envs/vironator/bin/bwa" \
-        "/Users/djonovic.milana/miniconda3/envs/vironator/bin/bwa" \
-        "$HOME/miniconda3/envs/vironator/bin/bwa"
-    do
-        if [ -x "$path" ]; then
-            echo "$path"
-            return 0
-        fi
-    done
-
-    # 5. Wildcard glob search in HPC / app / lab directories
-    local glob_match
-    glob_match=$(ls -1 /apps/*/bin/bwa /software/*/bin/bwa /sw/*/bin/bwa /research/*/*/bin/bwa /Users/*/*/bin/bwa 2>/dev/null | head -n 1)
-    if [ -n "$glob_match" ] && [ -x "$glob_match" ]; then
-        echo "$glob_match"
-        return 0
-    fi
-
-    # 6. Deep search across root / HPC mounts
-    local found
-    found=$(find /apps /software /sw /usr /opt /research /mnt /Users /home /root -maxdepth 6 -name "bwa" -type f 2>/dev/null | head -n 1)
-    if [ -n "$found" ] && [ -x "$found" ]; then
-        echo "$found"
-        return 0
-    fi
-    return 1
-}
-
-BWA_RESOLVED=$(resolve_bwa "${BWA_BIN}")
-if [ $? -eq 0 ] && [ -n "${BWA_RESOLVED}" ]; then
-    BWA_BIN="${BWA_RESOLVED}"
-    echo "Using BWA binary: ${BWA_BIN}"
+# Resolve full path to bwa executable
+if [ -x "${BWA_BIN}" ]; then
+    echo "Using BWA binary from config: ${BWA_BIN}"
 else
-    echo "ERROR: Could not locate bwa executable." >&2
-    exit 127
+    BWA_PATH=$(which bwa 2>/dev/null)
+    if [ -n "${BWA_PATH}" ] && [ -x "${BWA_PATH}" ]; then
+        BWA_BIN="${BWA_PATH}"
+        echo "Using BWA binary from PATH: ${BWA_BIN}"
+    else
+        echo "ERROR: Could not find executable bwa in PATH. Ensure 'module load bwa' or environment setup is active before running." >&2
+        exit 127
+    fi
 fi
 EXOGENE_PYTHON_DIR="{exogene_python_dir}"
 INIT_REF_SCRIPT="{init_ref_script_path}"
