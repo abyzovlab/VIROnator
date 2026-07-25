@@ -42,11 +42,11 @@ samples_list: "samples_p2_base"
 # Base directory for all external reference genomes (GCS mount)
 ref_dir: "/mnt/disks/staff/refs"
 
-# Repository directory containing helper scripts
-scripts_dir: "scripts"
+# Repository directory containing helper scripts (GCS shared mount)
+scripts_dir: "/mnt/disks/staff/scripts"
 
-# Repository directory containing database interval and contig lists
-db_metadata_dir: "config/db_metadata"
+# Repository directory containing database interval and contig lists (GCS shared mount)
+db_metadata_dir: "/mnt/disks/staff/db_metadata"
 
 
 # ==============================================================================
