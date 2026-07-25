@@ -101,6 +101,17 @@ rule generate_align_job_file:
     output:
         job="config/ssc_align.job"
     run:
+        import shutil
+        # Auto-sync repository scripts and db_metadata to shared output_dir mount (/mnt/disks/staff)
+        staff_scripts = os.path.join(config["output_dir"], "scripts")
+        staff_metadata = os.path.join(config["output_dir"], "db_metadata")
+        os.makedirs(staff_scripts, exist_ok=True)
+        os.makedirs(staff_metadata, exist_ok=True)
+        if os.path.exists("scripts"):
+            shutil.copytree("scripts", staff_scripts, dirs_exist_ok=True)
+        if os.path.exists("config/db_metadata"):
+            shutil.copytree("config/db_metadata", staff_metadata, dirs_exist_ok=True)
+
         with open(input.template, "r") as f:
             content = f.read()
         
