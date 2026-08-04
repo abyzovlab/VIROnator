@@ -68,6 +68,12 @@ clear_input=true
 # commands and scripts (executed in sequence). Executing in $JOBEXEC_PROCESS. 
 commands_start
 
+# Automatically load environment modules if Lmod/Modules are available on node
+if command -v module >/dev/null 2>&1 || [ -f /usr/share/modules/init/bash ]; then
+    [ -f /usr/share/modules/init/bash ] && . /usr/share/modules/init/bash 2>/dev/null || true
+    module load samtools bwa python 2>/dev/null || true
+fi
+
 set -ex
 
 echo "Start: $(date)"
@@ -90,6 +96,15 @@ PLASMID_CONTIGS="{plasmid_contigs_path}"
 MOUSE_CONTIGS="{mouse_contigs_path}"
 
 BWA_BIN="{bwa_bin}"
+PYTHON_BIN="{python_bin}"
+if [ ! -x "${PYTHON_BIN}" ] && ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
+    if command -v python3 >/dev/null 2>&1; then
+        PYTHON_BIN="python3"
+    elif command -v python >/dev/null 2>&1; then
+        PYTHON_BIN="python"
+    fi
+fi
+
 EXOGENE_PYTHON_DIR="{exogene_python_dir}"
 INIT_REF_SCRIPT="{init_ref_script_path}"
 COMBINED_REFS_DIR="{combined_refs_dir_path}"
@@ -236,7 +251,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     # 4. Step 3: Retrieving mates and reconstructing paired-end FASTQ
     echo "STEP 3) RETRIEVING MATES"
     samtools view -F 2048 -T "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
-        | python "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/viral_reads_se.keep" "${OUT_DIR}/viral_1.fq" "${OUT_DIR}/viral_2.fq" "${OUT_DIR}/totalReads.count"
+        | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/viral_reads_se.keep" "${OUT_DIR}/viral_1.fq" "${OUT_DIR}/viral_2.fq" "${OUT_DIR}/totalReads.count"
 
     TOTAL_PAIRS=$(cat "${OUT_DIR}/totalReads.count" 2>/dev/null || echo "0")
     if [ -z "${TOTAL_PAIRS}" ] || [ "${TOTAL_PAIRS}" -eq 0 ]; then
@@ -255,7 +270,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     if [ "${CONTAMINATION_QUANTIFICATION}" = "on" ]; then
         if [ -s "${OUT_DIR}/plasmid_reads_se.ids" ]; then
             samtools view -F 2048 -T "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
-                | python "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/plasmid_reads_se.ids" "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq" "${OUT_DIR}/plasmid_raw.count"
+                | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/plasmid_reads_se.ids" "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq" "${OUT_DIR}/plasmid_raw.count"
             
             # Align plasmid pairs and convert to sorted CRAM
             "${BWA_BIN}" mem -Y -k 30 -t 20 "${REF_VIR_CONT}" "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq" 2>> "${OUT_DIR}/bwa.log" \
@@ -274,7 +289,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
 
         if [ -s "${OUT_DIR}/mouse_reads_se.ids" ]; then
             samtools view -F 2048 -T "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
-                | python "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/mouse_reads_se.ids" "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq" "${OUT_DIR}/mouse_raw.count"
+                | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/mouse_reads_se.ids" "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq" "${OUT_DIR}/mouse_raw.count"
             
             # Align mouse pairs and convert to sorted CRAM
             "${BWA_BIN}" mem -Y -k 30 -t 20 "${REF_VIR_CONT}" "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq" 2>> "${OUT_DIR}/bwa.log" \
@@ -302,10 +317,10 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     # Align to Decoys & RNA
     echo "ALIGN TO DECOYS"
     "${BWA_BIN}" mem -Y -k 30 -t 20 "${REF_RNA}" "${OUT_DIR}/viral_reads_se.fa" 2> "${OUT_DIR}/errors.log" \
-        | python "${EXOGENE_PYTHON_DIR}/aln_match_filter_py3.py" 90 > "${OUT_DIR}/rna_hits.ids" 2>> "${OUT_DIR}/errors.log"
+        | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/aln_match_filter_py3.py" 90 > "${OUT_DIR}/rna_hits.ids" 2>> "${OUT_DIR}/errors.log"
     
     "${BWA_BIN}" mem -Y -k 30 -t 20 "${REF_DECOY}" "${OUT_DIR}/viral_reads_se.fa" 2>> "${OUT_DIR}/errors.log" \
-        | python "${EXOGENE_PYTHON_DIR}/aln_match_filter_py3.py" 90 > "${OUT_DIR}/decoy_hits.ids" 2>> "${OUT_DIR}/errors.log"
+        | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/aln_match_filter_py3.py" 90 > "${OUT_DIR}/decoy_hits.ids" 2>> "${OUT_DIR}/errors.log"
     
     sort "${OUT_DIR}/rna_hits.ids" "${OUT_DIR}/decoy_hits.ids" | uniq > "${OUT_DIR}/bad.list"
     
@@ -349,11 +364,11 @@ samtools view -F 2048 -F 12 -q 20 "${OUT_DIR}/exogeneSR_viral.bam" --region-file
 
 # Extract and sort filtered alignments using streaming pipes
 samtools view -h -F 2048 "${OUT_DIR}/exogeneSR_viral.bam" \
-    | python "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads.ids" \
+    | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads.ids" \
     | samtools sort -o "${OUT_DIR}/exogeneSR_viral_filtered.sorted.bam" -
 
 samtools view -h -F 2048 "${OUT_DIR}/exogeneSR_viral.bam" \
-    | python "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads.flags.ids" \
+    | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads.flags.ids" \
     | samtools sort -o "${OUT_DIR}/exogeneSR_viral_filtered.sorted.flags.bam" -
 
 # Convert to CRAM format

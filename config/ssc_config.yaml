@@ -82,6 +82,7 @@ mouse_contigs_file: "mm39_modified.contigs.txt"
 
 # Tool paths and script names (scripts are stored in scripts_dir)
 bwa_bin: "/mnt/disks/staff/bin/bwa"
+python_bin: "python3"
 init_ref_script: "init_ref.sh"
 combined_refs_dir: "."  # Output folder for combined reference (resolves directly to ref_dir)
 

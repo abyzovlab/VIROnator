@@ -144,6 +144,7 @@ rule generate_align_job_file:
             .replace("{mouse_contigs_path}", os.path.join(config["ref_dir"], config.get("mouse_contigs_file", "mm39_modified.contigs.txt")))
             .replace("{contamination_quantification}", str(config.get("contamination_quantification", "off")))
             .replace("{bwa_bin}", str(config["bwa_bin"]))
+            .replace("{python_bin}", str(config.get("python_bin", "python3")))
             .replace("{exogene_python_dir}", str(config["scripts_dir"]))
             .replace("{init_ref_script_path}", os.path.join(config["scripts_dir"], config["init_ref_script"]))
             .replace("{combined_refs_dir_path}", os.path.join(config["ref_dir"], config["combined_refs_dir"]))
