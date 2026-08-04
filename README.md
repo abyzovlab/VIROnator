@@ -69,41 +69,53 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
   - `unmapped_pairs.count`: 3-column TSV (`unmapped_pair_count\ttotal_pairs\tunmapped_fraction`)
 
 #### Directory & Folder Hierarchy Schema
-To help you understand how files are organized and how to configure the path variables, here is the structure of the cloned repository folder and mounted reference directory:
+To help you understand how files are organized and how to configure the path variables, here is the structure of the repository, shared references, and output directories:
 
 ```text
-VIROnator/                                    <-- Cloned Repository folder (This is your work_dir)
-├── Snakefile                                 <-- Snakemake workflow executor blueprint
-├── test.txt                                  <-- Empty placeholder file (placeholder_file)
-├── samples_p2_base                           <-- Your sample ID list file (Copied here in Phase 1)
+VIROnator/                                    <-- Cloned Repository folder (work_dir)
+├── Snakefile                                 <-- Main Snakemake workflow executor
+├── test.txt                                  <-- Placeholder file for GCS directory structure creation
+├── samples_p2_base                           <-- Your sample ID list file
 │
-├── config/                                   <-- Configuration templates folder
-│   ├── ssc_config.yaml                       <-- Main configuration file (Your settings go here)
+├── config/                                   <-- Configuration & Job Templates folder
+│   ├── ssc_config.yaml                       <-- Main pipeline configuration file
 │   ├── batch_jobexec_resources.config.template
-│   ├── ssc_unmapped.job.template
-│   └── ssc_alignment.job.template
+│   ├── ssc_unmapped.job.template             <-- Phase 1 unmapped extraction template
+│   └── ssc_alignment.job.template            <-- Phase 2 viral alignment template
 │
-├── config/db_metadata/                       <-- Database region coordinate folder (db_metadata_dir)
-│   └── targeted_contigs.txt                  <-- Legacy target chromosome lists (if used)
+├── rules/                                    <-- Snakemake Logic & Compilation Rules
+│   └── ssc.smk                               <-- Pipeline compilation rules & sync logic
 │
-└── scripts/                                  <-- Python & Bash helper scripts folder (scripts_dir)
-    ├── init_ref.sh                           <-- Script to initialize and index reference genomes
-    ├── fq_to_bam_py3.py                      <-- Script to convert FASTQ reads back to BAM format
-    ├── aln_match_filter_py3.py               <-- Script to map and match alignments
-    ├── filter_reads.py                       <-- Script to run final target read filtering
-    └── rename_fasta_contigs.sh              <-- Standalone script to clean and rename FASTA headers
+└── scripts/                                  <-- Python & Bash helper scripts (scripts_dir)
+    ├── init_ref.sh                           <-- Reference initialization & combined FASTA builder
+    ├── fq_to_bam_py3.py                      <-- FASTQ/BAM read pair extraction helper
+    ├── aln_match_filter_py3.py               <-- Decoy & RNA alignment match filter
+    ├── filter_reads.py                       <-- Streaming alignment candidate filter
+    └── rename_fasta_contigs.sh              <-- Standalone FASTA header cleaner & BED generator
 
 /mnt/disks/staff/refs/                        <-- Shared Reference Mount Directory (ref_dir)
 ├── *.renamed.fa                              <-- Cleaned reference FASTA files
 ├── *.contigs.txt                             <-- 1-column contig ID list files
 ├── *.bed                                     <-- 3-column target region BED files
-└── *.rename_map.tsv                          <-- FASTA header sanitization lookup tables
+├── *.rename_map.tsv                          <-- FASTA header sanitization lookup maps
+└── *.name_collisions.tsv                     <-- Log of duplicate header suffix resolutions
+
+/mnt/disks/staff/                             <-- Output GCS Mount Directory (output_dir)
+├── SSC_hg38_unmapped/                        <-- Phase 1 unmapped extraction outputs
+└── SSC_hg38_vironator/                       <-- Phase 2 viral alignment & count outputs
+    └── phase2/<sample_id>/
+        ├── exogeneSR_viral_filtered.sorted.cram  <-- Final filtered viral CRAM
+        ├── plasmid_pairs.count               <-- 3-column plasmid count TSV
+        ├── mouse_pairs.count                 <-- 3-column mouse count TSV
+        └── unmapped_pairs.count              <-- 3-column unmapped count TSV
 ```
 
 * **`VIROnator/` (Repository Root / `work_dir`):** The primary folder where Snakemake is executed. You copy your sample list text file (e.g. `samples_p2_base`) directly here.
-* **`config/`:** Holds Snakemake compilation rules and batch job templates.
-* **`/mnt/disks/staff/refs/` (`ref_dir`):** Holds all reference FASTA files, `.contigs.txt` lists, and `.bed` coordinate files used by `ssc_alignment.job`.
-* **`scripts/` (`scripts_dir`):** Holds the custom helper Python and Bash scripts that Snakemake compiles and runs on the cloud batch nodes.
+* **`config/`:** Holds Snakemake compilation parameters (`ssc_config.yaml`) and HPC batch execution templates.
+* **`rules/`:** Contains Snakemake build logic (`ssc.smk`) that compiles job templates into executable scripts.
+* **`scripts/` (`scripts_dir`):** Holds helper Python and Bash scripts synced to `/mnt/disks/staff/scripts/` for cloud worker execution.
+* **`/mnt/disks/staff/refs/` (`ref_dir`):** Holds all reference FASTA files, `.contigs.txt` lists, `.bed` coordinate files, and BWA/samtools indices used by `ssc_alignment.job`.
+* **`/mnt/disks/staff/` (`output_dir`):** Destination mount directory where final unmapped CRAMs, filtered viral CRAMs, and `.count` statistics files are stored.
 
 ---
 
