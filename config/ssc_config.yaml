@@ -53,7 +53,7 @@ unmapped_extraction: "off"  # Switch: "on" or "off" to run/skip Phase 1 extracti
 
 # Extraction References
 # For SSC, this uses the modified GRCh38 full analysis set
-ref_genome: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla_modified.fa"
+ref_genome: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla_modified.renamed.fa"
 
 
 # ==============================================================================
