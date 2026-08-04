@@ -45,15 +45,11 @@ ref_dir: "/mnt/disks/staff/refs"
 # Repository directory containing helper scripts (GCS shared mount)
 scripts_dir: "/mnt/disks/staff/scripts"
 
-# Repository directory containing database interval and contig lists (GCS shared mount)
-db_metadata_dir: "/mnt/disks/staff/db_metadata"
-
 
 # ==============================================================================
-# 2. UNMAPPED EXTRACTION MODULE
+# 2. UNMAPPED EXTRACTION MODULE (Phase 1 CRAM Candidate Extraction)
 # ==============================================================================
-unmapped_extraction: "off"  # Switch: "on" or "off"
-separate_contamination_viral: "on"  # Switch: "on" or "off"
+unmapped_extraction: "off"  # Switch: "on" or "off" to run/skip Phase 1 extraction
 
 # Extraction References
 # For SSC, this uses the modified GRCh38 full analysis set
@@ -64,7 +60,7 @@ ref_genome: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla_modif
 # 3. VIRAL DB ALIGNMENT MODULE (VIROnator)
 # ==============================================================================
 viral_db_alignment: "on"  # Switch: "on" or "off"
-contamination_quantification: "on"  # Switch: "on" or "off"
+contamination_quantification: "on"  # Switch: "on" to blacklist plasmid/mouse reads from viral BAM & output 3-column .count TSVs
 
 # Alignment References and Databases (relative to ref_dir /mnt/disks/staff/refs/)
 ref_human_full: "GRCh38_full_analysis_set_plus_decoy_hla_modified.renamed.fa"

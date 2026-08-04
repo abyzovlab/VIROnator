@@ -105,6 +105,8 @@ VIROnator/                                    <-- Cloned Repository folder (work
 └── SSC_hg38_vironator/                       <-- Phase 2 viral alignment & count outputs
     └── phase2/<sample_id>/
         ├── exogeneSR_viral_filtered.sorted.cram  <-- Final filtered viral CRAM
+        ├── plasmid_hits.sorted.cram          <-- Aligned plasmid/vector CRAM
+        ├── mouse_hits.sorted.cram            <-- Aligned mouse contamination CRAM
         ├── plasmid_pairs.count               <-- 3-column plasmid count TSV
         ├── mouse_pairs.count                 <-- 3-column mouse count TSV
         └── unmapped_pairs.count              <-- 3-column unmapped count TSV

@@ -240,11 +240,18 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     UNMAPPED_FRAC=$(awk -v cnt="${UNMAPPED_PAIRS}" -v tot="${TOTAL_PAIRS_VAL}" 'BEGIN {printf "%.6f", (tot > 0 ? cnt/tot : 0)}')
     printf "%d\t%d\t%s\n" "${UNMAPPED_PAIRS}" "${TOTAL_PAIRS}" "${UNMAPPED_FRAC}" > "${OUT_DIR}/unmapped_pairs.count"
 
-    # Recover contamination statistics if submodule is active
+    # Recover contamination statistics & CRAM output files if submodule is active
     if [ "${CONTAMINATION_QUANTIFICATION}" = "on" ]; then
         if [ -s "${OUT_DIR}/plasmid_reads_se.ids" ]; then
             samtools view -F 2048 -T "${REF_HUMAN_FULL}" "${INPUT_CRAM}" \
                 | python "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/plasmid_reads_se.ids" "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq" "${OUT_DIR}/plasmid_raw.count"
+            
+            # Align plasmid pairs and convert to sorted CRAM
+            "${BWA_BIN}" mem -Y -k 30 -t 20 "${REF_VIR_CONT}" "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq" 2>> "${OUT_DIR}/bwa.log" \
+                | samtools view -C -T "${REF_VIR_CONT}" - \
+                | samtools sort -@ 3 -o "${OUT_DIR}/plasmid_hits.sorted.cram" -
+            samtools index "${OUT_DIR}/plasmid_hits.sorted.cram"
+
             rm -f "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq"
             PLASMID_PAIRS=$(cat "${OUT_DIR}/plasmid_raw.count" 2>/dev/null || echo "0")
             rm -f "${OUT_DIR}/plasmid_raw.count"
@@ -257,6 +264,13 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
         if [ -s "${OUT_DIR}/mouse_reads_se.ids" ]; then
             samtools view -F 2048 -T "${REF_HUMAN_FULL}" "${INPUT_CRAM}" \
                 | python "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/mouse_reads_se.ids" "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq" "${OUT_DIR}/mouse_raw.count"
+            
+            # Align mouse pairs and convert to sorted CRAM
+            "${BWA_BIN}" mem -Y -k 30 -t 20 "${REF_VIR_CONT}" "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq" 2>> "${OUT_DIR}/bwa.log" \
+                | samtools view -C -T "${REF_VIR_CONT}" - \
+                | samtools sort -@ 3 -o "${OUT_DIR}/mouse_hits.sorted.cram" -
+            samtools index "${OUT_DIR}/mouse_hits.sorted.cram"
+
             rm -f "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq"
             MOUSE_PAIRS=$(cat "${OUT_DIR}/mouse_raw.count" 2>/dev/null || echo "0")
             rm -f "${OUT_DIR}/mouse_raw.count"
