@@ -37,7 +37,7 @@ project: ""
 # - If your samples file is stored elsewhere, you MUST provide an ABSOLUTE path 
 #   starting with a "/" (e.g. "/home/user/working/samples_p2_base") to bypass 
 #   automatic appending.
-samples_list: "samples_p2_base"
+samples_list: "samples_p2_base_test"
 
 # Base directory for all external reference genomes (GCS mount)
 ref_dir: "/mnt/disks/staff/refs"
@@ -52,7 +52,8 @@ db_metadata_dir: "/mnt/disks/staff/db_metadata"
 # ==============================================================================
 # 2. UNMAPPED EXTRACTION MODULE
 # ==============================================================================
-unmapped_extraction: "on"  # Switch: "on" or "off"
+unmapped_extraction: "off"  # Switch: "on" or "off"
+separate_contamination_viral: "on"  # Switch: "on" or "off"
 
 # Extraction References
 # For SSC, this uses the modified GRCh38 full analysis set
@@ -62,24 +63,32 @@ ref_genome: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla_modif
 # ==============================================================================
 # 3. VIRAL DB ALIGNMENT MODULE (VIROnator)
 # ==============================================================================
-viral_db_alignment: "off"  # Switch: "on" or "off"
+viral_db_alignment: "on"  # Switch: "on" or "off"
+contamination_quantification: "on"  # Switch: "on" or "off"
 
-# Alignment References and Databases (relative to ref_dir)
-ref_human_no_ebv: "GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.fa"
-ref_human_full: "GRCh38_full_analysis_set_plus_decoy_hla_modified.fa"
-ref_viral: "HumanViral_Reference_02-07-2022_SnapGene_plasmids.modified_mm39_ms.fa"
-ref_combined_default: "combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified_plus_HumanViral_Reference_02-07-2022_SnapGene_plasmids.modified_mm39_ms.fa"
-ref_decoy: "GRCh38_Decoy_Reference_4-30-2019.fa"
-ref_rna: "GRCh38_RNA_Reference_4-30-2019.fa"
+# Alignment References and Databases (relative to ref_dir /mnt/disks/staff/refs/)
+ref_human_full: "GRCh38_full_analysis_set_plus_decoy_hla_modified.renamed.fa"
+ref_human_no_ebv: "GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.renamed.fa"
+ref_viral_base: "HumanViral_Reference_02-07-2022_modified.renamed.fa"
+ref_plasmids: "SnapGene_modified.renamed.fa"
+ref_mouse: "mm39_modified.renamed.fa"
+ref_vir_cont: "HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"
+ref_combined_default: "combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"
+ref_decoy: "GRCh38_Decoy_Reference_4-30-2019_modified.renamed.fa"
+ref_rna: "GRCh38_RNA_Reference_4-30-2019_modified.renamed.fa"
 
-# Reference metadata filenames (stored in config/db_metadata/)
-viral_contigs_file: "HumanViral_Reference_02-07-2022_contigs.fa"
-viral_bed_file: "HumanViral_Reference_02-07-2022.bed"
+# Reference metadata filenames (stored directly in ref_dir /mnt/disks/staff/refs/)
+viral_contigs_file: "HumanViral_Reference_02-07-2022_modified.contigs.txt"
+viral_bed_file: "HumanViral_Reference_02-07-2022_modified.bed"
+plasmid_contigs_file: "SnapGene_modified.contigs.txt"
+mouse_contigs_file: "mm39_modified.contigs.txt"
 
 # Tool paths and script names (scripts are stored in scripts_dir)
 bwa_bin: "/mnt/disks/staff/bin/bwa"
 init_ref_script: "init_ref.sh"
 combined_refs_dir: "."  # Output folder for combined reference (resolves directly to ref_dir)
 
-# Alignment controls
-alignment_mode: "align_and_filter"  # "align_and_filter" or "filter_only"
+# Alignment execution switches ("on" or "off")
+align_and_filter: "on"
+align_only: "off"
+filter_only: "off"

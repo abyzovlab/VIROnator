@@ -92,14 +92,14 @@ rule create_vironator_directory:
 
 rule generate_align_job_file:
     """
-    Generates the final ssc_align.job file from ssc_alignment.job.template inside the config directory
+    Generates the final ssc_alignment.job file from ssc_alignment.job.template inside the config directory
     by substituting variables defined in the Snakemake configuration.
     """
     input:
         template="config/ssc_alignment.job.template",
         config_file="config/ssc_config.yaml"
     output:
-        job="config/ssc_align.job"
+        job="config/ssc_alignment.job"
     run:
         import shutil, subprocess
         # Auto-sync repository scripts and db_metadata to shared output_dir mount (/mnt/disks/staff)
@@ -130,17 +130,25 @@ rule generate_align_job_file:
             .replace("{output_dir}", str(config["output_dir"]))
             .replace("{ref_human_full}", os.path.join(config["ref_dir"], config["ref_human_full"]))
             .replace("{ref_human_no_ebv}", os.path.join(config["ref_dir"], config["ref_human_no_ebv"]))
-            .replace("{ref_viral}", os.path.join(config["ref_dir"], config["ref_viral"]))
+            .replace("{ref_viral_base}", os.path.join(config["ref_dir"], config.get("ref_viral_base", "HumanViral_Reference_02-07-2022.fa")))
+            .replace("{ref_plasmids}", os.path.join(config["ref_dir"], config.get("ref_plasmids", "SnapGene_plasmids_modified.fa")))
+            .replace("{ref_mouse}", os.path.join(config["ref_dir"], config.get("ref_mouse", "mm39_ms_modified.fa")))
+            .replace("{ref_vir_cont}", os.path.join(config["ref_dir"], config.get("ref_vir_cont", config.get("ref_viral", "HumanViral_Reference_02-07-2022_SnapGene_plasmids_modified_mm39_ms_modified.fa"))))
             .replace("{ref_combined_default}", os.path.join(config["ref_dir"], config["ref_combined_default"]))
             .replace("{ref_decoy}", os.path.join(config["ref_dir"], config["ref_decoy"]))
             .replace("{ref_rna}", os.path.join(config["ref_dir"], config["ref_rna"]))
-            .replace("{viral_contigs_path}", os.path.join(config["db_metadata_dir"], config["viral_contigs_file"]))
-            .replace("{viral_bed_path}", os.path.join(config["db_metadata_dir"], config["viral_bed_file"]))
+            .replace("{viral_contigs_path}", os.path.join(config["ref_dir"], config["viral_contigs_file"]))
+            .replace("{viral_bed_path}", os.path.join(config["ref_dir"], config["viral_bed_file"]))
+            .replace("{plasmid_contigs_path}", os.path.join(config["ref_dir"], config.get("plasmid_contigs_file", "SnapGene_modified.contigs.txt")))
+            .replace("{mouse_contigs_path}", os.path.join(config["ref_dir"], config.get("mouse_contigs_file", "mm39_modified.contigs.txt")))
+            .replace("{contamination_quantification}", str(config.get("contamination_quantification", "off")))
             .replace("{bwa_bin}", str(config["bwa_bin"]))
             .replace("{exogene_python_dir}", str(config["scripts_dir"]))
             .replace("{init_ref_script_path}", os.path.join(config["scripts_dir"], config["init_ref_script"]))
             .replace("{combined_refs_dir_path}", os.path.join(config["ref_dir"], config["combined_refs_dir"]))
-            .replace("{alignment_mode}", str(config["alignment_mode"]))
+            .replace("{align_and_filter}", str(config.get("align_and_filter", "on")))
+            .replace("{align_only}", str(config.get("align_only", "off")))
+            .replace("{filter_only}", str(config.get("filter_only", "off")))
             .replace("{unmapped_out_dirname}", str(config["unmapped_out_dirname"]))
             .replace("{vironator_out_dirname}", str(config["vironator_out_dirname"]))
             .replace("{unmapped_jobexec_dirname}", str(config["unmapped_jobexec_dirname"]))

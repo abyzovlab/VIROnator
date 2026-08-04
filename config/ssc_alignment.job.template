@@ -75,20 +75,28 @@ echo "Start: $(date)"
 # Consolidated global variables (populated dynamically by Snakemake)
 REF_HUMAN_FULL="{ref_human_full}"
 REF_HUMAN_NO_EBV="{ref_human_no_ebv}"
-REF_VIRAL="{ref_viral}"
+REF_VIRAL_BASE="{ref_viral_base}"
+REF_PLASMIDS="{ref_plasmids}"
+REF_MOUSE="{ref_mouse}"
+REF_VIR_CONT="{ref_vir_cont}"
 REF_COMBINED_DEFAULT="{ref_combined_default}"
 REF_DECOY="{ref_decoy}"
 REF_RNA="{ref_rna}"
 
 VIRAL_CONTIGS="{viral_contigs_path}"
 VIRAL_BED="{viral_bed_path}"
+PLASMID_CONTIGS="{plasmid_contigs_path}"
+MOUSE_CONTIGS="{mouse_contigs_path}"
 
 BWA_BIN="{bwa_bin}"
 EXOGENE_PYTHON_DIR="{exogene_python_dir}"
 INIT_REF_SCRIPT="{init_ref_script_path}"
 COMBINED_REFS_DIR="{combined_refs_dir_path}"
 
-ALIGNMENT_MODE="{alignment_mode}"
+ALIGN_AND_FILTER="{align_and_filter}"
+ALIGN_ONLY="{align_only}"
+FILTER_ONLY="{filter_only}"
+CONTAMINATION_QUANTIFICATION="{contamination_quantification}"
 
 PHASE="{phase}"
 PROJECT="{project}"
@@ -105,6 +113,10 @@ fi
 
 echo "INPUT CRAM: ${INPUT_CRAM}"
 echo "OUTPUT DIR: ${OUT_DIR}"
+echo "ALIGN AND FILTER: ${ALIGN_AND_FILTER}"
+echo "ALIGN ONLY: ${ALIGN_ONLY}"
+echo "FILTER ONLY: ${FILTER_ONLY}"
+echo "CONTAMINATION QUANTIFICATION: ${CONTAMINATION_QUANTIFICATION}"
 
 # Ensure output and log directories exist
 mkdir -p "${OUT_DIR}"
@@ -114,42 +126,39 @@ exec > >(tee -a "${LOG_FILE}") 2>&1
 # ==============================================================================
 # PART 1: ALIGNMENT TO VIRAL DATABASE & COMBINED REFERENCE (optional)
 # ==============================================================================
-if [ "${ALIGNMENT_MODE}" = "align_and_filter" ]; then
+if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
 
-    # 1. Create a combined human + viral reference if it doesn't exist
+    # 1. Prepare Foreign Database (REF_VIR_CONT = Viral + Plasmids + Mouse)
+    if [ -f "${REF_VIR_CONT}" ] && [ -f "${REF_VIR_CONT}.ann" ] && [ -f "${REF_VIR_CONT}.fai" ]; then
+        echo "REF_VIR_CONT database and indices already available: ${REF_VIR_CONT}"
+    else
+        echo "Building REF_VIR_CONT database..."
+        if [ -f "${REF_VIRAL_BASE}" ]; then
+            cat "${REF_VIRAL_BASE}" > "${REF_VIR_CONT}"
+            [ -f "${REF_PLASMIDS}" ] && cat "${REF_PLASMIDS}" >> "${REF_VIR_CONT}"
+            [ -f "${REF_MOUSE}" ] && cat "${REF_MOUSE}" >> "${REF_VIR_CONT}"
+        fi
+        if [ ! -f "${REF_VIR_CONT}.ann" ]; then
+            "${BWA_BIN}" index "${REF_VIR_CONT}"
+        fi
+        if [ ! -f "${REF_VIR_CONT}.fai" ]; then
+            samtools faidx "${REF_VIR_CONT}"
+        fi
+    fi
+
+    # 2. Prepare Combined Database (REF_COMBINED = Human No-EBV + REF_VIR_CONT)
     BASENAME_HUMAN=$(basename "${REF_HUMAN_NO_EBV}")
     BASENAME_HUMAN_NOEXT=$(printf '%s' "${BASENAME_HUMAN}" | rev | cut -d'.' -f2- | rev)
-    BASENAME_VIRAL=$(basename "${REF_VIRAL}")
-    BASENAME_VIRAL_NOEXT=$(printf '%s' "${BASENAME_VIRAL}" | rev | cut -d'.' -f2- | rev)
-    COMBINED_BASENAME="combined_${BASENAME_HUMAN_NOEXT}_plus_${BASENAME_VIRAL_NOEXT}.fa"
+    BASENAME_VIR_CONT=$(basename "${REF_VIR_CONT}")
+    BASENAME_VIR_CONT_NOEXT=$(printf '%s' "${BASENAME_VIR_CONT}" | rev | cut -d'.' -f2- | rev)
+    COMBINED_BASENAME="combined_${BASENAME_HUMAN_NOEXT}_${BASENAME_VIR_CONT_NOEXT}.fa"
     COMBINED_REF="${COMBINED_REFS_DIR}/${COMBINED_BASENAME}"
 
-    # Ensure viral reference is indexed (BWA and samtools faidx)
-    if [ ! -f "${REF_VIRAL}.ann" ]; then
-        "${BWA_BIN}" index "${REF_VIRAL}"
-    fi
-    if [ ! -f "${REF_VIRAL}.fai" ]; then
-        samtools faidx "${REF_VIRAL}"
-    fi
-
-    # Ensure decoy reference is BWA indexed
-    if [ ! -f "${REF_DECOY}.ann" ]; then
-        "${BWA_BIN}" index "${REF_DECOY}"
-    fi
-
-    # Ensure RNA reference is BWA indexed
-    if [ ! -f "${REF_RNA}.ann" ]; then
-        "${BWA_BIN}" index "${REF_RNA}"
-    fi
-
-    # Create combined reference if it doesn't exist OR if it is older than input references
-    if [ ! -f "${COMBINED_REF}" ] || [ "${REF_VIRAL}" -nt "${COMBINED_REF}" ] || [ "${REF_HUMAN_NO_EBV}" -nt "${COMBINED_REF}" ]; then
-        bash "${INIT_REF_SCRIPT}" -i "${REF_HUMAN_NO_EBV}" -v "${REF_VIRAL}" -o "${COMBINED_REF}" -b "${BWA_BIN}"
-        "${BWA_BIN}" index "${COMBINED_REF}"
-        samtools faidx "${COMBINED_REF}"
-        echo "Combined reference created and indexed: ${COMBINED_REF}"
+    if [ -f "${COMBINED_REF}" ] && [ -f "${COMBINED_REF}.ann" ] && [ -f "${COMBINED_REF}.fai" ]; then
+        echo "Combined reference and indices already available: ${COMBINED_REF}"
     else
-        echo "Combined reference already available and up to date."
+        echo "Building combined reference (Human No-EBV + REF_VIR_CONT)..."
+        bash "${INIT_REF_SCRIPT}" -i "${REF_HUMAN_NO_EBV}" -v "${REF_VIR_CONT}" -o "${COMBINED_REF}" -b "${BWA_BIN}"
         if [ ! -f "${COMBINED_REF}.ann" ]; then
             "${BWA_BIN}" index "${COMBINED_REF}"
         fi
@@ -158,10 +167,14 @@ if [ "${ALIGNMENT_MODE}" = "align_and_filter" ]; then
         fi
     fi
 
-    # 2. Step 1: Alignment to the viral database
-    echo "STEP 1) ALIGNMENT TO VIRAL DATABASE"
+    # Ensure decoy and RNA references are BWA indexed if needed
+    [ ! -f "${REF_DECOY}.ann" ] && "${BWA_BIN}" index "${REF_DECOY}"
+    [ ! -f "${REF_RNA}.ann" ] && "${BWA_BIN}" index "${REF_RNA}"
+
+    # 3. Step 1: Alignment to foreign reference database (REF_VIR_CONT)
+    echo "STEP 1) ALIGNMENT TO FOREIGN REFERENCE DATABASE"
     samtools fastq -@ 4 -F 2048 -T "${REF_HUMAN_FULL}" "${INPUT_CRAM}" \
-        | "${BWA_BIN}" mem -k 30 -t 20 "${REF_VIRAL}" - \
+        | "${BWA_BIN}" mem -k 30 -t 20 "${REF_VIR_CONT}" - \
         | egrep -v '^@' \
         | awk '$3 != "*"' \
         > "${OUT_DIR}/viral_reads_se.reads_temp"
@@ -173,21 +186,86 @@ if [ "${ALIGNMENT_MODE}" = "align_and_filter" ]; then
 
     echo "STEP 1 DONE"
 
-    # 3. Step 2: Low complexity filtering (NO DUSTMASKER)
+    # 3. Step 2: Read Filtering & Contamination Submodule
     echo "STEP 2) FILTERING"
     VIRAL_READS="${OUT_DIR}/viral_reads_se.reads.gz"
     
     gzip -cd "${VIRAL_READS}" | cut -f6 | sed s/'[0-9]'//g > "${OUT_DIR}/viral_reads_se.cigar"
     gzip -cd "${VIRAL_READS}" | paste "${OUT_DIR}/viral_reads_se.cigar" - | awk '{print ">"$2"\n"$11}' > "${OUT_DIR}/viral_reads_se.fa"
     fgrep ">" "${OUT_DIR}/viral_reads_se.fa" | cut -b2- | sort | uniq > "${OUT_DIR}/viral_reads_se.ids"
-    
-    cat "${OUT_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_reads_se.keep"
+
+    if [ "${CONTAMINATION_QUANTIFICATION}" = "on" ]; then
+        echo "Contamination Quantification Submodule: ACTIVE"
+        
+        # High-confidence Plasmid candidate IDs (MAPQ >= 20, Primary alignments only)
+        if [ -f "${PLASMID_CONTIGS}" ]; then
+            awk 'NR==FNR{a[$1]; next} ($3 in a) && ($5 >= 20)' "${PLASMID_CONTIGS}" "${OUT_DIR}/viral_reads_se.reads_temp" \
+                | awk '{print $1}' | sed 's|/[12]$||' | sort -u > "${OUT_DIR}/plasmid_reads_se.ids"
+        else
+            touch "${OUT_DIR}/plasmid_reads_se.ids"
+        fi
+
+        # High-confidence Mouse candidate IDs (MAPQ >= 20, Primary alignments only)
+        if [ -f "${MOUSE_CONTIGS}" ]; then
+            awk 'NR==FNR{a[$1]; next} ($3 in a) && ($5 >= 20)' "${MOUSE_CONTIGS}" "${OUT_DIR}/viral_reads_se.reads_temp" \
+                | awk '{print $1}' | sed 's|/[12]$||' | sort -u > "${OUT_DIR}/mouse_reads_se.ids"
+        else
+            touch "${OUT_DIR}/mouse_reads_se.ids"
+        fi
+
+        # Blacklist Subtraction: viral_clean = viral_raw - (plasmid_ids + mouse_ids)
+        cat "${OUT_DIR}/plasmid_reads_se.ids" "${OUT_DIR}/mouse_reads_se.ids" | sort -u > "${OUT_DIR}/contamination.blacklist"
+        comm -23 <(sort "${OUT_DIR}/viral_reads_se.ids") "${OUT_DIR}/contamination.blacklist" > "${OUT_DIR}/viral_reads_se.keep"
+    else
+        echo "Contamination Quantification Submodule: OFF (Default viral-only)"
+        cat "${OUT_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_reads_se.keep"
+    fi
     echo "STEP 2 DONE"
 
     # 4. Step 3: Retrieving mates and reconstructing paired-end FASTQ
     echo "STEP 3) RETRIEVING MATES"
     samtools view -F 2048 -T "${REF_HUMAN_FULL}" "${INPUT_CRAM}" \
         | python "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/viral_reads_se.keep" "${OUT_DIR}/viral_1.fq" "${OUT_DIR}/viral_2.fq" "${OUT_DIR}/totalReads.count"
+
+    TOTAL_PAIRS=$(cat "${OUT_DIR}/totalReads.count" 2>/dev/null || echo "0")
+    if [ -z "${TOTAL_PAIRS}" ] || [ "${TOTAL_PAIRS}" -eq 0 ]; then
+        TOTAL_PAIRS_VAL=1
+    else
+        TOTAL_PAIRS_VAL="${TOTAL_PAIRS}"
+    fi
+
+    # Unmapped pairs calculation (both mates unmapped or flag bit 4 set in unmapped CRAM)
+    UNMAPPED_RAW=$(samtools view -c -f 4 -F 2048 -T "${REF_HUMAN_FULL}" "${INPUT_CRAM}" 2>/dev/null || echo "0")
+    UNMAPPED_PAIRS=$(( UNMAPPED_RAW / 2 ))
+    UNMAPPED_FRAC=$(awk -v cnt="${UNMAPPED_PAIRS}" -v tot="${TOTAL_PAIRS_VAL}" 'BEGIN {printf "%.6f", (tot > 0 ? cnt/tot : 0)}')
+    printf "%d\t%d\t%s\n" "${UNMAPPED_PAIRS}" "${TOTAL_PAIRS}" "${UNMAPPED_FRAC}" > "${OUT_DIR}/unmapped_pairs.count"
+
+    # Recover contamination statistics if submodule is active
+    if [ "${CONTAMINATION_QUANTIFICATION}" = "on" ]; then
+        if [ -s "${OUT_DIR}/plasmid_reads_se.ids" ]; then
+            samtools view -F 2048 -T "${REF_HUMAN_FULL}" "${INPUT_CRAM}" \
+                | python "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/plasmid_reads_se.ids" "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq" "${OUT_DIR}/plasmid_raw.count"
+            rm -f "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq"
+            PLASMID_PAIRS=$(cat "${OUT_DIR}/plasmid_raw.count" 2>/dev/null || echo "0")
+            rm -f "${OUT_DIR}/plasmid_raw.count"
+        else
+            PLASMID_PAIRS=0
+        fi
+        PLASMID_FRAC=$(awk -v cnt="${PLASMID_PAIRS}" -v tot="${TOTAL_PAIRS_VAL}" 'BEGIN {printf "%.6f", (tot > 0 ? cnt/tot : 0)}')
+        printf "%d\t%d\t%s\n" "${PLASMID_PAIRS}" "${TOTAL_PAIRS}" "${PLASMID_FRAC}" > "${OUT_DIR}/plasmid_pairs.count"
+
+        if [ -s "${OUT_DIR}/mouse_reads_se.ids" ]; then
+            samtools view -F 2048 -T "${REF_HUMAN_FULL}" "${INPUT_CRAM}" \
+                | python "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/mouse_reads_se.ids" "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq" "${OUT_DIR}/mouse_raw.count"
+            rm -f "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq"
+            MOUSE_PAIRS=$(cat "${OUT_DIR}/mouse_raw.count" 2>/dev/null || echo "0")
+            rm -f "${OUT_DIR}/mouse_raw.count"
+        else
+            MOUSE_PAIRS=0
+        fi
+        MOUSE_FRAC=$(awk -v cnt="${MOUSE_PAIRS}" -v tot="${TOTAL_PAIRS_VAL}" 'BEGIN {printf "%.6f", (tot > 0 ? cnt/tot : 0)}')
+        printf "%d\t%d\t%s\n" "${MOUSE_PAIRS}" "${TOTAL_PAIRS}" "${MOUSE_FRAC}" > "${OUT_DIR}/mouse_pairs.count"
+    fi
     echo "STEP 3 DONE"
 
     # 5. Step 4: Alignment to combined reference & decoy/RNA filtering
