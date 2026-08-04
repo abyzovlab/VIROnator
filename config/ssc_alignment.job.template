@@ -109,6 +109,14 @@ EXOGENE_PYTHON_DIR="{exogene_python_dir}"
 INIT_REF_SCRIPT="{init_ref_script_path}"
 COMBINED_REFS_DIR="{combined_refs_dir_path}"
 
+# Dynamic calculation of COMBINED_REF
+BASENAME_HUMAN=$(basename "${REF_HUMAN_NO_EBV}")
+BASENAME_HUMAN_NOEXT=$(printf '%s' "${BASENAME_HUMAN}" | rev | cut -d'.' -f2- | rev)
+BASENAME_VIR_CONT=$(basename "${REF_VIR_CONT}")
+BASENAME_VIR_CONT_NOEXT=$(printf '%s' "${BASENAME_VIR_CONT}" | rev | cut -d'.' -f2- | rev)
+COMBINED_BASENAME="combined_${BASENAME_HUMAN_NOEXT}_${BASENAME_VIR_CONT_NOEXT}.fa"
+COMBINED_REF="${COMBINED_REFS_DIR}/${COMBINED_BASENAME}"
+
 ALIGN_AND_FILTER="{align_and_filter}"
 ALIGN_ONLY="{align_only}"
 FILTER_ONLY="{filter_only}"
@@ -338,14 +346,6 @@ fi
 # PART 2: FINAL FILTERING AND FORMATTING
 # ==============================================================================
 echo "STEP 6) FILTERING READS"
-
-# Define the combined reference path used in the previous step
-BASENAME_HUMAN=$(basename "${REF_HUMAN_NO_EBV}")
-BASENAME_HUMAN_NOEXT=$(printf '%s' "${BASENAME_HUMAN}" | rev | cut -d'.' -f2- | rev)
-BASENAME_VIRAL=$(basename "${REF_VIRAL}")
-BASENAME_VIRAL_NOEXT=$(printf '%s' "${BASENAME_VIRAL}" | rev | cut -d'.' -f2- | rev)
-COMBINED_BASENAME="combined_${BASENAME_HUMAN_NOEXT}_plus_${BASENAME_VIRAL_NOEXT}.fa"
-COMBINED_REF="${COMBINED_REFS_DIR}/${COMBINED_BASENAME}"
 
 # Extract read IDs matching length/orientation constraints under BED file regions
 samtools view -F 2048 -F 12 -f 2 -q 20 "${OUT_DIR}/exogeneSR_viral.bam" --region-file "${VIRAL_BED}" \
