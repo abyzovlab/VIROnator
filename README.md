@@ -124,7 +124,7 @@ The alignment job script (`config/ssc_alignment.job.template` compiled into `con
 
 ## Standalone Utility: FASTA Header Cleaner (`rename_fasta_contigs.sh`)
 
-When adopting a new vector or plasmid reference dataset, raw FASTA header names often contain special characters (Greek letters like $\alpha, \beta, \gamma$, trademarks $\text{™}, \text{®}$, symbols $+$, $\%$, $\#$, commas, slashes, and spaces). These special characters cause parsing failures or silent truncation in alignment tools like `bwa mem` and `samtools`.
+When adopting a new vector or plasmid reference dataset, raw FASTA header names often contain special characters (Greek letters like `α`, `β`, `γ`, trademarks `™`, `®`, symbols `+`, `%`, `#`, commas, slashes, and spaces). These special characters cause parsing failures or silent truncation in alignment tools like `bwa mem` and `samtools`.
 
 `scripts/rename_fasta_contigs.sh` is an optional **standalone utility script** to preprocess and sanitize FASTA contig header names. **It is not integrated into the automated Snakemake workflow and should be run manually prior to reference indexing when adding new reference files.**
 
