@@ -90,3 +90,4 @@ combined_refs_dir: "."  # Output folder for combined reference (resolves directl
 align_and_filter: "on"
 align_only: "off"
 filter_only: "off"
+dual_mode: "on"  # "on" to output BOTH clean (subtracted) and raw (unsubtracted) viral CRAMs; "off" for clean only

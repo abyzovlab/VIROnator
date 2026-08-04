@@ -62,7 +62,7 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
 * **`viral_db_alignment`**: Switch (`"on"` or `"off"`) to enable/disable viral database alignment.
 * **`align_and_filter`**: Switch (`"on"` or `"off"`) to run full alignments and downstream streaming read filters.
 * **`align_only`**: Switch (`"on"` or `"off"`) to run full BWA alignments against the foreign and combined reference databases, skipping downstream streaming read filters.
-* **`filter_only`**: Switch (`"on"` or `"off"`) to bypass alignment steps and run final streaming read filtering on pre-aligned CRAMs/BAMs.
+* **`dual_mode`**: Switch (`"on"` or `"off"`). When set to `"on"`, outputs BOTH Mode 1 (`exogeneSR_viral_clean`) with plasmid/mouse subtracted AND Mode 2 (`exogeneSR_viral_raw`) with all viral hits preserved.
 * **Count Statistics Output Files**:
   - `plasmid_pairs.count`: 3-column TSV (`plasmid_pair_count\ttotal_pairs\tplasmid_fraction`)
   - `mouse_pairs.count`: 3-column TSV (`mouse_pair_count\ttotal_pairs\tmouse_fraction`)
@@ -104,7 +104,10 @@ VIROnator/                                    <-- Cloned Repository folder (work
 ├── SSC_hg38_unmapped/                        <-- Phase 1 unmapped extraction outputs
 └── SSC_hg38_vironator/                       <-- Phase 2 viral alignment & count outputs
     └── phase2/<sample_id>/
-        ├── exogeneSR_viral_filtered.sorted.cram  <-- Final filtered viral CRAM
+        ├── exogeneSR_viral_clean.sorted.cram  <-- Mode 1: Clean viral CRAM (plasmid/mouse subtracted)
+        ├── exogeneSR_viral_clean.sorted.flags.cram
+        ├── exogeneSR_viral_raw.sorted.cram    <-- Mode 2: Raw viral CRAM (unsubtracted, if dual_mode=on)
+        ├── exogeneSR_viral_raw.sorted.flags.cram
         ├── plasmid_hits.sorted.cram          <-- Aligned plasmid/vector CRAM
         ├── mouse_hits.sorted.cram            <-- Aligned mouse contamination CRAM
         ├── plasmid_pairs.count               <-- 3-column plasmid count TSV

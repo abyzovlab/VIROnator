@@ -121,6 +121,7 @@ ALIGN_AND_FILTER="{align_and_filter}"
 ALIGN_ONLY="{align_only}"
 FILTER_ONLY="{filter_only}"
 CONTAMINATION_QUANTIFICATION="{contamination_quantification}"
+DUAL_MODE="{dual_mode}"
 
 PHASE="{phase}"
 PROJECT="{project}"
@@ -249,17 +250,26 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
 
         # Blacklist Subtraction: viral_clean = viral_raw - (plasmid_ids + mouse_ids)
         cat "${OUT_DIR}/plasmid_reads_se.ids" "${OUT_DIR}/mouse_reads_se.ids" | sort -u > "${OUT_DIR}/contamination.blacklist"
-        comm -23 <(sort "${OUT_DIR}/viral_reads_se.ids") "${OUT_DIR}/contamination.blacklist" > "${OUT_DIR}/viral_reads_se.keep"
+        comm -23 <(sort "${OUT_DIR}/viral_reads_se.ids") "${OUT_DIR}/contamination.blacklist" > "${OUT_DIR}/viral_clean.keep"
     else
         echo "Contamination Quantification Submodule: OFF (Default viral-only)"
-        cat "${OUT_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_reads_se.keep"
+        cat "${OUT_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_clean.keep"
     fi
+    cat "${OUT_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_raw.keep"
     echo "STEP 2 DONE"
 
     # 4. Step 3: Retrieving mates and reconstructing paired-end FASTQ
     echo "STEP 3) RETRIEVING MATES"
+    # Mode 1: Clean viral reads (plasmid/mouse subtracted)
     samtools view -F 2048 -T "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
-        | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/viral_reads_se.keep" "${OUT_DIR}/viral_1.fq" "${OUT_DIR}/viral_2.fq" "${OUT_DIR}/totalReads.count"
+        | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/viral_clean.keep" "${OUT_DIR}/viral_clean_1.fq" "${OUT_DIR}/viral_clean_2.fq" "${OUT_DIR}/totalReads.count"
+
+    # Mode 2: Raw viral reads (unsubtracted, if DUAL_MODE=on)
+    if [ "${DUAL_MODE}" = "on" ]; then
+        samtools view -F 2048 -T "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
+            | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/viral_raw.keep" "${OUT_DIR}/viral_raw_1.fq" "${OUT_DIR}/viral_raw_2.fq" "${OUT_DIR}/totalReads_raw.count"
+        rm -f "${OUT_DIR}/totalReads_raw.count"
+    fi
 
     TOTAL_PAIRS=$(cat "${OUT_DIR}/totalReads.count" 2>/dev/null || echo "0")
     if [ -z "${TOTAL_PAIRS}" ] || [ "${TOTAL_PAIRS}" -eq 0 ]; then
@@ -318,9 +328,17 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
 
     # 5. Step 4: Alignment to combined reference & decoy/RNA filtering
     echo "STEP 4) ALIGNMENT TO COMBINED REFERENCE"
-    "${BWA_BIN}" mem -Y -k 30 -t 20 -v 2 "${COMBINED_REF}" "${OUT_DIR}/viral_1.fq" "${OUT_DIR}/viral_2.fq" 2> "${OUT_DIR}/bwa.log" \
-        | samtools sort -@ 3 -o "${OUT_DIR}/Viral.sort.bam" -
-    samtools index "${OUT_DIR}/Viral.sort.bam"
+    # Mode 1: Clean
+    "${BWA_BIN}" mem -Y -k 30 -t 20 -v 2 "${COMBINED_REF}" "${OUT_DIR}/viral_clean_1.fq" "${OUT_DIR}/viral_clean_2.fq" 2> "${OUT_DIR}/bwa.log" \
+        | samtools sort -@ 3 -o "${OUT_DIR}/Viral_clean.sort.bam" -
+    samtools index "${OUT_DIR}/Viral_clean.sort.bam"
+
+    # Mode 2: Raw (if DUAL_MODE=on)
+    if [ "${DUAL_MODE}" = "on" ]; then
+        "${BWA_BIN}" mem -Y -k 30 -t 20 -v 2 "${COMBINED_REF}" "${OUT_DIR}/viral_raw_1.fq" "${OUT_DIR}/viral_raw_2.fq" 2>> "${OUT_DIR}/bwa.log" \
+            | samtools sort -@ 3 -o "${OUT_DIR}/Viral_raw.sort.bam" -
+        samtools index "${OUT_DIR}/Viral_raw.sort.bam"
+    fi
 
     # Align to Decoys & RNA
     echo "ALIGN TO DECOYS"
@@ -332,12 +350,16 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     
     sort "${OUT_DIR}/rna_hits.ids" "${OUT_DIR}/decoy_hits.ids" | uniq > "${OUT_DIR}/bad.list"
     
-    # Subtract decoys/RNA hits and create final exogeneSR_viral.bam
-    samtools view -h "${OUT_DIR}/Viral.sort.bam" | fgrep -v -w -f "${OUT_DIR}/bad.list" | samtools view -Sb - > "${OUT_DIR}/exogeneSR_viral.bam"
-    samtools index "${OUT_DIR}/exogeneSR_viral.bam"
-    
-    # Clean up intermediate files
-    rm -f "${OUT_DIR}/Viral.sort.bam" "${OUT_DIR}/Viral.sort.bam.bai"
+    # Subtract decoys/RNA hits and create final BAMs
+    samtools view -h "${OUT_DIR}/Viral_clean.sort.bam" | fgrep -v -w -f "${OUT_DIR}/bad.list" | samtools view -Sb - > "${OUT_DIR}/exogeneSR_viral_clean.bam"
+    samtools index "${OUT_DIR}/exogeneSR_viral_clean.bam"
+    rm -f "${OUT_DIR}/Viral_clean.sort.bam"*
+
+    if [ "${DUAL_MODE}" = "on" ]; then
+        samtools view -h "${OUT_DIR}/Viral_raw.sort.bam" | fgrep -v -w -f "${OUT_DIR}/bad.list" | samtools view -Sb - > "${OUT_DIR}/exogeneSR_viral_raw.bam"
+        samtools index "${OUT_DIR}/exogeneSR_viral_raw.bam"
+        rm -f "${OUT_DIR}/Viral_raw.sort.bam"*
+    fi
     echo "STEP 4 DONE"
 
 fi
@@ -347,43 +369,66 @@ fi
 # ==============================================================================
 echo "STEP 6) FILTERING READS"
 
-# Extract read IDs matching length/orientation constraints under BED file regions
-samtools view -F 2048 -F 12 -f 2 -q 20 "${OUT_DIR}/exogeneSR_viral.bam" --region-file "${VIRAL_BED}" \
-    | awk '($9 >= 150 && $9 <= 1500) || ($9 <= -150 && $9 >= -1500)' \
-    | awk '$6=="151M" || $6=="150M"' \
-    | awk '$7=="="' \
-    | cut -f1 | sort | uniq -c | awk '$1=="2"' | awk '{print $2}' \
-    > "${OUT_DIR}/reads.ids"
+# Function to run final interval length & orientation filtering per alignment mode
+filter_mode() {
+    local MODE_PREFIX="$1"
+    local IN_BAM="${OUT_DIR}/exogeneSR_${MODE_PREFIX}.bam"
 
-samtools view -F 2048 -F 12 -q 20 "${OUT_DIR}/exogeneSR_viral.bam" --region-file "${VIRAL_BED}" \
-    | gawk '((and($2,97) && !and($2,16) && ($9 >= 150 && $9 <= 1500)) || (and($2,81) && !and($2,32) && ($9 >= -1500 && $9 <= -150)) || (and($2,145) && !and($2,32) && ($9 >= 150 && $9 <= 1500)) || (and($2,161) && !and($2,16) && ($9 >= -1500 && $9 <= -150)))' \
-    | awk '$6=="151M" || $6=="150M"' \
-    | awk '$7=="="' \
-    | cut -f1 | sort | uniq -c | awk '$1=="2"' | awk '{print $2}' \
-    > "${OUT_DIR}/reads.flags.ids"
+    if [ -f "${IN_BAM}" ]; then
+        # Extract read IDs matching length/orientation constraints under BED file regions
+        samtools view -F 2048 -F 12 -f 2 -q 20 "${IN_BAM}" --region-file "${VIRAL_BED}" \
+            | awk '($9 >= 150 && $9 <= 1500) || ($9 <= -150 && $9 >= -1500)' \
+            | awk '$6=="151M" || $6=="150M"' \
+            | awk '$7=="="' \
+            | cut -f1 | sort | uniq -c | awk '$1=="2"' | awk '{print $2}' \
+            > "${OUT_DIR}/reads_${MODE_PREFIX}.ids"
 
-# Extract and sort filtered alignments using streaming pipes
-samtools view -h -F 2048 "${OUT_DIR}/exogeneSR_viral.bam" \
-    | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads.ids" \
-    | samtools sort -o "${OUT_DIR}/exogeneSR_viral_filtered.sorted.bam" -
+        samtools view -F 2048 -F 12 -q 20 "${IN_BAM}" --region-file "${VIRAL_BED}" \
+            | gawk '((and($2,97) && !and($2,16) && ($9 >= 150 && $9 <= 1500)) || (and($2,81) && !and($2,32) && ($9 >= -1500 && $9 <= -150)) || (and($2,145) && !and($2,32) && ($9 >= 150 && $9 <= 1500)) || (and($2,161) && !and($2,16) && ($9 >= -1500 && $9 <= -150)))' \
+            | awk '$6=="151M" || $6=="150M"' \
+            | awk '$7=="="' \
+            | cut -f1 | sort | uniq -c | awk '$1=="2"' | awk '{print $2}' \
+            > "${OUT_DIR}/reads_${MODE_PREFIX}.flags.ids"
 
-samtools view -h -F 2048 "${OUT_DIR}/exogeneSR_viral.bam" \
-    | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads.flags.ids" \
-    | samtools sort -o "${OUT_DIR}/exogeneSR_viral_filtered.sorted.flags.bam" -
+        # Extract and sort filtered alignments using streaming pipes
+        samtools view -h -F 2048 "${IN_BAM}" \
+            | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads_${MODE_PREFIX}.ids" \
+            | samtools sort -o "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.bam" -
 
-# Convert to CRAM format
-samtools view -T "${COMBINED_REF}" -C -o "${OUT_DIR}/exogeneSR_viral_filtered.sorted.cram" "${OUT_DIR}/exogeneSR_viral_filtered.sorted.bam" 
-samtools view -T "${COMBINED_REF}" -C -o "${OUT_DIR}/exogeneSR_viral_filtered.sorted.flags.cram" "${OUT_DIR}/exogeneSR_viral_filtered.sorted.flags.bam"
+        samtools view -h -F 2048 "${IN_BAM}" \
+            | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads_${MODE_PREFIX}.flags.ids" \
+            | samtools sort -o "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.flags.bam" -
 
-# Index final outputs
-samtools index "${OUT_DIR}/exogeneSR_viral_filtered.sorted.cram"
-samtools index "${OUT_DIR}/exogeneSR_viral_filtered.sorted.flags.cram"
+        # Convert to CRAM format
+        samtools view -T "${COMBINED_REF}" -C -o "${OUT_DIR}/exogeneSR_${MODE_PREFIX}.cram" "${IN_BAM}"
+        samtools index "${OUT_DIR}/exogeneSR_${MODE_PREFIX}.cram"
+
+        samtools view -T "${COMBINED_REF}" -C -o "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.cram" "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.bam" 
+        samtools view -T "${COMBINED_REF}" -C -o "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.flags.cram" "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.flags.bam"
+
+        # Index final CRAM outputs
+        samtools index "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.cram"
+        samtools index "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.flags.cram"
+
+        rm -f "${OUT_DIR}/reads_${MODE_PREFIX}.ids" "${OUT_DIR}/reads_${MODE_PREFIX}.flags.ids"
+    fi
+}
+
+# Run Mode 1: Clean
+filter_mode "viral_clean"
+
+# Run Mode 2: Raw (if DUAL_MODE=on)
+if [ "${DUAL_MODE}" = "on" ]; then
+    filter_mode "viral_raw"
+fi
 
 # Clean up all intermediate SAM, BAM, and temporary files
 rm -f "${OUT_DIR}"/*body*
 rm -f "${OUT_DIR}"/*header*
 rm -f "${OUT_DIR}"/*.sam
-rm -f "${OUT_DIR}"/exogeneSR_viral_filtered.bam*
+rm -f "${OUT_DIR}"/*.bam
+rm -f "${OUT_DIR}"/*.bam.bai
+rm -f "${OUT_DIR}"/exogeneSR_viral.bam*
 rm -f "${OUT_DIR}"/exogeneSR_viral_filtered.flags.bam*
 rm -f "${OUT_DIR}"/exogeneSR_viral_filtered.sorted.bam
 rm -f "${OUT_DIR}"/exogeneSR_viral_filtered.sorted.flags.bam

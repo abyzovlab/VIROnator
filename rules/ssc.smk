@@ -151,6 +151,7 @@ rule generate_align_job_file:
             .replace("{align_and_filter}", str(config.get("align_and_filter", "on")))
             .replace("{align_only}", str(config.get("align_only", "off")))
             .replace("{filter_only}", str(config.get("filter_only", "off")))
+            .replace("{dual_mode}", str(config.get("dual_mode", "on")))
             .replace("{unmapped_out_dirname}", str(config["unmapped_out_dirname"]))
             .replace("{vironator_out_dirname}", str(config["vironator_out_dirname"]))
             .replace("{unmapped_jobexec_dirname}", str(config["unmapped_jobexec_dirname"]))
