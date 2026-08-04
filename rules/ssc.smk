@@ -128,6 +128,7 @@ rule generate_align_job_file:
             .replace("{project}", str(config["project"]))
             .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{output_dir}", str(config["output_dir"]))
+            .replace("{ref_cram_decoder}", os.path.join(config["ref_dir"], config.get("ref_cram_decoder", "GRCh38_full_analysis_set_plus_decoy_hla.fa")))
             .replace("{ref_human_full}", os.path.join(config["ref_dir"], config["ref_human_full"]))
             .replace("{ref_human_no_ebv}", os.path.join(config["ref_dir"], config["ref_human_no_ebv"]))
             .replace("{ref_viral_base}", os.path.join(config["ref_dir"], config.get("ref_viral_base", "HumanViral_Reference_02-07-2022.fa")))

@@ -73,6 +73,7 @@ set -ex
 echo "Start: $(date)"
 
 # Consolidated global variables (populated dynamically by Snakemake)
+REF_CRAM_DECODER="{ref_cram_decoder}"
 REF_HUMAN_FULL="{ref_human_full}"
 REF_HUMAN_NO_EBV="{ref_human_no_ebv}"
 REF_VIRAL_BASE="{ref_viral_base}"
@@ -111,6 +112,20 @@ else
     OUT_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
 fi
 
+# Configure REF_PATH so samtools can resolve CRAM references in ref_dir
+export REF_PATH="/mnt/disks/staff/refs/%s:/mnt/disks/staff/refs/%s.fa"
+
+# Fallback symlinks for legacy CRAM headers that expect /mnt/disks/staff/ref/GRCh38_full_analysis_set_plus_decoy_hla.fa
+if [ ! -d "/mnt/disks/staff/ref" ] && [ -d "/mnt/disks/staff/refs" ]; then
+    ln -s /mnt/disks/staff/refs /mnt/disks/staff/ref 2>/dev/null || true
+fi
+if [ -d "/mnt/disks/staff/refs" ]; then
+    if [ ! -f "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla.fa" ] && [ -f "${REF_HUMAN_FULL}" ]; then
+        ln -s "${REF_HUMAN_FULL}" /mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla.fa 2>/dev/null || true
+        [ -f "${REF_HUMAN_FULL}.fai" ] && ln -s "${REF_HUMAN_FULL}.fai" /mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla.fa.fai 2>/dev/null || true
+    fi
+fi
+
 echo "INPUT CRAM: ${INPUT_CRAM}"
 echo "OUTPUT DIR: ${OUT_DIR}"
 echo "ALIGN AND FILTER: ${ALIGN_AND_FILTER}"
@@ -133,11 +148,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
         echo "REF_VIR_CONT database and indices already available: ${REF_VIR_CONT}"
     else
         echo "Building REF_VIR_CONT database..."
-        if [ -f "${REF_VIRAL_BASE}" ]; then
-            cat "${REF_VIRAL_BASE}" > "${REF_VIR_CONT}"
-            [ -f "${REF_PLASMIDS}" ] && cat "${REF_PLASMIDS}" >> "${REF_VIR_CONT}"
-            [ -f "${REF_MOUSE}" ] && cat "${REF_MOUSE}" >> "${REF_VIR_CONT}"
-        fi
+        bash "${INIT_REF_SCRIPT}" -v "${REF_VIRAL_BASE}" -p "${REF_PLASMIDS}" -m "${REF_MOUSE}" -o "${REF_VIR_CONT}" -b "${BWA_BIN}"
         if [ ! -f "${REF_VIR_CONT}.ann" ]; then
             "${BWA_BIN}" index "${REF_VIR_CONT}"
         fi
@@ -173,7 +184,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
 
     # 3. Step 1: Alignment to foreign reference database (REF_VIR_CONT)
     echo "STEP 1) ALIGNMENT TO FOREIGN REFERENCE DATABASE"
-    samtools fastq -@ 4 -F 2048 -T "${REF_HUMAN_FULL}" "${INPUT_CRAM}" \
+    samtools fastq -@ 4 -F 2048 --reference "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
         | "${BWA_BIN}" mem -k 30 -t 20 "${REF_VIR_CONT}" - \
         | egrep -v '^@' \
         | awk '$3 != "*"' \
@@ -224,7 +235,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
 
     # 4. Step 3: Retrieving mates and reconstructing paired-end FASTQ
     echo "STEP 3) RETRIEVING MATES"
-    samtools view -F 2048 -T "${REF_HUMAN_FULL}" "${INPUT_CRAM}" \
+    samtools view -F 2048 -T "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
         | python "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/viral_reads_se.keep" "${OUT_DIR}/viral_1.fq" "${OUT_DIR}/viral_2.fq" "${OUT_DIR}/totalReads.count"
 
     TOTAL_PAIRS=$(cat "${OUT_DIR}/totalReads.count" 2>/dev/null || echo "0")
@@ -235,7 +246,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     fi
 
     # Unmapped pairs calculation (both mates unmapped or flag bit 4 set in unmapped CRAM)
-    UNMAPPED_RAW=$(samtools view -c -f 4 -F 2048 -T "${REF_HUMAN_FULL}" "${INPUT_CRAM}" 2>/dev/null || echo "0")
+    UNMAPPED_RAW=$(samtools view -c -f 4 -F 2048 -T "${REF_CRAM_DECODER}" "${INPUT_CRAM}" 2>/dev/null || echo "0")
     UNMAPPED_PAIRS=$(( UNMAPPED_RAW / 2 ))
     UNMAPPED_FRAC=$(awk -v cnt="${UNMAPPED_PAIRS}" -v tot="${TOTAL_PAIRS_VAL}" 'BEGIN {printf "%.6f", (tot > 0 ? cnt/tot : 0)}')
     printf "%d\t%d\t%s\n" "${UNMAPPED_PAIRS}" "${TOTAL_PAIRS}" "${UNMAPPED_FRAC}" > "${OUT_DIR}/unmapped_pairs.count"
@@ -243,7 +254,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     # Recover contamination statistics & CRAM output files if submodule is active
     if [ "${CONTAMINATION_QUANTIFICATION}" = "on" ]; then
         if [ -s "${OUT_DIR}/plasmid_reads_se.ids" ]; then
-            samtools view -F 2048 -T "${REF_HUMAN_FULL}" "${INPUT_CRAM}" \
+            samtools view -F 2048 -T "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
                 | python "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/plasmid_reads_se.ids" "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq" "${OUT_DIR}/plasmid_raw.count"
             
             # Align plasmid pairs and convert to sorted CRAM
@@ -262,7 +273,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
         printf "%d\t%d\t%s\n" "${PLASMID_PAIRS}" "${TOTAL_PAIRS}" "${PLASMID_FRAC}" > "${OUT_DIR}/plasmid_pairs.count"
 
         if [ -s "${OUT_DIR}/mouse_reads_se.ids" ]; then
-            samtools view -F 2048 -T "${REF_HUMAN_FULL}" "${INPUT_CRAM}" \
+            samtools view -F 2048 -T "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
                 | python "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/mouse_reads_se.ids" "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq" "${OUT_DIR}/mouse_raw.count"
             
             # Align mouse pairs and convert to sorted CRAM

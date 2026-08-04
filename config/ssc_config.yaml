@@ -63,6 +63,7 @@ viral_db_alignment: "on"  # Switch: "on" or "off"
 contamination_quantification: "on"  # Switch: "on" to blacklist plasmid/mouse reads from viral BAM & output 3-column .count TSVs
 
 # Alignment References and Databases (relative to ref_dir /mnt/disks/staff/refs/)
+ref_cram_decoder: "GRCh38_full_analysis_set_plus_decoy_hla.fa"  # Original reference for CRAM decoding
 ref_human_full: "GRCh38_full_analysis_set_plus_decoy_hla_modified.renamed.fa"
 ref_human_no_ebv: "GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.renamed.fa"
 ref_viral_base: "HumanViral_Reference_02-07-2022_modified.renamed.fa"
