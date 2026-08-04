@@ -31,7 +31,7 @@ if config.get("unmapped_extraction", "on") == "on":
 # Module 2: Viral DB alignment (VIROnator)
 if config.get("viral_db_alignment", "on") == "on":
     targets.append("config/vironator_dir.created")
-    targets.append("config/ssc_align.job")
+    targets.append("config/ssc_alignment.job")
 
 rule all:
     input:
