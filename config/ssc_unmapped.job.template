@@ -76,7 +76,7 @@ set -ex
 echo "Start: $(date)"
 
 # Consolidated global variables
-REF_GENOME="{ref_genome}"
+REF_CRAM_DECODER="{ref_cram_decoder}"
 PHASE="{phase}"
 PROJECT="{project}"
 SAMPLE="[SAMPLE]"
@@ -96,8 +96,22 @@ OUT_CRAM="${OUT_DIR}/${SAMPLE}.unmapped.cram"
 echo "INPUT CRAM: ${CRAM}"
 echo "OUTPUT CRAM: ${OUT_CRAM}"
 
+# Configure REF_PATH so samtools can resolve CRAM references in ref_dir
+export REF_PATH="/mnt/disks/staff/refs/%s:/mnt/disks/staff/refs/%s.fa"
+
+# Fallback symlinks for legacy CRAM headers that expect /mnt/disks/staff/ref/GRCh38_full_analysis_set_plus_decoy_hla.fa
+if [ ! -d "/mnt/disks/staff/ref" ] && [ -d "/mnt/disks/staff/refs" ]; then
+    ln -s /mnt/disks/staff/refs /mnt/disks/staff/ref 2>/dev/null || true
+fi
+if [ -d "/mnt/disks/staff/refs" ]; then
+    if [ ! -f "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla.fa" ] && [ -f "${REF_CRAM_DECODER}" ]; then
+        ln -s "${REF_CRAM_DECODER}" /mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla.fa 2>/dev/null || true
+        [ -f "${REF_CRAM_DECODER}.fai" ] && ln -s "${REF_CRAM_DECODER}.fai" /mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla.fa.fai 2>/dev/null || true
+    fi
+fi
+
 echo "$(date) Starting extraction: ${SAMPLE}"
-samtools view -@ 4 -T "${REF_GENOME}" -F 256 --rf 12 -C -o "${OUT_CRAM}" "${CRAM}"
+samtools view -@ 4 -T "${REF_CRAM_DECODER}" -F 256 --rf 12 -C -o "${OUT_CRAM}" "${CRAM}"
 status=$?
 echo "$(date) samtools exit code: ${status}"
 

@@ -6,7 +6,7 @@ project_part = f"{config['project']}/" if config["project"] else ""
 
 rule create_output_directory:
     """
-    Initializes the target unmapped output directory on GCS using gsutil.
+    Initializes the target unmapped output directory on GCS using gsutil if not already initialized.
     """
     input:
         placeholder=config["placeholder_file"],
@@ -15,7 +15,10 @@ rule create_output_directory:
         token="config/unmapped_dir.created"
     shell:
         """
-        gsutil cp {input.placeholder} gs://{config[output_bucket]}/{config[unmapped_out_dirname]}/phase{config[phase]}/{project_part}test.txt
+        TARGET_PATH="gs://{config[output_bucket]}/{config[unmapped_out_dirname]}/phase{config[phase]}/{project_part}test.txt"
+        if ! gsutil -q stat "$TARGET_PATH"; then
+            gsutil cp {input.placeholder} "$TARGET_PATH"
+        fi
         touch {output.token}
         """
 
@@ -37,6 +40,7 @@ rule generate_job_file:
         formatted_content = (
             content.replace("{phase}", str(config["phase"]))
             .replace("{project}", str(config["project"]))
+            .replace("{ref_cram_decoder}", os.path.join(config["ref_dir"], config.get("ref_cram_decoder", "GRCh38_full_analysis_set_plus_decoy_hla.fa")))
             .replace("{ref_genome}", str(config["ref_genome"]))
             .replace("{data_dir}", str(config["data_dir"]))
             .replace("{output_dir}", str(config["output_dir"]))
@@ -62,6 +66,8 @@ rule generate_resources_config:
         with open(input.template, "r") as f:
             content = f.read()
         
+        jobexec_dirname = config.get("vironator_jobexec_dirname", "jobexec_vironator") if config.get("viral_db_alignment", "off") == "on" else config.get("unmapped_jobexec_dirname", "jobexec_unmapped")
+        
         formatted_content = (
             content.replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{data_bucket}", str(config["data_bucket"]))
@@ -69,7 +75,7 @@ rule generate_resources_config:
             .replace("{pi}", str(config["pi"]))
             .replace("{pau}", str(config["pau"]))
             .replace("{task_name}", str(config["task_name"]))
-            .replace("{unmapped_jobexec_dirname}", str(config["unmapped_jobexec_dirname"]))
+            .replace("{jobexec_dirname}", str(jobexec_dirname))
         )
         
         with open(output.resources_config, "w") as f:
@@ -77,7 +83,7 @@ rule generate_resources_config:
 
 rule create_vironator_directory:
     """
-    Initializes the target vironator output directory on GCS using gsutil.
+    Initializes the target vironator output directory on GCS using gsutil if not already initialized.
     """
     input:
         placeholder=config["placeholder_file"],
@@ -86,7 +92,10 @@ rule create_vironator_directory:
         token="config/vironator_dir.created"
     shell:
         """
-        gsutil cp {input.placeholder} gs://{config[output_bucket]}/{config[vironator_out_dirname]}/phase{config[phase]}/{project_part}test.txt
+        TARGET_PATH="gs://{config[output_bucket]}/{config[vironator_out_dirname]}/phase{config[phase]}/{project_part}test.txt"
+        if ! gsutil -q stat "$TARGET_PATH"; then
+            gsutil cp {input.placeholder} "$TARGET_PATH"
+        fi
         touch {output.token}
         """
 
