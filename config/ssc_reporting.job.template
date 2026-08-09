@@ -1,0 +1,112 @@
+# =========================================================================================================================
+# VIROnator Reporting Job Template
+
+job_name=SSC_REPORTING
+job_identifier=phase{phase}_[SAMPLE]
+
+
+####
+#### Buckets
+####
+
+input_bucket=gs://{output_bucket}/{vironator_jobexec_dirname}/output
+output_bucket=gs://{output_bucket}/{reporting_jobexec_dirname}/output
+log_bucket=gs://{output_bucket}/{reporting_jobexec_dirname}/logs
+
+####
+#### Tools
+####
+
+repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
+tool=samtools
+
+####
+#### Post-Job Configuration
+####
+
+clear_output=true
+clear_input=true 
+
+
+####
+#### Script to run
+####
+
+commands_start
+
+# Automatically load environment modules if Lmod/Modules are available on node
+if command -v module >/dev/null 2>&1 || [ -f /usr/share/modules/init/bash ]; then
+    [ -f /usr/share/modules/init/bash ] && . /usr/share/modules/init/bash 2>/dev/null || true
+    module load samtools bwa python 2>/dev/null || true
+fi
+
+set -ex
+
+echo "Start: $(date)"
+
+# Consolidated global variables
+REF_HUMAN_NO_EBV="{ref_human_no_ebv}"
+REF_VIR_CONT="{ref_vir_cont}"
+REF_HUMAN_FULL="{ref_human_full}"
+
+VIRAL_RENAME_MAP="{viral_rename_map_path}"
+VIRAL_BED="{viral_bed_path}"
+SAMPLE_METADATA="{sample_metadata_path}"
+
+BWA_BIN="{bwa_bin}"
+PYTHON_BIN="{python_bin}"
+if [ ! -x "${PYTHON_BIN}" ] && ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
+    if command -v python3 >/dev/null 2>&1; then
+        PYTHON_BIN="python3"
+    elif command -v python >/dev/null 2>&1; then
+        PYTHON_BIN="python"
+    fi
+fi
+
+REPORT_SCRIPT="{report_script_path}"
+COMBINED_REFS_DIR="{combined_refs_dir_path}"
+
+# Dynamic calculation of COMBINED_REF
+BASENAME_HUMAN=$(basename "${REF_HUMAN_NO_EBV}")
+BASENAME_HUMAN_NOEXT=$(printf '%s' "${BASENAME_HUMAN}" | rev | cut -d'.' -f2- | rev)
+BASENAME_VIR_CONT=$(basename "${REF_VIR_CONT}")
+BASENAME_VIR_CONT_NOEXT=$(printf '%s' "${BASENAME_VIR_CONT}" | rev | cut -d'.' -f2- | rev)
+COMBINED_BASENAME="combined_${BASENAME_HUMAN_NOEXT}_${BASENAME_VIR_CONT_NOEXT}.fa"
+COMBINED_REF="${COMBINED_REFS_DIR}/${COMBINED_BASENAME}"
+
+PHASE="{phase}"
+PROJECT="{project}"
+SAMPLE="[SAMPLE]"
+
+# Directory paths
+if [ -z "${PROJECT}" ]; then
+    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${SAMPLE}"
+    REPORT_DIR="{output_dir}/{reports_out_dirname}/phase${PHASE}"
+else
+    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
+    REPORT_DIR="{output_dir}/{reports_out_dirname}/phase${PHASE}/${PROJECT}"
+fi
+OUT_REPORT="${REPORT_DIR}/${SAMPLE}_viral_report.tsv"
+
+mkdir -p "${REPORT_DIR}"
+
+echo "VIRONATOR INPUT DIR: ${VIRONATOR_DIR}"
+echo "OUTPUT REPORT: ${OUT_REPORT}"
+
+# Run consolidated Python reporting script
+"${PYTHON_BIN}" "${REPORT_SCRIPT}" \
+    --sample-id "${SAMPLE}" \
+    --phase "${PHASE}" \
+    --project "${PROJECT}" \
+    --vironator-dir "${VIRONATOR_DIR}" \
+    --out-file "${OUT_REPORT}" \
+    --combined-ref "${COMBINED_REF}" \
+    --human-ref-fai "${REF_HUMAN_FULL}.fai" \
+    --rename-map "${VIRAL_RENAME_MAP}" \
+    --viral-bed "${VIRAL_BED}" \
+    --metadata "${SAMPLE_METADATA}"
+
+echo "Reporting Completed Successfully for ${SAMPLE}"
+echo "End: $(date)"
+
+# =========================================================================================================================

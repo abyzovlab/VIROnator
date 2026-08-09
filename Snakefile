@@ -29,9 +29,14 @@ if config.get("unmapped_extraction", "on") == "on":
     targets.append("config/ssc_unmapped.job")
 
 # Module 2: Viral DB alignment (VIROnator)
-if config.get("viral_db_alignment", "on") == "on":
+if config.get("viral_db_alignment", "off") == "on":
     targets.append("config/vironator_dir.created")
     targets.append("config/ssc_alignment.job")
+
+# Module 3: Reporting
+if config.get("reporting_module", "off") == "on":
+    targets.append("config/reports_dir.created")
+    targets.append("config/ssc_reporting.job")
 
 rule all:
     input:

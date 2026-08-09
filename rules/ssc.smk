@@ -66,7 +66,12 @@ rule generate_resources_config:
         with open(input.template, "r") as f:
             content = f.read()
         
-        jobexec_dirname = config.get("vironator_jobexec_dirname", "jobexec_vironator") if config.get("viral_db_alignment", "off") == "on" else config.get("unmapped_jobexec_dirname", "jobexec_unmapped")
+        if config.get("reporting_module", "off") == "on":
+            jobexec_dirname = config.get("reporting_jobexec_dirname", "jobexec_reporting")
+        elif config.get("viral_db_alignment", "off") == "on":
+            jobexec_dirname = config.get("vironator_jobexec_dirname", "jobexec_vironator")
+        else:
+            jobexec_dirname = config.get("unmapped_jobexec_dirname", "jobexec_unmapped")
         
         formatted_content = (
             content.replace("{output_bucket}", str(config["output_bucket"]))
@@ -165,6 +170,62 @@ rule generate_align_job_file:
             .replace("{vironator_out_dirname}", str(config["vironator_out_dirname"]))
             .replace("{unmapped_jobexec_dirname}", str(config["unmapped_jobexec_dirname"]))
             .replace("{vironator_jobexec_dirname}", str(config["vironator_jobexec_dirname"]))
+        )
+        
+        with open(output.job, "w") as f:
+            f.write(formatted_content)
+
+rule create_reports_directory:
+    """
+    Initializes the target reports output directory on GCS using gsutil if not already initialized.
+    """
+    input:
+        placeholder=config["placeholder_file"],
+        config_file="config/ssc_config.yaml"
+    output:
+        token="config/reports_dir.created"
+    shell:
+        """
+        TARGET_PATH="gs://{config[output_bucket]}/{config[reports_out_dirname]}/phase{config[phase]}/{project_part}test.txt"
+        if ! gsutil -q stat "$TARGET_PATH"; then
+            gsutil cp {input.placeholder} "$TARGET_PATH"
+        fi
+        touch {output.token}
+        """
+
+rule generate_reporting_job_file:
+    """
+    Generates the final ssc_reporting.job file from ssc_reporting.job.template inside the config directory
+    by substituting variables defined in the Snakemake configuration.
+    """
+    input:
+        template="config/ssc_reporting.job.template",
+        config_file="config/ssc_config.yaml"
+    output:
+        job="config/ssc_reporting.job"
+    run:
+        with open(input.template, "r") as f:
+            content = f.read()
+        
+        formatted_content = (
+            content.replace("{phase}", str(config["phase"]))
+            .replace("{project}", str(config["project"]))
+            .replace("{output_bucket}", str(config["output_bucket"]))
+            .replace("{output_dir}", str(config["output_dir"]))
+            .replace("{ref_human_full}", os.path.join(config["ref_dir"], config["ref_human_full"]))
+            .replace("{ref_human_no_ebv}", os.path.join(config["ref_dir"], config["ref_human_no_ebv"]))
+            .replace("{ref_vir_cont}", os.path.join(config["ref_dir"], config.get("ref_vir_cont", config.get("ref_viral", "HumanViral_Reference_02-07-2022_SnapGene_plasmids_modified_mm39_ms_modified.fa"))))
+            .replace("{viral_rename_map_path}", os.path.join(config["ref_dir"], config.get("viral_rename_map_file", "HumanViral_Reference_02-07-2022_modified.rename_map.tsv")))
+            .replace("{viral_bed_path}", os.path.join(config["ref_dir"], config["viral_bed_file"]))
+            .replace("{sample_metadata_path}", os.path.join(config["ref_dir"], config.get("sample_metadata_file", "sample_metadata.tsv")))
+            .replace("{bwa_bin}", str(config["bwa_bin"]))
+            .replace("{python_bin}", str(config.get("python_bin", "python3")))
+            .replace("{report_script_path}", os.path.join(config["scripts_dir"], config.get("report_script", "generate_report.py")))
+            .replace("{combined_refs_dir_path}", os.path.join(config["ref_dir"], config["combined_refs_dir"]))
+            .replace("{vironator_out_dirname}", str(config["vironator_out_dirname"]))
+            .replace("{reports_out_dirname}", str(config["reports_out_dirname"]))
+            .replace("{vironator_jobexec_dirname}", str(config["vironator_jobexec_dirname"]))
+            .replace("{reporting_jobexec_dirname}", str(config.get("reporting_jobexec_dirname", "jobexec_reporting")))
         )
         
         with open(output.job, "w") as f:
