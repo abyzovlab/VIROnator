@@ -33,7 +33,7 @@ For detailed documentation, see [docs/ssc_extraction.md](docs/ssc_extraction.md)
 
 ### Step-by-Step Setup
 
-#### Phase 1: Prepare your Workspace
+### Phase 1: Prepare your Workspace
 Before configuring any files, run these steps in your terminal:
 1. **Clone the repository:** Clone the `VIROnator` repository to your environment.
 2. **Move into the repository folder:**
@@ -48,7 +48,7 @@ Before configuring any files, run these steps in your terminal:
      sample_id_2
      ```
 
-#### Phase 2: Configure your Settings
+### Phase 2: Configure your Settings
 Open `config/ssc_config.yaml` in a text editor. Configure these settings before running the pipeline:
 
 > [!IMPORTANT]
