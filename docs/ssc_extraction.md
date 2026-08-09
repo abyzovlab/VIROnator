@@ -124,7 +124,7 @@ VIROnator/                                    <-- Cloned Repository folder (work
 
 ---
 
-## Alignment Module Script Overview (`ssc_alignment.job`)
+## Alignment Module Script Overview <small>(ssc_alignment.job)</small>
 
 The alignment job script (`config/ssc_alignment.job.template` compiled into `config/ssc_alignment.job`) runs a 4-step pipeline for viral candidate detection and filtering:
 
@@ -139,7 +139,7 @@ The alignment job script (`config/ssc_alignment.job.template` compiled into `con
 
 ---
 
-## Standalone Utility: FASTA Header Cleaner (`rename_fasta_contigs.sh`)
+## Standalone Utility: FASTA Header Cleaner <small>(rename_fasta_contigs.sh)</small>
 
 When adopting a new vector or plasmid reference dataset, raw FASTA header names often contain special characters (Greek letters like `α`, `β`, `γ`, trademarks `™`, `®`, symbols `+`, `%`, `#`, commas, slashes, and spaces). These special characters cause parsing failures or silent truncation in alignment tools like `bwa mem` and `samtools`.
 
