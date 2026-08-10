@@ -21,7 +21,12 @@ project_part = f"{config['project']}/" if config["project"] else ""
 targets = []
 
 # Always target the resource configurations compilation
-targets.append("config/batch_jobexec_resources.config")
+targets.extend([
+    "config/batch_jobexec_resources.config",
+    "config/batch_jobexec_unmapped.config",
+    "config/batch_jobexec_vironator.config",
+    "config/batch_jobexec_reporting.config"
+])
 
 # Module 1: Unmapped extraction
 if config.get("unmapped_extraction", "on") == "on":

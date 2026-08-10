@@ -54,37 +54,54 @@ rule generate_job_file:
 
 rule generate_resources_config:
     """
-    Generates the final batch_jobexec_resources.config from its template inside the config directory
-    by substituting the GCS bucket variables defined in the Snakemake configuration.
+    Generates module-specific batch_jobexec resource config files from template.
     """
     input:
         template="config/batch_jobexec_resources.config.template",
         config_file="config/ssc_config.yaml"
     output:
-        resources_config="config/batch_jobexec_resources.config"
+        resources_config="config/batch_jobexec_resources.config",
+        unmapped_config="config/batch_jobexec_unmapped.config",
+        vironator_config="config/batch_jobexec_vironator.config",
+        reporting_config="config/batch_jobexec_reporting.config"
     run:
         with open(input.template, "r") as f:
-            content = f.read()
+            template_content = f.read()
         
-        if config.get("reporting_module", "off") == "on":
-            jobexec_dirname = config.get("reporting_jobexec_dirname", "jobexec_reporting")
-        elif config.get("viral_db_alignment", "off") == "on":
-            jobexec_dirname = config.get("vironator_jobexec_dirname", "jobexec_vironator")
-        else:
-            jobexec_dirname = config.get("unmapped_jobexec_dirname", "jobexec_unmapped")
-        
-        formatted_content = (
-            content.replace("{output_bucket}", str(config["output_bucket"]))
+        base_sub = (
+            template_content.replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{data_bucket}", str(config["data_bucket"]))
             .replace("{gcp_account}", str(config["gcp_account"]))
             .replace("{pi}", str(config["pi"]))
             .replace("{pau}", str(config["pau"]))
             .replace("{task_name}", str(config["task_name"]))
-            .replace("{jobexec_dirname}", str(jobexec_dirname))
         )
         
+        # 1. Unmapped config
+        unmapped_content = base_sub.replace("{jobexec_dirname}", str(config.get("unmapped_jobexec_dirname", "jobexec_unmapped")))
+        with open(output.unmapped_config, "w") as f:
+            f.write(unmapped_content)
+
+        # 2. VIROnator config
+        vironator_content = base_sub.replace("{jobexec_dirname}", str(config.get("vironator_jobexec_dirname", "jobexec_vironator")))
+        with open(output.vironator_config, "w") as f:
+            f.write(vironator_content)
+
+        # 3. Reporting config
+        reporting_content = base_sub.replace("{jobexec_dirname}", str(config.get("reporting_jobexec_dirname", "jobexec_reporting")))
+        with open(output.reporting_config, "w") as f:
+            f.write(reporting_content)
+
+        # Active default config based on active module switch
+        if config.get("reporting_module", "off") == "on":
+            active_content = reporting_content
+        elif config.get("viral_db_alignment", "off") == "on":
+            active_content = vironator_content
+        else:
+            active_content = unmapped_content
+            
         with open(output.resources_config, "w") as f:
-            f.write(formatted_content)
+            f.write(active_content)
 
 rule create_vironator_directory:
     """
