@@ -258,35 +258,54 @@ def main():
             continue
 
         mapped_counts = get_mapped_reads_per_virus(fpath)
-        for virus_accession, read_count in mapped_counts.items():
-            if read_count <= 0:
-                continue
+        positive_hits = {acc: cnt for acc, cnt in mapped_counts.items() if cnt > 0}
 
-            virus_length = viral_lengths.get(virus_accession, 10000)
-            norm_cov = (read_count * 150.0) / float(virus_length)
-            phys_cov = calculate_physical_coverage(fpath, args.combined_ref, virus_accession, virus_length)
-            
-            denom = (read_depth / 2.0) if read_depth > 0 else 15.0
-            copy_number = norm_cov * (1.0 / denom)
-            virus_name = viral_names.get(virus_accession, virus_accession)
-
+        if not positive_hits:
+            # Baseline negative record when no viral reads are detected in CRAM file
             row = [
                 str(args.sample_id),
-                str(virus_accession),
-                str(virus_length),
-                str(read_count),
-                f"{norm_cov:.6f}",
-                str(phys_cov),
+                "None",
+                "0",
+                "0",
+                "0.000000",
+                "00.00",
                 str(human_genome_size),
                 f"{read_depth:.2f}",
-                f"{copy_number:.6f}",
-                str(virus_name),
+                "0.000000",
+                "None",
                 str(specimen),
                 phase_label,
                 project_label,
                 fname,
             ]
             rows.append(row)
+        else:
+            for virus_accession, read_count in positive_hits.items():
+                virus_length = viral_lengths.get(virus_accession, 10000)
+                norm_cov = (read_count * 150.0) / float(virus_length)
+                phys_cov = calculate_physical_coverage(fpath, args.combined_ref, virus_accession, virus_length)
+                
+                denom = (read_depth / 2.0) if read_depth > 0 else 15.0
+                copy_number = norm_cov * (1.0 / denom)
+                virus_name = viral_names.get(virus_accession, virus_accession)
+
+                row = [
+                    str(args.sample_id),
+                    str(virus_accession),
+                    str(virus_length),
+                    str(read_count),
+                    f"{norm_cov:.6f}",
+                    str(phys_cov),
+                    str(human_genome_size),
+                    f"{read_depth:.2f}",
+                    f"{copy_number:.6f}",
+                    str(virus_name),
+                    str(specimen),
+                    phase_label,
+                    project_label,
+                    fname,
+                ]
+                rows.append(row)
 
     with open(args.out_file, "w") as out:
         out.write("\t".join(header) + "\n")
