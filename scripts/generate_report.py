@@ -44,7 +44,7 @@ def parse_args():
     parser.add_argument("--human-ref-fai", required=True, help="Path to human reference FASTA .fai index")
     parser.add_argument("--rename-map", required=True, help="Path to viral rename_map.tsv file")
     parser.add_argument("--viral-bed", required=True, help="Path to viral BED file")
-    parser.add_argument("--metadata", required=True, help="Path to sample_metadata.tsv")
+    parser.add_argument("--metadata", required=True, help="Path to SSC_sample_metadata.tsv")
     return parser.parse_args()
 
 
@@ -93,14 +93,17 @@ def load_viral_names(rename_map_filepath):
 
             if len(parts) >= 2:
                 clean_id = parts[0]
-                orig_header = parts[1]
-                # Strip accession prefix if repeated in original_header
-                if orig_header.startswith(clean_id):
-                    orig_header = orig_header[len(clean_id):].strip()
+                orig_header = parts[1].strip()
                 
-                # Sanitize name: map Human_herpesvirus -> HHV-, remove commas/spaces
-                sanitized = orig_header.replace("Human_herpesvirus_", "HHV-").replace("Human herpesvirus ", "HHV-")
-                sanitized = sanitized.rstrip(".").replace(",", "").replace(" ", "_").strip("_")
+                # Strip accession prefix if present at start of header
+                if orig_header.startswith(clean_id):
+                    desc = orig_header[len(clean_id):].strip()
+                else:
+                    desc = orig_header
+                
+                # Sanitize description: replace non-alphanumeric characters with underscores
+                import re
+                sanitized = re.sub(r"[^A-Za-z0-9]+", "_", desc).strip("_")
                 names[clean_id] = sanitized if sanitized else clean_id
     return names
 
@@ -131,6 +134,13 @@ def load_metadata(filepath, sample_id, phase, project):
     
     project_key = project if project.strip() else "base"
     clean_sample = sample_id.replace(".sorted", "").replace("Sample_", "")
+    
+    # Format phase string (e.g. phase1 or 1 as passed)
+    target_phase = str(phase).strip()
+    if not target_phase.startswith("phase") and target_phase.isdigit():
+        target_phase_alt = f"phase{target_phase}"
+    else:
+        target_phase_alt = target_phase
 
     if not os.path.exists(filepath):
         return default_depth, default_specimen
@@ -147,10 +157,10 @@ def load_metadata(filepath, sample_id, phase, project):
             
             row = dict(zip(header, parts))
             row_sample = row.get("sample", "").replace(".sorted", "").replace("Sample_", "")
-            row_phase = row.get("phase", "")
-            row_project = row.get("project", "")
+            row_phase = str(row.get("phase", "")).strip()
+            row_project = str(row.get("project", "")).strip()
             
-            if row_sample == clean_sample and str(row_phase) == str(phase) and row_project == project_key:
+            if row_sample == clean_sample and (row_phase == target_phase or row_phase == target_phase_alt) and row_project == project_key:
                 try:
                     depth = float(row.get("coverage", 30.0))
                 except ValueError:
@@ -210,6 +220,7 @@ def main():
     args = parse_args()
     
     project_label = args.project.strip() if args.project.strip() else "base"
+    phase_label = f"phase{args.phase}" if not str(args.phase).startswith("phase") else str(args.phase)
     viral_lengths = load_viral_lengths(args.viral_bed)
     viral_names = load_viral_names(args.rename_map)
     human_genome_size = calculate_human_genome_size(args.human_ref_fai)
@@ -225,9 +236,6 @@ def main():
     os.makedirs(os.path.dirname(args.out_file), exist_ok=True)
 
     header = [
-        "Phase",
-        "Project",
-        "Source_File",
         "Sample_ID",
         "Virus_Accession",
         "Virus_Length",
@@ -237,8 +245,11 @@ def main():
         "Human_Genome_Size",
         "Sample_Read_Depth",
         "Viral_Copy_Number",
-        "Specimen",
         "Virus_Name_Sanitized",
+        "Specimen",
+        "Phase",
+        "Project",
+        "Source_File",
     ]
 
     rows = []
@@ -260,9 +271,6 @@ def main():
             virus_name = viral_names.get(virus_accession, virus_accession)
 
             row = [
-                str(args.phase),
-                project_label,
-                fname,
                 str(args.sample_id),
                 str(virus_accession),
                 str(virus_length),
@@ -272,8 +280,11 @@ def main():
                 str(human_genome_size),
                 f"{read_depth:.2f}",
                 f"{copy_number:.6f}",
-                str(specimen),
                 str(virus_name),
+                str(specimen),
+                phase_label,
+                project_label,
+                fname,
             ]
             rows.append(row)
 
