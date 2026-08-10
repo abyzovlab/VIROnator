@@ -157,20 +157,20 @@ batchRun -multibatch samples_p2_base -config config/batch_jobexec_reporting.conf
 
 ## Reporting Module Overview <small>(ssc_reporting.job)</small>
 
-### Outputs (`/mnt/disks/staff/SSC_hg38_reports/phase2/[project]/`):
+### Outputs (`/mnt/disks/staff/SSC_hg38_reports/phase2/[project]/<sample_id>/`):
 
-When executed in parallel across multiple samples via `batchRun`, each worker node generates an individual, isolated report file for its assigned sample:
+When executed in parallel across multiple samples via `batchRun`, each worker node generates an individual, isolated report file inside its sample folder:
 `<sample_id>_viral_report.tsv`
 
 ### Merging All Sample Reports into a Single Cohort Master Report
-Once all parallel batch jobs complete, combine all individual sample reports into a single unified cohort report for downstream statistical analysis:
+Once all parallel batch jobs complete, combine all individual sample reports from their sample subfolders into a single unified cohort report for downstream statistical analysis:
 
 ```bash
 # Navigate to your cohort reports folder:
 cd /mnt/disks/staff/SSC_hg38_reports/phase2/[project]
 
-# Combine header from the first report + all data rows (skipping duplicate header lines) from all reports:
-awk 'FNR==1 && NR!=1{next} {print}' *_viral_report.tsv > cohort_master_viral_report.tsv
+# Combine header from the first report + all data rows (skipping duplicate header lines) across sample subfolders:
+awk 'FNR==1 && NR!=1{next} {print}' */*_viral_report.tsv > cohort_master_viral_report.tsv
 ```
 
 #### 14-Column Master Report Schema:

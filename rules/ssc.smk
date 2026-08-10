@@ -221,6 +221,23 @@ rule generate_reporting_job_file:
     output:
         job="config/ssc_reporting.job"
     run:
+        import shutil, subprocess
+        # Auto-sync repository scripts and db_metadata to shared output_dir mount (/mnt/disks/staff)
+        staff_scripts = os.path.join(config["output_dir"], "scripts")
+        staff_metadata = os.path.join(config["output_dir"], "db_metadata")
+        try:
+            os.makedirs(staff_scripts, exist_ok=True)
+            os.makedirs(staff_metadata, exist_ok=True)
+            if os.path.exists("scripts"):
+                shutil.copytree("scripts", staff_scripts, dirs_exist_ok=True)
+            if os.path.exists("config/db_metadata"):
+                shutil.copytree("config/db_metadata", staff_metadata, dirs_exist_ok=True)
+        except Exception:
+            bucket = config.get("output_bucket")
+            if bucket:
+                subprocess.run(f"gsutil -q cp -r scripts gs://{bucket}/scripts 2>/dev/null", shell=True)
+                subprocess.run(f"gsutil -q cp -r config/db_metadata gs://{bucket}/db_metadata 2>/dev/null", shell=True)
+
         with open(input.template, "r") as f:
             content = f.read()
         

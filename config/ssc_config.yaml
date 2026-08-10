@@ -61,8 +61,8 @@ ref_genome: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla_modif
 # ==============================================================================
 # 3. VIRAL DB ALIGNMENT MODULE (VIROnator)
 # ==============================================================================
-viral_db_alignment: "on"  # Switch: "on" or "off"
-contamination_quantification: "on"  # Switch: "on" to blacklist plasmid/mouse reads from viral BAM & output 3-column .count TSVs
+viral_db_alignment: "off"  # Switch: "on" or "off"
+contamination_quantification: "off"  # Switch: "on" to blacklist plasmid/mouse reads from viral BAM & output 3-column .count TSVs
 
 # Alignment References and Databases (relative to ref_dir /mnt/disks/staff/refs/)
 ref_cram_decoder: "GRCh38_full_analysis_set_plus_decoy_hla.fa"  # Original reference for CRAM decoding
@@ -89,10 +89,10 @@ init_ref_script: "init_ref.sh"
 combined_refs_dir: "."  # Output folder for combined reference (resolves directly to ref_dir)
 
 # Alignment execution switches ("on" or "off")
-align_and_filter: "on"
+align_and_filter: "off"
 align_only: "off"
 filter_only: "off"
-dual_mode: "on"  # "on" to output BOTH clean (subtracted) and raw (unsubtracted) viral CRAMs; "off" for clean only
+dual_mode: "off"  # "on" to output BOTH clean (subtracted) and raw (unsubtracted) viral CRAMs; "off" for clean only
 
 
 # ==============================================================================

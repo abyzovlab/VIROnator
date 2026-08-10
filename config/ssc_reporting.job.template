@@ -81,10 +81,10 @@ SAMPLE="[SAMPLE]"
 # Directory paths
 if [ -z "${PROJECT}" ]; then
     VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${SAMPLE}"
-    REPORT_DIR="{output_dir}/{reports_out_dirname}/phase${PHASE}"
+    REPORT_DIR="{output_dir}/{reports_out_dirname}/phase${PHASE}/${SAMPLE}"
 else
     VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
-    REPORT_DIR="{output_dir}/{reports_out_dirname}/phase${PHASE}/${PROJECT}"
+    REPORT_DIR="{output_dir}/{reports_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
 fi
 OUT_REPORT="${REPORT_DIR}/${SAMPLE}_viral_report.tsv"
 
