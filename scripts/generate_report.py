@@ -171,30 +171,35 @@ def load_metadata(filepath, sample_id, phase, project):
     return default_depth, default_specimen
 
 
-def get_mapped_reads_per_virus(cram_path):
-    """Returns a dict of {viral_contig: mapped_read_pairs} from CRAM file."""
-    cmd = f"samtools view {cram_path} | awk '$7==\"=\" {{print $3}}' | sort | uniq -c"
+def get_mapped_reads_per_virus(cram_path, combined_ref):
+    """
+    Returns a dict of {viral_contig: read_pair_count} from CRAM file,
+    strictly counting read pairs where BOTH mates mapped to the exact same viral contig.
+    """
+    cmd = f"samtools view -f 2 -F 3844 -T {combined_ref} {cram_path} 2>/dev/null | awk '($7 == \"=\" || $7 == $3) && $3 != \"*\" {{print $3}}' | sort | uniq -c"
     try:
         res = subprocess.check_output(cmd, shell=True, text=True)
-    except subprocess.CalledProcessError:
+        counts = {}
+        for line in res.strip().split("\n"):
+            parts = line.strip().split()
+            if len(parts) == 2:
+                raw_cnt = int(parts[0])
+                contig = parts[1]
+                # Each read pair has 2 read records in SAM (R1 and R2), so pair count = raw_cnt / 2
+                pair_cnt = max(1, raw_cnt // 2)
+                if contig != "*":
+                    counts[contig] = pair_cnt
+        return counts
+    except Exception:
         return {}
-
-    counts = {}
-    for line in res.strip().split("\n"):
-        parts = line.strip().split()
-        if len(parts) == 2:
-            cnt = int(parts[0])
-            contig = parts[1]
-            if contig != "*":
-                counts[contig] = cnt
-    return counts
 
 
 def calculate_physical_coverage(cram_path, combined_ref, virus, virus_size):
     """Calculates physical coverage as a percentage (0.00 to 100.00) without % sign."""
     if virus_size <= 0:
         return "00.00"
-    cmd = f"samtools mpileup -f {combined_ref} {cram_path} 2>/dev/null | grep -w '{virus}' | cut -f2,4"
+    # Fast region-bounded mpileup directly targeting target viral contig -r {virus}
+    cmd = f"samtools mpileup -r '{virus}' -f {combined_ref} {cram_path} 2>/dev/null | cut -f2,4"
     try:
         res = subprocess.check_output(cmd, shell=True, text=True)
     except subprocess.CalledProcessError:
@@ -257,7 +262,7 @@ def main():
         if not os.path.exists(fpath):
             continue
 
-        mapped_counts = get_mapped_reads_per_virus(fpath)
+        mapped_counts = get_mapped_reads_per_virus(fpath, args.combined_ref)
         positive_hits = {acc: cnt for acc, cnt in mapped_counts.items() if cnt > 0}
 
         if not positive_hits:

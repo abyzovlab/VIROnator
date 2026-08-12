@@ -147,8 +147,8 @@ rule generate_align_job_file:
             # Fallback to gsutil if local /mnt/disks mount is restricted on head node
             bucket = config.get("output_bucket")
             if bucket:
-                subprocess.run(f"gsutil -q cp -r scripts gs://{bucket}/scripts 2>/dev/null", shell=True)
-                subprocess.run(f"gsutil -q cp -r config/db_metadata gs://{bucket}/db_metadata 2>/dev/null", shell=True)
+                subprocess.run(f"gsutil -q cp -r scripts/* gs://{bucket}/scripts/ 2>/dev/null", shell=True)
+                subprocess.run(f"gsutil -q cp -r config/db_metadata/* gs://{bucket}/db_metadata/ 2>/dev/null", shell=True)
 
         with open(input.template, "r") as f:
             content = f.read()
@@ -235,8 +235,8 @@ rule generate_reporting_job_file:
         except Exception:
             bucket = config.get("output_bucket")
             if bucket:
-                subprocess.run(f"gsutil -q cp -r scripts gs://{bucket}/scripts 2>/dev/null", shell=True)
-                subprocess.run(f"gsutil -q cp -r config/db_metadata gs://{bucket}/db_metadata 2>/dev/null", shell=True)
+                subprocess.run(f"gsutil -q cp -r scripts/* gs://{bucket}/scripts/ 2>/dev/null", shell=True)
+                subprocess.run(f"gsutil -q cp -r config/db_metadata/* gs://{bucket}/db_metadata/ 2>/dev/null", shell=True)
 
         with open(input.template, "r") as f:
             content = f.read()
