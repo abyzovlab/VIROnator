@@ -219,6 +219,9 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
         | gzip -c \
         > "${OUT_DIR}/viral_reads_se.reads.gz"
 
+    echo "[DIAGNOSTIC] Step 1 viral_reads_se.reads_temp size: $(ls -lh "${OUT_DIR}/viral_reads_se.reads_temp" 2>/dev/null | awk '{print $5}') | lines: $(wc -l < "${OUT_DIR}/viral_reads_se.reads_temp" 2>/dev/null || echo 0)"
+    echo "[DIAGNOSTIC] Step 1 viral_reads_se.reads.gz size: $(ls -lh "${OUT_DIR}/viral_reads_se.reads.gz" 2>/dev/null | awk '{print $5}') | lines: $(zcat "${OUT_DIR}/viral_reads_se.reads.gz" 2>/dev/null | wc -l || echo 0)"
+
     echo "STEP 1 DONE"
 
     # 3. Step 2: Read Filtering & Contamination Submodule
@@ -256,6 +259,12 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
         cat "${OUT_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_clean.keep"
     fi
     cat "${OUT_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_raw.keep"
+
+    echo "[DIAGNOSTIC] Step 2 viral_reads_se.ids count: $(wc -l < "${OUT_DIR}/viral_reads_se.ids" 2>/dev/null || echo 0)"
+    echo "[DIAGNOSTIC] Step 2 plasmid_reads_se.ids count: $(wc -l < "${OUT_DIR}/plasmid_reads_se.ids" 2>/dev/null || echo 0)"
+    echo "[DIAGNOSTIC] Step 2 mouse_reads_se.ids count: $(wc -l < "${OUT_DIR}/mouse_reads_se.ids" 2>/dev/null || echo 0)"
+    echo "[DIAGNOSTIC] Step 2 viral_clean.keep count: $(wc -l < "${OUT_DIR}/viral_clean.keep" 2>/dev/null || echo 0)"
+
     echo "STEP 2 DONE"
 
     # 4. Step 3: Retrieving mates and reconstructing paired-end FASTQ
@@ -283,6 +292,11 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     UNMAPPED_PAIRS=$(( UNMAPPED_RAW / 2 ))
     UNMAPPED_FRAC=$(awk -v cnt="${UNMAPPED_PAIRS}" -v tot="${TOTAL_PAIRS_VAL}" 'BEGIN {printf "%.6f", (tot > 0 ? cnt/tot : 0)}')
     printf "%d\t%d\t%s\n" "${UNMAPPED_PAIRS}" "${TOTAL_PAIRS}" "${UNMAPPED_FRAC}" > "${OUT_DIR}/unmapped_pairs.count"
+
+    echo "[DIAGNOSTIC] Step 3 viral_clean_1.fq size: $(ls -lh "${OUT_DIR}/viral_clean_1.fq" 2>/dev/null | awk '{print $5}') | lines: $(wc -l < "${OUT_DIR}/viral_clean_1.fq" 2>/dev/null || echo 0)"
+    echo "[DIAGNOSTIC] Step 3 viral_clean_2.fq size: $(ls -lh "${OUT_DIR}/viral_clean_2.fq" 2>/dev/null | awk '{print $5}') | lines: $(wc -l < "${OUT_DIR}/viral_clean_2.fq" 2>/dev/null || echo 0)"
+    echo "[DIAGNOSTIC] Step 3 totalReads.count: ${TOTAL_PAIRS}"
+    echo "[DIAGNOSTIC] Step 3 unmapped_pairs.count: ${UNMAPPED_PAIRS}"
 
     # Recover contamination statistics & CRAM output files if submodule is active
     if [ "${CONTAMINATION_QUANTIFICATION}" = "on" ]; then
@@ -350,6 +364,10 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     
     sort "${OUT_DIR}/rna_hits.ids" "${OUT_DIR}/decoy_hits.ids" | uniq > "${OUT_DIR}/bad.list"
     
+    echo "[DIAGNOSTIC] Step 4 rna_hits.ids count: $(wc -l < "${OUT_DIR}/rna_hits.ids" 2>/dev/null || echo 0)"
+    echo "[DIAGNOSTIC] Step 4 decoy_hits.ids count: $(wc -l < "${OUT_DIR}/decoy_hits.ids" 2>/dev/null || echo 0)"
+    echo "[DIAGNOSTIC] Step 4 bad.list count: $(wc -l < "${OUT_DIR}/bad.list" 2>/dev/null || echo 0)"
+
     # Subtract decoys/RNA hits and create final BAMs
     samtools view -h "${OUT_DIR}/Viral_clean.sort.bam" | fgrep -v -w -f "${OUT_DIR}/bad.list" | samtools view -Sb - > "${OUT_DIR}/exogeneSR_viral_clean.bam"
     samtools index "${OUT_DIR}/exogeneSR_viral_clean.bam"
@@ -390,6 +408,9 @@ filter_mode() {
             | cut -f1 | sort | uniq -c | awk '$1=="2"' | awk '{print $2}' \
             > "${OUT_DIR}/reads_${MODE_PREFIX}.flags.ids"
 
+        echo "[DIAGNOSTIC] ${MODE_PREFIX} reads.ids count: $(wc -l < "${OUT_DIR}/reads_${MODE_PREFIX}.ids" 2>/dev/null || echo 0)"
+        echo "[DIAGNOSTIC] ${MODE_PREFIX} reads.flags.ids count: $(wc -l < "${OUT_DIR}/reads_${MODE_PREFIX}.flags.ids" 2>/dev/null || echo 0)"
+
         # Extract and sort filtered alignments using streaming pipes
         samtools view -h -F 2048 "${IN_BAM}" \
             | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads_${MODE_PREFIX}.ids" \
@@ -410,6 +431,9 @@ filter_mode() {
         samtools index "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.cram"
         samtools index "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.flags.cram"
 
+        echo "[DIAGNOSTIC] ${MODE_PREFIX}_filtered.sorted.cram size: $(ls -lh "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.cram" 2>/dev/null | awk '{print $5}')"
+        echo "[DIAGNOSTIC] ${MODE_PREFIX}_filtered.sorted.flags.cram size: $(ls -lh "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.flags.cram" 2>/dev/null | awk '{print $5}')"
+
         rm -f "${OUT_DIR}/reads_${MODE_PREFIX}.ids" "${OUT_DIR}/reads_${MODE_PREFIX}.flags.ids"
     fi
 }
@@ -421,6 +445,9 @@ filter_mode "viral_clean"
 if [ "${DUAL_MODE}" = "on" ]; then
     filter_mode "viral_raw"
 fi
+
+echo "=== FINAL INTERMEDIATE SUMMARY ==="
+ls -lh "${OUT_DIR}"/exogeneSR_*.cram 2>/dev/null || true
 
 # Clean up all intermediate SAM, BAM, and temporary files
 rm -f "${OUT_DIR}"/*body*

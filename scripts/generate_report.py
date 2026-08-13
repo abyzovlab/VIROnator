@@ -172,39 +172,62 @@ def load_metadata(filepath, sample_id, phase, project):
 
 
 def audit_intermediate_files(vironator_dir):
-    """Audits and prints line counts and status of all intermediate files in vironator_dir."""
-    print("\n--- Pipeline Intermediate File Audit ---")
+    """Audits and prints line counts, file sizes, and status of all pipeline files in vironator_dir (excluding indices)."""
+    print("\n--- VIROnator Directory Comprehensive File Audit ---")
     files_to_check = [
         ("Step 1 Temp BWA Alignments", "viral_reads_se.reads_temp"),
         ("Step 1 Filtered Viral Hits GZ", "viral_reads_se.reads.gz"),
         ("Step 2 Candidate Viral IDs", "viral_reads_se.ids"),
         ("Step 2 Plasmid Candidate IDs", "plasmid_reads_se.ids"),
         ("Step 2 Mouse Candidate IDs", "mouse_reads_se.ids"),
-        ("Step 2 Whitelisted Viral IDs", "viral_clean.keep"),
-        ("Step 3 Total Reconstructed Pairs", "totalReads.count"),
-        ("Step 3 Unmapped Read Pairs", "unmapped_pairs.count"),
-        ("Software Execution Log", "software.log"),
+        ("Step 2 Contamination Blacklist", "contamination.blacklist"),
+        ("Step 2 Whitelisted Viral IDs (Clean)", "viral_clean.keep"),
+        ("Step 2 Unsubtracted Viral IDs (Raw)", "viral_raw.keep"),
+        ("Step 3 Reconstructed FASTQ R1 (Clean)", "viral_clean_1.fq"),
+        ("Step 3 Reconstructed FASTQ R2 (Clean)", "viral_clean_2.fq"),
+        ("Step 3 Reconstructed FASTQ R1 (Raw)", "viral_raw_1.fq"),
+        ("Step 3 Reconstructed FASTQ R2 (Raw)", "viral_raw_2.fq"),
+        ("Step 3 Total Reconstructed Pairs Count", "totalReads.count"),
+        ("Step 3 Unmapped Read Pairs Count", "unmapped_pairs.count"),
+        ("Step 3 Plasmid Read Pairs Count", "plasmid_pairs.count"),
+        ("Step 3 Mouse Read Pairs Count", "mouse_pairs.count"),
+        ("Step 4 Error Execution Log", "errors.log"),
+        ("Pipeline Software Execution Log", "software.log"),
+        ("Clean Viral CRAM (Unfiltered)", "exogeneSR_viral_clean.cram"),
+        ("Clean Viral CRAM (Filtered)", "exogeneSR_viral_clean_filtered.sorted.cram"),
+        ("Clean Viral CRAM (Strict Flags)", "exogeneSR_viral_clean_filtered.sorted.flags.cram"),
+        ("Raw Viral CRAM (Unfiltered)", "exogeneSR_viral_raw.cram"),
+        ("Raw Viral CRAM (Filtered)", "exogeneSR_viral_raw_filtered.sorted.cram"),
+        ("Raw Viral CRAM (Strict Flags)", "exogeneSR_viral_raw_filtered.sorted.flags.cram"),
+        ("Plasmid Hits CRAM", "plasmid_hits.sorted.cram"),
+        ("Mouse Hits CRAM", "mouse_hits.sorted.cram"),
     ]
     for label, fname in files_to_check:
         fpath = os.path.join(vironator_dir, fname)
         if not os.path.exists(fpath):
-            print(f"  [MISSING] {label} ({fname})")
+            print(f"  [MISSING] {label:42s} ({fname})")
         else:
             fsize = os.path.getsize(fpath)
-            if fname.endswith(".gz"):
+            if fname.endswith(".count"):
+                try:
+                    content = open(fpath, "r").read().strip().replace("\t", " | ")
+                    print(f"  [EXISTS]  {label:42s} ({fname}): {fsize} bytes | Content: [{content}]")
+                except Exception:
+                    print(f"  [EXISTS]  {label:42s} ({fname}): {fsize} bytes")
+            elif fname.endswith(".gz"):
                 try:
                     res = subprocess.check_output(f"zcat '{fpath}' 2>/dev/null | wc -l", shell=True, text=True).strip()
-                    print(f"  [EXISTS]  {label} ({fname}): {fsize} bytes | {res} lines")
+                    print(f"  [EXISTS]  {label:42s} ({fname}): {fsize} bytes | {res} lines")
                 except Exception:
-                    print(f"  [EXISTS]  {label} ({fname}): {fsize} bytes")
-            elif fsize < 10000000: # < 10MB
+                    print(f"  [EXISTS]  {label:42s} ({fname}): {fsize} bytes")
+            elif fname.endswith(".cram"):
+                print(f"  [EXISTS]  {label:42s} ({fname}): {fsize} bytes")
+            else:
                 try:
                     res = subprocess.check_output(f"wc -l '{fpath}' 2>/dev/null", shell=True, text=True).strip().split()[0]
-                    print(f"  [EXISTS]  {label} ({fname}): {fsize} bytes | {res} lines")
+                    print(f"  [EXISTS]  {label:42s} ({fname}): {fsize} bytes | {res} lines")
                 except Exception:
-                    print(f"  [EXISTS]  {label} ({fname}): {fsize} bytes")
-            else:
-                print(f"  [EXISTS]  {label} ({fname}): {fsize} bytes")
+                    print(f"  [EXISTS]  {label:42s} ({fname}): {fsize} bytes")
 
 
 def get_mapped_reads_per_virus(cram_path, combined_ref):
