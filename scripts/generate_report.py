@@ -171,12 +171,49 @@ def load_metadata(filepath, sample_id, phase, project):
     return default_depth, default_specimen
 
 
+def audit_intermediate_files(vironator_dir):
+    """Audits and prints line counts and status of all intermediate files in vironator_dir."""
+    print("\n--- Pipeline Intermediate File Audit ---")
+    files_to_check = [
+        ("Step 1 Temp BWA Alignments", "viral_reads_se.reads_temp"),
+        ("Step 1 Filtered Viral Hits GZ", "viral_reads_se.reads.gz"),
+        ("Step 2 Candidate Viral IDs", "viral_reads_se.ids"),
+        ("Step 2 Plasmid Candidate IDs", "plasmid_reads_se.ids"),
+        ("Step 2 Mouse Candidate IDs", "mouse_reads_se.ids"),
+        ("Step 2 Whitelisted Viral IDs", "viral_clean.keep"),
+        ("Step 3 Total Reconstructed Pairs", "totalReads.count"),
+        ("Step 3 Unmapped Read Pairs", "unmapped_pairs.count"),
+        ("Software Execution Log", "software.log"),
+    ]
+    for label, fname in files_to_check:
+        fpath = os.path.join(vironator_dir, fname)
+        if not os.path.exists(fpath):
+            print(f"  [MISSING] {label} ({fname})")
+        else:
+            fsize = os.path.getsize(fpath)
+            if fname.endswith(".gz"):
+                try:
+                    res = subprocess.check_output(f"zcat '{fpath}' 2>/dev/null | wc -l", shell=True, text=True).strip()
+                    print(f"  [EXISTS]  {label} ({fname}): {fsize} bytes | {res} lines")
+                except Exception:
+                    print(f"  [EXISTS]  {label} ({fname}): {fsize} bytes")
+            elif fsize < 10000000: # < 10MB
+                try:
+                    res = subprocess.check_output(f"wc -l '{fpath}' 2>/dev/null", shell=True, text=True).strip().split()[0]
+                    print(f"  [EXISTS]  {label} ({fname}): {fsize} bytes | {res} lines")
+                except Exception:
+                    print(f"  [EXISTS]  {label} ({fname}): {fsize} bytes")
+            else:
+                print(f"  [EXISTS]  {label} ({fname}): {fsize} bytes")
+
+
 def get_mapped_reads_per_virus(cram_path, combined_ref):
     """
-    Returns a dict of {viral_contig: read_pair_count} from CRAM file,
-    strictly counting read pairs where BOTH mates mapped to the exact same viral contig.
+    Returns a dict of {viral_contig: read_count} from CRAM file
+    for all mapped reads targeting viral contigs (ignoring human contigs).
     """
-    cmd = f"samtools view -f 2 -F 3844 -T {combined_ref} {cram_path} 2>/dev/null | awk '($7 == \"=\" || $7 == $3) && $3 != \"*\" {{print $3}}' | sort | uniq -c"
+    # Count mapped reads per contig using samtools view -F 4
+    cmd = f"samtools view -F 4 -T '{combined_ref}' '{cram_path}' 2>/dev/null | cut -f3 | sort | uniq -c"
     try:
         res = subprocess.check_output(cmd, shell=True, text=True)
         counts = {}
@@ -185,10 +222,8 @@ def get_mapped_reads_per_virus(cram_path, combined_ref):
             if len(parts) == 2:
                 raw_cnt = int(parts[0])
                 contig = parts[1]
-                # Each read pair has 2 read records in SAM (R1 and R2), so pair count = raw_cnt / 2
-                pair_cnt = max(1, raw_cnt // 2)
-                if contig != "*":
-                    counts[contig] = pair_cnt
+                if contig != "*" and not contig.startswith("chr") and not contig.startswith("NC_0000"):
+                    counts[contig] = raw_cnt
         return counts
     except Exception:
         return {}
@@ -249,6 +284,8 @@ def main():
     
     read_depth, specimen = load_metadata(args.metadata, args.sample_id, args.phase, args.project)
     print(f"Metadata Lookup Result -> Read Depth: {read_depth}, Specimen: {specimen}")
+
+    audit_intermediate_files(args.vironator_dir)
 
     target_files = [
         ("exogeneSR_viral_clean_filtered.sorted.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_clean_filtered.sorted.cram")),
