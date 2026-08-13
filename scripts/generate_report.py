@@ -226,16 +226,35 @@ def main():
     
     project_label = args.project.strip() if args.project.strip() else "base"
     phase_label = f"phase{args.phase}" if not str(args.phase).startswith("phase") else str(args.phase)
+    
+    print("=== VIROnator Reporting Diagnostic ===")
+    print(f"Sample ID:        {args.sample_id}")
+    print(f"Phase:            {phase_label}")
+    print(f"Project:          {project_label}")
+    print(f"Vironator Dir:    {args.vironator_dir}")
+    print(f"Output Report:    {args.out_file}")
+    print(f"Combined Ref:     {args.combined_ref} (Exists: {os.path.exists(args.combined_ref)})")
+    print(f"Rename Map:       {args.rename_map} (Exists: {os.path.exists(args.rename_map)})")
+    print(f"Viral BED:        {args.viral_bed} (Exists: {os.path.exists(args.viral_bed)})")
+    print(f"Sample Metadata:  {args.metadata} (Exists: {os.path.exists(args.metadata)})")
+    
     viral_lengths = load_viral_lengths(args.viral_bed)
+    print(f"Loaded {len(viral_lengths)} viral lengths from BED file.")
+    
     viral_names = load_viral_names(args.rename_map)
+    print(f"Loaded {len(viral_names)} viral rename mappings.")
+    
     human_genome_size = calculate_human_genome_size(args.human_ref_fai)
+    print(f"Human Genome Size: {human_genome_size} bp")
+    
     read_depth, specimen = load_metadata(args.metadata, args.sample_id, args.phase, args.project)
+    print(f"Metadata Lookup Result -> Read Depth: {read_depth}, Specimen: {specimen}")
 
     target_files = [
-        ("exogeneSR_viral_clean.sorted.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_clean.sorted.cram")),
-        ("exogeneSR_viral_clean.sorted.flags.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_clean.sorted.flags.cram")),
-        ("exogeneSR_viral_raw.sorted.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_raw.sorted.cram")),
-        ("exogeneSR_viral_raw.sorted.flags.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_raw.sorted.flags.cram")),
+        ("exogeneSR_viral_clean_filtered.sorted.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_clean_filtered.sorted.cram")),
+        ("exogeneSR_viral_clean_filtered.sorted.flags.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_clean_filtered.sorted.flags.cram")),
+        ("exogeneSR_viral_raw_filtered.sorted.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_raw_filtered.sorted.cram")),
+        ("exogeneSR_viral_raw_filtered.sorted.flags.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_raw_filtered.sorted.flags.cram")),
     ]
 
     os.makedirs(os.path.dirname(args.out_file), exist_ok=True)
@@ -258,15 +277,20 @@ def main():
     ]
 
     rows = []
+    print("\n--- Evaluating CRAM Files ---")
     for fname, fpath in target_files:
         if not os.path.exists(fpath):
+            print(f"[SKIP] File not found: {fname}")
             continue
 
+        fsize = os.path.getsize(fpath)
+        print(f"[CHECKING] {fname} (Size: {fsize} bytes)")
+        
         mapped_counts = get_mapped_reads_per_virus(fpath, args.combined_ref)
         positive_hits = {acc: cnt for acc, cnt in mapped_counts.items() if cnt > 0}
 
         if not positive_hits:
-            # Baseline negative record when no viral reads are detected in CRAM file
+            print(f"  -> No viral read pairs detected in {fname} (Adding baseline negative record)")
             row = [
                 str(args.sample_id),
                 "None",
@@ -285,6 +309,7 @@ def main():
             ]
             rows.append(row)
         else:
+            print(f"  -> POSITIVE FINDINGS: {len(positive_hits)} viral contigs with mapped read pairs in {fname}")
             for virus_accession, read_count in positive_hits.items():
                 virus_length = viral_lengths.get(virus_accession, 10000)
                 norm_cov = (read_count * 150.0) / float(virus_length)
@@ -293,6 +318,7 @@ def main():
                 denom = (read_depth / 2.0) if read_depth > 0 else 15.0
                 copy_number = norm_cov * (1.0 / denom)
                 virus_name = viral_names.get(virus_accession, virus_accession)
+                print(f"     + {virus_accession} ({virus_name}): {read_count} read pairs | PhysCov: {phys_cov}%")
 
                 row = [
                     str(args.sample_id),
@@ -317,7 +343,7 @@ def main():
         for r in rows:
             out.write("\t".join(r) + "\n")
 
-    print(f"Report generated successfully: {args.out_file} ({len(rows)} entries)")
+    print(f"\nReport generated successfully: {args.out_file} ({len(rows)} entries)")
 
 
 if __name__ == "__main__":

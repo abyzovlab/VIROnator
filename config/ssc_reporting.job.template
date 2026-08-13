@@ -92,9 +92,14 @@ mkdir -p "${REPORT_DIR}"
 
 echo "VIRONATOR INPUT DIR: ${VIRONATOR_DIR}"
 echo "OUTPUT REPORT: ${OUT_REPORT}"
+echo "COMBINED REF: ${COMBINED_REF}"
 
-# Run consolidated Python reporting script
-"${PYTHON_BIN}" "${REPORT_SCRIPT}" \
+if [ ! -d "${VIRONATOR_DIR}" ]; then
+    echo "[WARNING] VIRONATOR INPUT DIR does not exist: ${VIRONATOR_DIR}"
+fi
+
+# Run consolidated Python reporting script (unbuffered live diagnostic logging)
+PYTHONUNBUFFERED=1 "${PYTHON_BIN}" "${REPORT_SCRIPT}" \
     --sample-id "${SAMPLE}" \
     --phase "${PHASE}" \
     --project "${PROJECT}" \
@@ -104,7 +109,7 @@ echo "OUTPUT REPORT: ${OUT_REPORT}"
     --human-ref-fai "${REF_HUMAN_FULL}.fai" \
     --rename-map "${VIRAL_RENAME_MAP}" \
     --viral-bed "${VIRAL_BED}" \
-    --metadata "${SAMPLE_METADATA}"
+    --metadata "${SAMPLE_METADATA}" 2>&1
 
 echo "Reporting Completed Successfully for ${SAMPLE}"
 echo "End: $(date)"
