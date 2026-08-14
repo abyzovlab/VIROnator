@@ -99,7 +99,9 @@ rule generate_resources_config:
             f.write(coverage_content)
 
         # Active default config based on active module switch
-        if config.get("reporting_module", "off") == "on":
+        if config.get("coverage_module", "off") == "on":
+            active_content = coverage_content
+        elif config.get("reporting_module", "off") == "on":
             active_content = reporting_content
         elif config.get("viral_db_alignment", "off") == "on":
             active_content = vironator_content
