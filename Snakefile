@@ -25,7 +25,9 @@ targets.extend([
     "config/batch_jobexec_resources.config",
     "config/batch_jobexec_unmapped.config",
     "config/batch_jobexec_vironator.config",
-    "config/batch_jobexec_reporting.config"
+    "config/batch_jobexec_reporting.config",
+    "config/batch_jobexec_coverage.config",
+    "config/ssc_coverage.job"
 ])
 
 # Module 1: Unmapped extraction

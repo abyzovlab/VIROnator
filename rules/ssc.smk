@@ -63,7 +63,8 @@ rule generate_resources_config:
         resources_config="config/batch_jobexec_resources.config",
         unmapped_config="config/batch_jobexec_unmapped.config",
         vironator_config="config/batch_jobexec_vironator.config",
-        reporting_config="config/batch_jobexec_reporting.config"
+        reporting_config="config/batch_jobexec_reporting.config",
+        coverage_config="config/batch_jobexec_coverage.config"
     run:
         with open(input.template, "r") as f:
             template_content = f.read()
@@ -91,6 +92,11 @@ rule generate_resources_config:
         reporting_content = base_sub.replace("{jobexec_dirname}", str(config.get("reporting_jobexec_dirname", "jobexec_reporting")))
         with open(output.reporting_config, "w") as f:
             f.write(reporting_content)
+
+        # 4. Coverage config
+        coverage_content = base_sub.replace("{jobexec_dirname}", "jobexec_coverage")
+        with open(output.coverage_config, "w") as f:
+            f.write(coverage_content)
 
         # Active default config based on active module switch
         if config.get("reporting_module", "off") == "on":
@@ -260,6 +266,30 @@ rule generate_reporting_job_file:
             .replace("{reports_out_dirname}", str(config["reports_out_dirname"]))
             .replace("{vironator_jobexec_dirname}", str(config["vironator_jobexec_dirname"]))
             .replace("{reporting_jobexec_dirname}", str(config.get("reporting_jobexec_dirname", "jobexec_reporting")))
+        )
+        
+        with open(output.job, "w") as f:
+            f.write(formatted_content)
+
+rule generate_coverage_job_file:
+    """
+    Generates ssc_coverage.job from ssc_coverage.job.template.
+    """
+    input:
+        template="config/ssc_coverage.job.template",
+        config_file="config/ssc_config.yaml"
+    output:
+        job="config/ssc_coverage.job"
+    run:
+        with open(input.template, "r") as f:
+            content = f.read()
+        
+        formatted_content = (
+            content.replace("{phase}", str(config["phase"]))
+            .replace("{project}", str(config["project"]))
+            .replace("{output_bucket}", str(config["output_bucket"]))
+            .replace("{output_dir}", str(config["output_dir"]))
+            .replace("{sample_metadata_path}", os.path.join(config["ref_dir"], config.get("sample_metadata_file", "SSC_sample_metadata.tsv")))
         )
         
         with open(output.job, "w") as f:

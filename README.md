@@ -91,15 +91,41 @@ batchRun -multibatch samples_p2_base -config config/batch_jobexec_vironator.conf
   batchRun -multibatch samples_p2_base -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator MDJ -pau 0
   ```
 
-#### Merging All Sample Reports into a Single Cohort Master Report
-Once all parallel cloud batch jobs finish, run this command to combine all individual sample reports from their sample subfolders into one master file for downstream statistical analysis:
+#### Module 4: Coverage Calculation Module (`ssc_coverage.job`)
+* **Output Path:** `/mnt/disks/staff/SSC_hg38_coverage/phase2/[project]/<sample_id>_coverage.tsv`
+* **Batch Command:**
+  ```bash
+  batchRun -multibatch samples_p2_base -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator MDJ -pau 0
+  ```
+
+---
+
+## Merging Cloud Outputs into Master Reports
+
+### 1. Merging All Sample Viral Reports
+Once all parallel cloud batch jobs finish, combine all individual sample reports into one master file named with the phase and project:
 
 ```bash
-# Navigate to your cohort reports folder:
-cd /mnt/disks/staff/SSC_hg38_reports/phase2/[project]
+PHASE="phase2"
+PROJECT="base"  # Or sub-project name e.g. Project_CCDG_...
 
-# Combine header from the first report + all data rows (skipping duplicate header lines) across sample subfolders:
-awk 'FNR==1 && NR!=1{next} {print}' */*_viral_report.tsv > cohort_master_viral_report.tsv
+(
+  echo -e "Sample_ID\tVirus_Accession\tVirus_Length\tVirus_Mapped_Reads\tNormalized_Coverage\tPhysical_Coverage\tHuman_Genome_Size\tSample_Read_Depth\tViral_Copy_Number\tVirus_Name_Sanitized\tSpecimen\tPhase\tProject\tSource_File";
+  gsutil -m cat "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/SSC_hg38_reports/${PHASE}/${PROJECT}/**/*.tsv" | awk 'FNR==1 && NR!=1{next} {print}'
+) > "/mnt/disks/staff/SSC_hg38_reports/${PHASE}/cohort_master_viral_report_${PHASE}_${PROJECT}.tsv"
+```
+
+### 2. Merging All Cloud Sample Coverages into Master Coverage File
+To combine all cloud-calculated sample coverage outputs into a master file named with the phase and project:
+
+```bash
+PHASE="phase2"
+PROJECT="base"  # Or sub-project name e.g. Project_CCDG_...
+
+(
+  echo -e "sample\tcoverage\tspecimen\tphase\tproject\tcram_url";
+  gsutil -m cat "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/SSC_hg38_coverage/${PHASE}/${PROJECT}/**/*.tsv" | awk 'FNR==1 && NR!=1{next} {print}'
+) > "/mnt/disks/staff/SSC_hg38_coverage/${PHASE}/cohort_master_coverage_${PHASE}_${PROJECT}.tsv"
 ```
 
 #### 14-Column Master Report Schema:

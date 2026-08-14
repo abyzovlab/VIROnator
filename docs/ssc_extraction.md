@@ -173,6 +173,33 @@ cd /mnt/disks/staff/SSC_hg38_reports/phase2/[project]
 awk 'FNR==1 && NR!=1{next} {print}' */*_viral_report.tsv > cohort_master_viral_report.tsv
 ```
 
+## Coverage Calculation Module Overview <small>(ssc_coverage.job)</small>
+
+### Overview
+Calculates actual mean human genome read depth across WGS samples directly from original human CRAM files on Google Cloud Storage.
+
+### Execution Command:
+```bash
+# 1. Compile coverage job and resource configuration files:
+snakemake --cores 1
+
+# 2. Execute parallel batch run across cohort samples:
+batchRun -multibatch samples_p2_base -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator MDJ -pau 0
+```
+
+### Merging Cloud Coverage Outputs into Master Coverage TSV File:
+Once all cloud batch jobs complete, combine all individual sample coverage files directly from Google Cloud Storage into a single master coverage file named with the phase and project:
+
+```bash
+PHASE="phase2"
+PROJECT="base"  # Or sub-project name e.g. Project_CCDG_...
+
+(
+  echo -e "sample\tcoverage\tspecimen\tphase\tproject\tcram_url";
+  gsutil -m cat "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/SSC_hg38_coverage/${PHASE}/${PROJECT}/**/*.tsv" | awk 'FNR==1 && NR!=1{next} {print}'
+) > "/mnt/disks/staff/SSC_hg38_coverage/${PHASE}/cohort_master_coverage_${PHASE}_${PROJECT}.tsv"
+```
+
 #### 14-Column Master Report Schema:
 1. `Sample_ID`
 2. `Virus_Accession` (`None` if zero reads detected)

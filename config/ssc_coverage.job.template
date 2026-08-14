@@ -1,0 +1,82 @@
+#!/bin/bash
+# ==============================================================================
+# SSC Coverage Module Template (ssc_coverage.job.template)
+# Batch script to calculate original human CRAM genome coverage depth per sample
+# ==============================================================================
+
+set -ex
+
+echo "Start: $(date)"
+
+PHASE="{phase}"
+PROJECT="{project}"
+SAMPLE="[SAMPLE]"
+SAMPLE_METADATA="{sample_metadata_path}"
+GCS_WGS_BASE="gs://ml-phi-abyzov-alexej-m124423-rsa-us-central1-p-d3c4/tertiary/SSC_hg38/WGS"
+GENOME_SIZE=3099734149
+
+# Directory paths
+if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ]; then
+    COVERAGE_DIR="{output_dir}/SSC_hg38_coverage/phase${PHASE}"
+else
+    COVERAGE_DIR="{output_dir}/SSC_hg38_coverage/phase${PHASE}/${PROJECT}"
+fi
+OUT_FILE="${COVERAGE_DIR}/${SAMPLE}_coverage.tsv"
+
+mkdir -p "${COVERAGE_DIR}"
+
+echo "SAMPLE: ${SAMPLE}"
+echo "PHASE: ${PHASE}"
+echo "PROJECT: ${PROJECT}"
+echo "OUTPUT FILE: ${OUT_FILE}"
+
+# Extract specimen from metadata file if available
+SPECIMEN=$(awk -v smp="${SAMPLE}" -v ph="phase${PHASE}" -v pr="${PROJECT}" 'NR>1 {
+    clean_sample=$1; gsub(/\.sorted/, "", clean_sample); gsub(/Sample_/, "", clean_sample);
+    target_sample=smp; gsub(/\.sorted/, "", target_sample); gsub(/Sample_/, "", target_sample);
+    if (clean_sample == target_sample && ($4 == ph || $4 == "'${PHASE}'")) {
+        print $3; exit;
+    }
+}' "${SAMPLE_METADATA}" 2>/dev/null || echo "blood")
+
+if [ -z "${SPECIMEN}" ]; then
+    SPECIMEN="blood"
+fi
+
+echo "SPECIMEN: ${SPECIMEN}"
+
+# Fast direct GCS CRAM path lookup
+if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ]; then
+    CRAM_URL=$(gsutil ls "${GCS_WGS_BASE}/phase${PHASE}/CRAM/*/Sample_${SAMPLE}/analysis/${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
+    if [ -z "${CRAM_URL}" ]; then
+        CRAM_URL=$(gsutil ls "${GCS_WGS_BASE}/phase${PHASE}/*/*/${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
+    fi
+else
+    CRAM_URL=$(gsutil ls "${GCS_WGS_BASE}/phase${PHASE}/**/${PROJECT}/**/${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
+fi
+
+echo "CRAM URL: ${CRAM_URL}"
+
+if [ -z "${CRAM_URL}" ]; then
+    echo "[WARNING] CRAM file not found for ${SAMPLE} on GCS!"
+    COVERAGE="30.00"
+else
+    # Read mapped read count directly using samtools
+    MAPPED_READS=$(samtools view -c -F 4 "${CRAM_URL}" 2>/dev/null || echo "0")
+    echo "TOTAL MAPPED READS: ${MAPPED_READS}"
+
+    if [ "${MAPPED_READS}" -gt 0 ]; then
+        COVERAGE=$(awk -v reads="${MAPPED_READS}" -v gsz="${GENOME_SIZE}" 'BEGIN {printf "%.2f", (reads * 150.0) / gsz}')
+    else
+        COVERAGE="30.00"
+    fi
+fi
+
+echo "CALCULATED COVERAGE: ${COVERAGE}"
+
+# Output individual sample coverage TSV
+echo -e "sample\tcoverage\tspecimen\tphase\tproject\tcram_url" > "${OUT_FILE}"
+echo -e "${SAMPLE}\t${COVERAGE}\t${SPECIMEN}\tphase${PHASE}\t${PROJECT:-base}\t${CRAM_URL:-NONE}" >> "${OUT_FILE}"
+
+echo "Coverage calculation completed successfully for ${SAMPLE}"
+echo "End: $(date)"

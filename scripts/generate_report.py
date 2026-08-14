@@ -230,12 +230,11 @@ def audit_intermediate_files(vironator_dir):
                     print(f"  [EXISTS]  {label:42s} ({fname}): {fsize} bytes")
 
 
-def get_mapped_reads_per_virus(cram_path, combined_ref):
+def get_mapped_reads_per_virus(cram_path, combined_ref, viral_lengths):
     """
     Returns a dict of {viral_contig: read_count} from CRAM file
-    for all mapped reads targeting viral contigs (ignoring human contigs).
+    for all mapped reads targeting viral contigs present in viral_lengths.
     """
-    # Count mapped reads per contig using samtools view -F 4
     cmd = f"samtools view -F 4 -T '{combined_ref}' '{cram_path}' 2>/dev/null | cut -f3 | sort | uniq -c"
     try:
         res = subprocess.check_output(cmd, shell=True, text=True)
@@ -245,7 +244,7 @@ def get_mapped_reads_per_virus(cram_path, combined_ref):
             if len(parts) == 2:
                 raw_cnt = int(parts[0])
                 contig = parts[1]
-                if contig != "*" and not contig.startswith("chr") and not contig.startswith("NC_0000"):
+                if contig in viral_lengths:
                     counts[contig] = raw_cnt
         return counts
     except Exception:
@@ -311,8 +310,10 @@ def main():
     audit_intermediate_files(args.vironator_dir)
 
     target_files = [
+        ("exogeneSR_viral_clean.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_clean.cram")),
         ("exogeneSR_viral_clean_filtered.sorted.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_clean_filtered.sorted.cram")),
         ("exogeneSR_viral_clean_filtered.sorted.flags.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_clean_filtered.sorted.flags.cram")),
+        ("exogeneSR_viral_raw.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_raw.cram")),
         ("exogeneSR_viral_raw_filtered.sorted.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_raw_filtered.sorted.cram")),
         ("exogeneSR_viral_raw_filtered.sorted.flags.cram", os.path.join(args.vironator_dir, "exogeneSR_viral_raw_filtered.sorted.flags.cram")),
     ]
@@ -346,7 +347,7 @@ def main():
         fsize = os.path.getsize(fpath)
         print(f"[CHECKING] {fname} (Size: {fsize} bytes)")
         
-        mapped_counts = get_mapped_reads_per_virus(fpath, args.combined_ref)
+        mapped_counts = get_mapped_reads_per_virus(fpath, args.combined_ref, viral_lengths)
         positive_hits = {acc: cnt for acc, cnt in mapped_counts.items() if cnt > 0}
 
         if not positive_hits:
