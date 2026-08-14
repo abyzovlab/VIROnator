@@ -218,6 +218,24 @@ rule create_reports_directory:
         touch {output.token}
         """
 
+rule create_coverage_directory:
+    """
+    Initializes the target coverage output directory on GCS using gsutil if not already initialized.
+    """
+    input:
+        placeholder=config["placeholder_file"],
+        config_file="config/ssc_config.yaml"
+    output:
+        token="config/coverage_dir.created"
+    shell:
+        """
+        TARGET_PATH="gs://{config[output_bucket]}/{config[coverage_out_dirname]}/phase{config[phase]}/{project_part}test.txt"
+        if ! gsutil -q stat "$TARGET_PATH"; then
+            gsutil cp {input.placeholder} "$TARGET_PATH"
+        fi
+        touch {output.token}
+        """
+
 rule generate_reporting_job_file:
     """
     Generates the final ssc_reporting.job file from ssc_reporting.job.template inside the config directory

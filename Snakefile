@@ -30,6 +30,10 @@ targets.extend([
     "config/ssc_coverage.job"
 ])
 
+# Module 0: Coverage calculation
+if config.get("coverage_module", "off") == "on":
+    targets.append("config/coverage_dir.created")
+
 # Module 1: Unmapped extraction
 if config.get("unmapped_extraction", "on") == "on":
     targets.append("config/unmapped_dir.created")
