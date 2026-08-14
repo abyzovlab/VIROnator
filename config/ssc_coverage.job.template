@@ -27,14 +27,27 @@ repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.r
 tool=samtools
 
 
-# =========================================================================================================================
-# Main Script
-# =========================================================================================================================
+####
+#### Post-Job Configuration
+####
 
+clear_output=true
+clear_input=true
+
+
+####
+#### Script to run
+####
+
+commands_start
+
+# Set unbuffered output and log environment setup
 set -x
 
-echo "=== START COVERAGE CALCULATION ==="
-echo "Date: $(date)"
+echo "=== JOBEXEC WORKER PROCESS STARTED ==="
+echo "Node Hostname: $(hostname)"
+echo "Current Directory: $(pwd)"
+echo "PATH: ${PATH}"
 
 PHASE="{phase}"
 PROJECT="{project}"
