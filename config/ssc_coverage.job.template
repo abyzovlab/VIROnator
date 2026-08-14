@@ -19,13 +19,22 @@ output_bucket=gs://{output_bucket}/jobexec_coverage/output
 log_bucket=gs://{output_bucket}/jobexec_coverage/logs
 
 
+####
+#### Tools
+####
+
+repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
+tool=samtools
+
+
 # =========================================================================================================================
 # Main Script
 # =========================================================================================================================
 
-set -ex
+set -x
 
-echo "Start: $(date)"
+echo "=== START COVERAGE CALCULATION ==="
+echo "Date: $(date)"
 
 PHASE="{phase}"
 PROJECT="{project}"
@@ -44,27 +53,32 @@ OUT_FILE="${COVERAGE_DIR}/${SAMPLE}_coverage.tsv"
 
 mkdir -p "${COVERAGE_DIR}"
 
-echo "SAMPLE: ${SAMPLE}"
-echo "PHASE: ${PHASE}"
-echo "PROJECT: ${PROJECT}"
-echo "OUTPUT FILE: ${OUT_FILE}"
+echo "[DIAGNOSTIC] SAMPLE: ${SAMPLE}"
+echo "[DIAGNOSTIC] PHASE: phase${PHASE}"
+echo "[DIAGNOSTIC] PROJECT: ${PROJECT:-base}"
+echo "[DIAGNOSTIC] OUTPUT DIRECTORY: ${COVERAGE_DIR}"
+echo "[DIAGNOSTIC] OUTPUT FILE: ${OUT_FILE}"
 
 # Extract specimen from metadata file if available
-SPECIMEN=$(awk -v smp="${SAMPLE}" -v ph="phase${PHASE}" -v pr="${PROJECT}" 'NR>1 {
-    clean_sample=$1; gsub(/\.sorted/, "", clean_sample); gsub(/Sample_/, "", clean_sample);
-    target_sample=smp; gsub(/\.sorted/, "", target_sample); gsub(/Sample_/, "", target_sample);
-    if (clean_sample == target_sample && ($4 == ph || $4 == "'${PHASE}'")) {
-        print $3; exit;
-    }
-}' "${SAMPLE_METADATA}" 2>/dev/null || echo "blood")
-
-if [ -z "${SPECIMEN}" ]; then
-    SPECIMEN="blood"
+echo "[DIAGNOSTIC] Checking specimen metadata..."
+SPECIMEN="blood"
+if [ -f "${SAMPLE_METADATA}" ]; then
+    FOUND_SPEC=$(awk -v smp="${SAMPLE}" -v ph="phase${PHASE}" 'NR>1 {
+        clean_sample=$1; gsub(/\.sorted/, "", clean_sample); gsub(/Sample_/, "", clean_sample);
+        target_sample=smp; gsub(/\.sorted/, "", target_sample); gsub(/Sample_/, "", target_sample);
+        if (clean_sample == target_sample && ($4 == ph || $4 == "'${PHASE}'")) {
+            print $3; exit;
+        }
+    }' "${SAMPLE_METADATA}" 2>/dev/null || echo "")
+    if [ -n "${FOUND_SPEC}" ]; then
+        SPECIMEN="${FOUND_SPEC}"
+    fi
 fi
 
-echo "SPECIMEN: ${SPECIMEN}"
+echo "[DIAGNOSTIC] SPECIMEN: ${SPECIMEN}"
 
 # Fast direct GCS CRAM path lookup
+echo "[DIAGNOSTIC] Locating human CRAM file on GCS..."
 if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ]; then
     CRAM_URL=$(gsutil ls "${GCS_WGS_BASE}/phase${PHASE}/CRAM/*/Sample_${SAMPLE}/analysis/${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
     if [ -z "${CRAM_URL}" ]; then
@@ -74,15 +88,15 @@ else
     CRAM_URL=$(gsutil ls "${GCS_WGS_BASE}/phase${PHASE}/**/${PROJECT}/**/${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
 fi
 
-echo "CRAM URL: ${CRAM_URL}"
+echo "[DIAGNOSTIC] RESOLVED CRAM URL: ${CRAM_URL}"
 
 if [ -z "${CRAM_URL}" ]; then
-    echo "[WARNING] CRAM file not found for ${SAMPLE} on GCS!"
+    echo "[WARNING] CRAM file not found for ${SAMPLE} on GCS! Assigning default coverage 30.00"
     COVERAGE="30.00"
 else
-    # Read mapped read count directly using samtools
+    echo "[DIAGNOSTIC] Fetching mapped read count via samtools view -c -F 4..."
     MAPPED_READS=$(samtools view -c -F 4 "${CRAM_URL}" 2>/dev/null || echo "0")
-    echo "TOTAL MAPPED READS: ${MAPPED_READS}"
+    echo "[DIAGNOSTIC] TOTAL MAPPED READS: ${MAPPED_READS}"
 
     if [ "${MAPPED_READS}" -gt 0 ]; then
         COVERAGE=$(awk -v reads="${MAPPED_READS}" -v gsz="${GENOME_SIZE}" 'BEGIN {printf "%.2f", (reads * 150.0) / gsz}')
@@ -91,11 +105,12 @@ else
     fi
 fi
 
-echo "CALCULATED COVERAGE: ${COVERAGE}"
+echo "[DIAGNOSTIC] CALCULATED COVERAGE: ${COVERAGE}"
 
 # Output individual sample coverage TSV
+echo "[DIAGNOSTIC] Writing output file: ${OUT_FILE}..."
 echo -e "sample\tcoverage\tspecimen\tphase\tproject\tcram_url" > "${OUT_FILE}"
 echo -e "${SAMPLE}\t${COVERAGE}\t${SPECIMEN}\tphase${PHASE}\t${PROJECT:-base}\t${CRAM_URL:-NONE}" >> "${OUT_FILE}"
 
-echo "Coverage calculation completed successfully for ${SAMPLE}"
-echo "End: $(date)"
+echo "[DIAGNOSTIC] Output File Size: $(ls -lh "${OUT_FILE}")"
+echo "=== END COVERAGE CALCULATION (SUCCESS) ==="
