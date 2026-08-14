@@ -54,6 +54,7 @@ PROJECT="{project}"
 SAMPLE="[SAMPLE]"
 SAMPLE_METADATA="{sample_metadata_path}"
 GCS_WGS_BASE="gs://ml-phi-abyzov-alexej-m124423-rsa-us-central1-p-d3c4/tertiary/SSC_hg38/WGS"
+DATA_DIR="{data_dir}"
 GENOME_SIZE=3099734149
 
 # Directory paths
@@ -90,25 +91,29 @@ fi
 
 echo "[DIAGNOSTIC] SPECIMEN: ${SPECIMEN}"
 
-# Fast direct GCS CRAM path lookup
-echo "[DIAGNOSTIC] Locating human CRAM file on GCS..."
+# Locating human CRAM on mounted filesystem (/mnt/disks/lab)
+echo "[DIAGNOSTIC] Locating human CRAM file on mounted filesystem (${DATA_DIR})..."
+
 if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ]; then
-    CRAM_URL=$(gsutil ls "${GCS_WGS_BASE}/phase${PHASE}/CRAM/*/Sample_${SAMPLE}/analysis/${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
-    if [ -z "${CRAM_URL}" ]; then
-        CRAM_URL=$(gsutil ls "${GCS_WGS_BASE}/phase${PHASE}/*/*/${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
+    CRAM="${DATA_DIR}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${SAMPLE}.final.cram"
+    if [ ! -f "${CRAM}" ]; then
+        CRAM=$(find "${DATA_DIR}/tertiary/SSC_hg38/WGS/phase${PHASE}" -name "${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
     fi
 else
-    CRAM_URL=$(gsutil ls "${GCS_WGS_BASE}/phase${PHASE}/**/${PROJECT}/**/${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
+    CRAM="${DATA_DIR}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${SAMPLE}.final.cram"
+    if [ ! -f "${CRAM}" ]; then
+        CRAM=$(find "${DATA_DIR}/tertiary/SSC_hg38/WGS/phase${PHASE}/${PROJECT}" -name "${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
+    fi
 fi
 
-echo "[DIAGNOSTIC] RESOLVED CRAM URL: ${CRAM_URL}"
+echo "[DIAGNOSTIC] RESOLVED CRAM FILE: ${CRAM}"
 
-if [ -z "${CRAM_URL}" ]; then
-    echo "[WARNING] CRAM file not found for ${SAMPLE} on GCS! Assigning default coverage 30.00"
+if [ -z "${CRAM}" ] || [ ! -f "${CRAM}" ]; then
+    echo "[WARNING] CRAM file not found for ${SAMPLE}! Assigning default coverage 30.00"
     COVERAGE="30.00"
 else
-    echo "[DIAGNOSTIC] Fetching mapped read count via samtools view -c -F 4..."
-    MAPPED_READS=$(samtools view -c -F 4 "${CRAM_URL}" 2>/dev/null || echo "0")
+    echo "[DIAGNOSTIC] Querying mapped reads via samtools view -c -F 4..."
+    MAPPED_READS=$(samtools view -c -F 4 "${CRAM}" 2>/dev/null || echo "0")
     echo "[DIAGNOSTIC] TOTAL MAPPED READS: ${MAPPED_READS}"
 
     if [ "${MAPPED_READS}" -gt 0 ]; then

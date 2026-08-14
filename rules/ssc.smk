@@ -309,6 +309,7 @@ rule generate_coverage_job_file:
             .replace("{project}", str(config["project"]))
             .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{output_dir}", str(config["output_dir"]))
+            .replace("{data_dir}", str(config["data_dir"]))
             .replace("{sample_metadata_path}", os.path.join(config["ref_dir"], config.get("sample_metadata_file", "SSC_sample_metadata.tsv")))
         )
         
