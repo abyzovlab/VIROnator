@@ -100,7 +100,15 @@ if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ]; then
         CRAM=$(find "${DATA_DIR}/tertiary/SSC_hg38/WGS/phase${PHASE}" -name "${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
     fi
 else
+    # Try Phase 1/Phase 2 structure: .../CRAM/PROJECT/Sample_SAMPLE/analysis/SAMPLE.final.cram
     CRAM="${DATA_DIR}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${SAMPLE}.final.cram"
+    
+    # Try Phase 3-2 structure: .../CRAM/PROJECT/SAMPLE.final.cram
+    if [ ! -f "${CRAM}" ]; then
+        CRAM="${DATA_DIR}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${PROJECT}/${SAMPLE}.final.cram"
+    fi
+    
+    # Fallback search across project directory
     if [ ! -f "${CRAM}" ]; then
         CRAM=$(find "${DATA_DIR}/tertiary/SSC_hg38/WGS/phase${PHASE}/${PROJECT}" -name "${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
     fi
