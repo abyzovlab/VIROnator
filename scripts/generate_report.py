@@ -132,18 +132,19 @@ def load_metadata(filepath, sample_id, phase, project):
     default_depth = 30.0
     default_specimen = "Unknown"
     
-    project_key = project if project.strip() else "base"
-    clean_sample = sample_id.replace(".sorted", "").replace("Sample_", "")
+    project_key = project.strip().lower() if project.strip() else "base"
+    clean_sample = sample_id.replace(".sorted", "").replace("Sample_", "").strip().lower()
     
-    # Format phase string (e.g. phase1 or 1 as passed)
-    target_phase = str(phase).strip()
+    target_phase = str(phase).strip().lower()
     if not target_phase.startswith("phase") and target_phase.isdigit():
         target_phase_alt = f"phase{target_phase}"
     else:
-        target_phase_alt = target_phase
+        target_phase_alt = target_phase.replace("phase", "")
 
     if not os.path.exists(filepath):
         return default_depth, default_specimen
+
+    matched_by_sample_only = None
 
     with open(filepath, "r") as f:
         header = None
@@ -156,17 +157,27 @@ def load_metadata(filepath, sample_id, phase, project):
                 continue
             
             row = dict(zip(header, parts))
-            row_sample = row.get("sample", "").replace(".sorted", "").replace("Sample_", "")
-            row_phase = str(row.get("phase", "")).strip()
-            row_project = str(row.get("project", "")).strip()
+            row_sample = row.get("sample", "").replace(".sorted", "").replace("Sample_", "").strip().lower()
+            row_phase = str(row.get("phase", "")).strip().lower()
+            row_project = str(row.get("project", "")).strip().lower()
+            if not row_project:
+                row_project = "base"
             
-            if row_sample == clean_sample and (row_phase == target_phase or row_phase == target_phase_alt) and row_project == project_key:
+            if row_sample == clean_sample:
                 try:
                     depth = float(row.get("coverage", 30.0))
                 except ValueError:
                     depth = 30.0
                 specimen = row.get("specimen", "Unknown")
-                return depth, specimen
+                
+                # Full match on sample + phase + project
+                if (row_phase == target_phase or row_phase == target_phase_alt) and (row_project == project_key or project_key == "base"):
+                    return depth, specimen
+                elif matched_by_sample_only is None:
+                    matched_by_sample_only = (depth, specimen)
+
+    if matched_by_sample_only is not None:
+        return matched_by_sample_only
 
     return default_depth, default_specimen
 

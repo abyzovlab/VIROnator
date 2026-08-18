@@ -4,15 +4,18 @@ configfile: "config/ssc_config.yaml"
 
 include: "rules/ssc.smk"
 
-# Validate that the samples list file exists in the working directory
-work_dir = config.get("work_dir", ".")
+# Validate that the samples list file exists in current execution directory or work_dir
 samples_list_path = config["samples_list"]
 if not os.path.isabs(samples_list_path):
-    samples_list_path = os.path.join(work_dir, samples_list_path)
+    if os.path.exists(samples_list_path):
+        samples_list_path = os.path.abspath(samples_list_path)
+    else:
+        work_dir = config.get("work_dir", ".")
+        samples_list_path = os.path.join(work_dir, samples_list_path)
 
 if not os.path.exists(samples_list_path):
     raise FileNotFoundError(
-        f"Samples list file not found at: {samples_list_path}. Please place it in your working directory."
+        f"Samples list file not found at: {samples_list_path}. Please place it in your VIROnator directory."
     )
 
 project_part = f"{config['project']}/" if config["project"] else ""
