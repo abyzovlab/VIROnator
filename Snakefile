@@ -52,6 +52,11 @@ if config.get("reporting_module", "off") == "on":
     targets.append("config/reports_dir.created")
     targets.append("config/ssc_reporting.job")
 
+# Module 4: Stats Summary
+if config.get("stats_module", "off") == "on":
+    targets.append("cohort_stats_summary.tsv")
+    targets.append("cohort_stats_summary.md")
+
 rule all:
     input:
         targets

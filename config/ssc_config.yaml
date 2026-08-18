@@ -114,3 +114,12 @@ viral_rename_map_file: "HumanViral_Reference_02-07-2022_modified.rename_map.tsv"
 viral_bed_file: "HumanViral_Reference_02-07-2022_modified.bed"  # Generated automatically during the reference sanitization script
 report_script: "generate_report.py"
 
+
+# ==============================================================================
+# 6. STATS MODULE (Cohort Statistical Summary Snapshot)
+# ==============================================================================
+stats_module: "off"  # Switch: "on" or "off" to run cohort stats summary
+master_report_file: "cohort_master_viral_report_phase2_base.tsv"  # Input master report file
+stats_script: "generate_stats.py"
+
+

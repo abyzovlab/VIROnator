@@ -315,3 +315,19 @@ rule generate_coverage_job_file:
         
         with open(output.job, "w") as f:
             f.write(formatted_content)
+
+rule generate_stats:
+    """
+    Generates cohort_stats_summary.tsv and cohort_stats_summary.md from master report.
+    """
+    input:
+        script=os.path.join(config["scripts_dir"], config.get("stats_script", "generate_stats.py")),
+        master_report=config.get("master_report_file", "cohort_master_viral_report_phase2_base.tsv"),
+        config_file="config/ssc_config.yaml"
+    output:
+        tsv="cohort_stats_summary.tsv",
+        md="cohort_stats_summary.md"
+    shell:
+        """
+        python3 {input.script} --input-report {input.master_report} --out-dir .
+        """

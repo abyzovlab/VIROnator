@@ -125,8 +125,18 @@ PROJECT="base"  # Or sub-project name e.g. Project_CCDG_...
 (
   echo -e "sample\tcoverage\tspecimen\tphase\tproject\tcram_url";
   gsutil -m cat "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/SSC_hg38_coverage/${PHASE}/${PROJECT}/**/*.tsv" | awk 'FNR==1 && NR!=1{next} {print}'
-) > "/mnt/disks/staff/SSC_hg38_coverage/${PHASE}/cohort_master_coverage_${PHASE}_${PROJECT}.tsv"
-```
+### 3. Generating Cohort Statistical Summaries (`stats_module`)
+Once master viral report files are concatenated, you can run the Stats Module to generate a summary snapshot (`cohort_stats_summary.tsv` & `cohort_stats_summary.md`) directly in your `VIROnator` root directory.
+
+1. Set `stats_module: "on"` and specify `master_report_file` in `config/ssc_config.yaml`:
+   ```yaml
+   stats_module: "on"
+   master_report_file: "cohort_master_viral_report_phase2_base.tsv"
+   ```
+2. Execute Snakemake:
+   ```bash
+   snakemake --cores 1
+   ```
 
 #### 14-Column Master Report Schema:
 1. `Sample_ID`
