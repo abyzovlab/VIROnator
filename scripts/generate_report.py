@@ -149,8 +149,17 @@ def load_metadata(filepath, sample_id, phase, project):
     with open(filepath, "r") as f:
         header = None
         for line in f:
-            parts = line.strip().split("\t")
-            if not parts or not line.strip():
+            line_str = line.strip()
+            if not line_str:
+                continue
+            
+            # Split by tab if tabs present, otherwise fallback to any whitespace
+            if "\t" in line_str:
+                parts = [p.strip() for p in line_str.split("\t")]
+            else:
+                parts = [p.strip() for p in re.split(r'\s+', line_str)]
+                
+            if not parts:
                 continue
             if header is None:
                 header = [p.lower() for p in parts]
@@ -169,6 +178,8 @@ def load_metadata(filepath, sample_id, phase, project):
                 except ValueError:
                     depth = 30.0
                 specimen = row.get("specimen", "Unknown")
+                if not specimen:
+                    specimen = "Unknown"
                 
                 # Full match on sample + phase + project
                 if (row_phase == target_phase or row_phase == target_phase_alt) and (row_project == project_key or project_key == "base"):
