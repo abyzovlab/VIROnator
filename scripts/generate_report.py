@@ -256,8 +256,8 @@ def calculate_physical_coverage(cram_path, combined_ref, virus, virus_size):
     if virus_size <= 0:
         return "00.00"
 
-    # Index-free position coverage calculation via samtools view + start position / CIGAR expansion
-    cmd = f"samtools view -F 4 '{cram_path}' 2>/dev/null | awk -v v='{virus}' '$3==v {print $4}' | sort -u | wc -l"
+    # Index-free position coverage calculation via samtools view + start position
+    cmd = "samtools view -F 4 " + repr(cram_path) + " 2>/dev/null | awk -v v=" + repr(virus) + " '$3==v {print $4}' | sort -u | wc -l"
     try:
         res = subprocess.check_output(cmd, shell=True, text=True).strip()
         covered_bases = int(res) if res.isdigit() else 0
@@ -266,7 +266,7 @@ def calculate_physical_coverage(cram_path, combined_ref, virus, virus_size):
 
     if covered_bases == 0:
         # Try samtools depth if .crai exists
-        cmd_depth = f"samtools depth -r '{virus}' '{cram_path}' 2>/dev/null | awk '$3>0' | wc -l"
+        cmd_depth = "samtools depth -r " + repr(virus) + " " + repr(cram_path) + " 2>/dev/null | awk '$3>0' | wc -l"
         try:
             res_depth = subprocess.check_output(cmd_depth, shell=True, text=True).strip()
             covered_bases = int(res_depth) if res_depth.isdigit() else 0
