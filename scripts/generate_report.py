@@ -255,23 +255,23 @@ def calculate_physical_coverage(cram_path, combined_ref, virus, virus_size):
     """Calculates physical coverage as a percentage (0.00 to 100.00) without % sign."""
     if virus_size <= 0:
         return "00.00"
-    # Fast region-bounded mpileup directly targeting target viral contig -r {virus}
-    cmd = f"samtools mpileup -r '{virus}' -f {combined_ref} {cram_path} 2>/dev/null | cut -f2,4"
-    try:
-        res = subprocess.check_output(cmd, shell=True, text=True)
-    except subprocess.CalledProcessError:
-        return "00.00"
 
-    covered_bases = 0
-    for line in res.strip().split("\n"):
-        parts = line.strip().split()
-        if len(parts) >= 2:
-            try:
-                depth = int(parts[1])
-                if depth > 0:
-                    covered_bases += 1
-            except ValueError:
-                continue
+    # Index-free position coverage calculation via samtools view + start position / CIGAR expansion
+    cmd = f"samtools view -F 4 '{cram_path}' 2>/dev/null | awk -v v='{virus}' '$3==v {print $4}' | sort -u | wc -l"
+    try:
+        res = subprocess.check_output(cmd, shell=True, text=True).strip()
+        covered_bases = int(res) if res.isdigit() else 0
+    except Exception:
+        covered_bases = 0
+
+    if covered_bases == 0:
+        # Try samtools depth if .crai exists
+        cmd_depth = f"samtools depth -r '{virus}' '{cram_path}' 2>/dev/null | awk '$3>0' | wc -l"
+        try:
+            res_depth = subprocess.check_output(cmd_depth, shell=True, text=True).strip()
+            covered_bases = int(res_depth) if res_depth.isdigit() else 0
+        except Exception:
+            covered_bases = 0
 
     pct = (covered_bases / float(virus_size)) * 100.0
     pct = min(pct, 100.0)
