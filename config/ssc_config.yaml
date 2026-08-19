@@ -51,7 +51,7 @@ scripts_dir: "/mnt/disks/staff/scripts"
 # ==============================================================================
 # 2. COVERAGE CALCULATION MODULE (WGS Human Genome Read Depth)
 # ==============================================================================
-coverage_module: "on"  # Switch: "on" or "off" to run coverage calculation job
+coverage_module: "off"  # Switch: "on" or "off" to run coverage calculation job
 coverage_out_dirname: "SSC_hg38_coverage"
 coverage_jobexec_dirname: "jobexec_coverage"
 
@@ -118,8 +118,8 @@ report_script: "generate_report.py"
 # ==============================================================================
 # 6. STATS MODULE (Cohort Statistical Summary Snapshot)
 # ==============================================================================
-stats_module: "off"  # Switch: "on" or "off" to run cohort stats summary
-master_report_file: "cohort_master_viral_report_phase2_base.tsv"  # Input master report file
+stats_module: "on"  # Switch: "on" or "off" to run cohort stats summary
+master_report_file: "master_all_cohorts_viral_report.tsv"  # Input master report file
 stats_script: "generate_stats.py"
 
 
