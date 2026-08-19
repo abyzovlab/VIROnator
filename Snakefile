@@ -68,13 +68,11 @@ if config.get("stats_module", "off") == "on":
 # Module 5: Distributions Plots & Virus Stats
 if config.get("distributions_module", "off") == "on":
     phase_str = f"phase{config['phase']}" if not str(config['phase']).startswith("phase") else str(config['phase'])
-    proj_str = f"{config['project']}/" if config["project"] else ""
+    proj_str = config['project'] if config['project'] else "base"
     target_stats_path = os.path.join(
         config["output_dir"],
         config.get("stats_out_dirname", "SSC_hg38_stats"),
-        phase_str,
-        proj_str,
-        "virus_stats_summary.tsv"
+        f"virus_stats_summary_{phase_str}_{proj_str}.tsv"
     )
     targets.append(target_stats_path)
 
