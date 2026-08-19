@@ -128,6 +128,7 @@ def load_metadata(filepath, sample_id, phase, project):
     """
     Loads sample read depth and specimen from sample_metadata.tsv.
     Expected columns: sample, coverage, specimen, phase, project
+    Requires exact 3-way match on sample, phase, and project.
     """
     default_depth = 30.0
     default_specimen = "Unknown"
@@ -143,8 +144,6 @@ def load_metadata(filepath, sample_id, phase, project):
 
     if not os.path.exists(filepath):
         return default_depth, default_specimen
-
-    matched_by_sample_only = None
 
     with open(filepath, "r") as f:
         header = None
@@ -172,7 +171,8 @@ def load_metadata(filepath, sample_id, phase, project):
             if not row_project:
                 row_project = "base"
             
-            if row_sample == clean_sample:
+            # Exact 3-way match requirement
+            if row_sample == clean_sample and (row_phase == target_phase or row_phase == target_phase_alt) and row_project == project_key:
                 try:
                     depth = float(row.get("coverage", 30.0))
                 except ValueError:
@@ -180,15 +180,7 @@ def load_metadata(filepath, sample_id, phase, project):
                 specimen = row.get("specimen", "Unknown")
                 if not specimen:
                     specimen = "Unknown"
-                
-                # Full match on sample + phase + project
-                if (row_phase == target_phase or row_phase == target_phase_alt) and (row_project == project_key or project_key == "base"):
-                    return depth, specimen
-                elif matched_by_sample_only is None:
-                    matched_by_sample_only = (depth, specimen)
-
-    if matched_by_sample_only is not None:
-        return matched_by_sample_only
+                return depth, specimen
 
     return default_depth, default_specimen
 
