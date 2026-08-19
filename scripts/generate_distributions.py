@@ -243,12 +243,12 @@ def main():
     # --------------------------------------------------------------------------
     plot_count = 0
     color_map = {
-        "clean_filtered": "#80ed99",
-        "clean_flags": "#57cc99",
-        "raw_filtered": "#38a3a5",
-        "raw_flags": "#22577a",
-        "clean_unfiltered": "#80ed99",
-        "raw_unfiltered": "#38a3a5"
+        "clean_filtered": "#ff98ff",
+        "clean_flags": "#ff98ff",
+        "raw_filtered": "#819ae7",
+        "raw_flags": "#819ae7",
+        "clean_unfiltered": "#ff98ff",
+        "raw_unfiltered": "#819ae7"
     }
 
     plt.rcParams['axes.grid'] = False
@@ -290,7 +290,7 @@ def main():
 
         unique_vals, val_counts = np.unique(read_counts, return_counts=True)
 
-        ax1.bar(unique_vals, val_counts, width=0.7, color=main_color)
+        ax1.bar(unique_vals, val_counts, width=0.8, color=main_color)
         ax1.set_xlabel("Mapped Read Count")
         ax1.set_ylabel("Number of Samples")
         ax1.set_title("A. Read Count Frequency Distribution")
@@ -420,10 +420,10 @@ def main():
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5.5), dpi=300)
         ax1.set_box_aspect(1)
         ax2.set_box_aspect(1)
-        overall_color = "#22577a"
+        overall_color = "#008fbf"
 
         u_vals, u_cnts = np.unique(all_read_counts, return_counts=True)
-        ax1.bar(u_vals, u_cnts, width=0.7, color=overall_color)
+        ax1.bar(u_vals, u_cnts, width=0.8, color=overall_color)
         ax1.set_xlabel("Mapped Read Count (All Viruses)", fontsize=11, labelpad=8, color='black')
         ax1.set_ylabel("Number of Mapped Occurrences", fontsize=11, labelpad=8, color='black')
         ax1.set_title("A. Dataset-Wide Read Count Frequency", fontsize=12, pad=12, color='black')
