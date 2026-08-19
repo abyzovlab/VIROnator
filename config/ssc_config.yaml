@@ -118,8 +118,19 @@ report_script: "generate_report.py"
 # ==============================================================================
 # 6. STATS MODULE (Cohort Statistical Summary Snapshot)
 # ==============================================================================
-stats_module: "on"  # Switch: "on" or "off" to run cohort stats summary
+stats_module: "off"  # Switch: "on" or "off" to run cohort stats summary
 master_report_file: "master_all_cohorts_viral_report.tsv"  # Input master report file
 stats_script: "generate_stats.py"
+
+
+# ==============================================================================
+# 7. DISTRIBUTIONS MODULE (Per-Virus Read Distribution TIFF Plots & Virus Stats)
+# ==============================================================================
+distributions_module: "on"  # Switch: "on" or "off" to generate TIFF plots & virus stats
+distributions_script: "generate_distributions.py"
+target_strategies:
+  - "exogeneSR_viral_clean_filtered.sorted.flags.cram"
+  - "exogeneSR_viral_raw_filtered.sorted.flags.cram"
+
 
 

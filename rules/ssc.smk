@@ -331,3 +331,20 @@ rule generate_stats:
         """
         python3 {input.script} --input-report {input.master_report} --out-dir .
         """
+
+rule generate_distributions:
+    """
+    Generates high-resolution TIFF distribution plots in plots/ and virus_stats_summary.tsv in stats/.
+    """
+    input:
+        script="scripts/generate_distributions.py" if os.path.exists("scripts/generate_distributions.py") else os.path.join(config["scripts_dir"], config.get("distributions_script", "generate_distributions.py")),
+        master_report=config.get("master_report_file", "master_all_cohorts_viral_report.tsv"),
+        config_file="config/ssc_config.yaml"
+    output:
+        stats_tsv="stats/virus_stats_summary.tsv"
+    params:
+        strategies=lambda wildcards: " ".join(config.get("target_strategies", ["exogeneSR_viral_clean_filtered.sorted.flags.cram", "exogeneSR_viral_raw_filtered.sorted.flags.cram"]))
+    shell:
+        """
+        python3 {input.script} --input-report {input.master_report} --out-dir . --strategies {params.strategies}
+        """

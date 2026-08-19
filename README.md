@@ -125,13 +125,16 @@ PROJECT="base"  # Or sub-project name e.g. Project_CCDG_...
 (
   echo -e "sample\tcoverage\tspecimen\tphase\tproject\tcram_url";
   gsutil -m cat "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/SSC_hg38_coverage/${PHASE}/${PROJECT}/**/*.tsv" | awk 'FNR==1 && NR!=1{next} {print}'
-### 3. Generating Cohort Statistical Summaries (`stats_module`)
-Once master viral report files are concatenated, you can run the Stats Module to generate a summary snapshot (`cohort_stats_summary.tsv` & `cohort_stats_summary.md`) directly in your `VIROnator` root directory.
+### 4. Generating Distribution TIFF Plots & Virus Statistics (`distributions_module`)
+To generate publication-quality 300 DPI **TIFF distribution figures** (`plots/`) and the consolidated **`virus_stats_summary.tsv`** (`stats/`):
 
-1. Set `stats_module: "on"` and specify `master_report_file` in `config/ssc_config.yaml`:
+1. Set `distributions_module: "on"` in `config/ssc_config.yaml`:
    ```yaml
-   stats_module: "on"
-   master_report_file: "cohort_master_viral_report_phase2_base.tsv"
+   distributions_module: "on"
+   master_report_file: "master_all_cohorts_viral_report.tsv"
+   target_strategies:
+     - "exogeneSR_viral_clean_filtered.sorted.flags.cram"
+     - "exogeneSR_viral_raw_filtered.sorted.flags.cram"
    ```
 2. Execute Snakemake:
    ```bash

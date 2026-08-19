@@ -65,6 +65,10 @@ if config.get("stats_module", "off") == "on":
     targets.append("cohort_stats_summary.tsv")
     targets.append("cohort_stats_summary.md")
 
+# Module 5: Distributions Plots & Virus Stats
+if config.get("distributions_module", "off") == "on":
+    targets.append("stats/virus_stats_summary.tsv")
+
 rule all:
     input:
         targets

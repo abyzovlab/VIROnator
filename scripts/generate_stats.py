@@ -52,6 +52,13 @@ def generate_stats(input_report_path, out_dir):
         "unique_viruses": set()
     })
 
+    standard_14_header = [
+        "sample_id", "virus_accession", "virus_length", "virus_mapped_reads",
+        "normalized_coverage", "physical_coverage", "human_genome_size",
+        "sample_read_depth", "viral_copy_number", "virus_name_sanitized",
+        "specimen", "phase", "project", "source_file"
+    ]
+
     with open(input_report_path, "r") as f:
         header = None
         for line in f:
@@ -59,18 +66,25 @@ def generate_stats(input_report_path, out_dir):
             if not line_str:
                 continue
             parts = line_str.split("\t")
+            
             if header is None:
-                header = [p.lower() for p in parts]
-                continue
+                first_elem = parts[0].lower().strip()
+                if "sample" in first_elem or "virus" in first_elem or "phase" in first_elem:
+                    header = [p.lower().strip() for p in parts]
+                    continue
+                else:
+                    # Line 1 is a data line without header: use standard 14-column header
+                    header = standard_14_header[:len(parts)]
 
             row = dict(zip(header, parts))
-            sample_id = row.get("sample_id", "").strip()
-            virus_acc = row.get("virus_accession", "").strip()
-            mapped_reads_str = row.get("virus_mapped_reads", "0").strip()
-            virus_name = row.get("virus_name_sanitized", "").strip()
-            phase = row.get("phase", "unknown").strip()
-            project = row.get("project", "base").strip()
-            strategy = row.get("source_file", "unknown").strip()
+            sample_id = row.get("sample_id", parts[0] if len(parts) > 0 else "").strip()
+            virus_acc = row.get("virus_accession", parts[1] if len(parts) > 1 else "").strip()
+            mapped_reads_str = row.get("virus_mapped_reads", parts[3] if len(parts) > 3 else "0").strip()
+            virus_name = row.get("virus_name_sanitized", parts[9] if len(parts) > 9 else "").strip()
+            specimen = row.get("specimen", parts[10] if len(parts) > 10 else "Unknown").strip()
+            phase = row.get("phase", parts[11] if len(parts) > 11 else "unknown").strip()
+            project = row.get("project", parts[12] if len(parts) > 12 else "base").strip()
+            strategy = row.get("source_file", parts[13] if len(parts) > 13 else "unknown").strip()
 
             if not project:
                 project = "base"
