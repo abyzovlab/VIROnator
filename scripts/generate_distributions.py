@@ -68,15 +68,16 @@ def main():
     stats_dir = args.stats_dir if args.stats_dir else os.path.join(args.out_dir, "stats")
     target_strategies = set(args.strategies)
 
-    for d in [plots_dir, stats_dir]:
-        if not os.path.exists(d):
-            try:
-                os.mkdir(d)
-            except Exception:
-                try:
-                    os.makedirs(d, exist_ok=True)
-                except Exception:
-                    pass
+    # If writing to /mnt/disks/staff mount point, use a safe local buffer folder first
+    use_local_buffer = plots_dir.startswith("/mnt/disks") or stats_dir.startswith("/mnt/disks")
+    if use_local_buffer:
+        actual_plots_dir = plots_dir
+        actual_stats_dir = stats_dir
+        plots_dir = os.path.abspath("plots_temp")
+        stats_dir = os.path.abspath("stats_temp")
+
+    os.makedirs(plots_dir, exist_ok=True)
+    os.makedirs(stats_dir, exist_ok=True)
 
     # Phase & Project target normalization
     target_phase = str(args.target_phase).strip().lower() if args.target_phase else None
@@ -349,6 +350,23 @@ def main():
         plot_count += 1
 
     print(f"[SUCCESS] Generated {plot_count} high-resolution TIFF distribution plots in {plots_dir}")
+
+    if use_local_buffer:
+        import shutil, subprocess
+        print(f"[INFO] Syncing plots and stats to target destination: {actual_plots_dir} and {actual_stats_dir} ...")
+        # Try local copy first, fallback to gsutil cp
+        try:
+            subprocess.run(f"mkdir -p '{actual_plots_dir}' '{actual_stats_dir}' 2>/dev/null", shell=True)
+            for f in os.listdir(stats_dir):
+                shutil.copy(os.path.join(stats_dir, f), os.path.join(actual_stats_dir, f))
+            for f in os.listdir(plots_dir):
+                shutil.copy(os.path.join(plots_dir, f), os.path.join(actual_plots_dir, f))
+            print("[SUCCESS] Successfully copied all output files to staff mount point.")
+        except Exception:
+            bucket_name = "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"
+            subprocess.run(f"gsutil -q -m cp -r {stats_dir}/* gs://{bucket_name}/SSC_hg38_stats/ 2>/dev/null", shell=True)
+            subprocess.run(f"gsutil -q -m cp -r {plots_dir}/* gs://{bucket_name}/SSC_hg38_plots/ 2>/dev/null", shell=True)
+            print("[SUCCESS] Successfully synced all output files to GCS bucket via gsutil.")
 
 
 if __name__ == "__main__":

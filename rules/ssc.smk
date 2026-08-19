@@ -375,6 +375,10 @@ rule generate_distributions:
         strategies=lambda wildcards: " ".join(config.get("target_strategies", ["exogeneSR_viral_clean_filtered.sorted.flags.cram", "exogeneSR_viral_raw_filtered.sorted.flags.cram"]))
     shell:
         """
+        PLOTS_GCS="gs://{config[output_bucket]}/{config[plots_out_dirname]}/test.txt"
+        STATS_GCS="gs://{config[output_bucket]}/{config[stats_out_dirname]}/test.txt"
+        gsutil cp config/ssc_config.yaml "$PLOTS_GCS" 2>/dev/null || true
+        gsutil cp config/ssc_config.yaml "$STATS_GCS" 2>/dev/null || true
         python3 {input.script} --input-report {input.master_report} --plots-dir "{params.plots_dir}" --stats-dir "{params.stats_dir}" --target-phase "{params.phase}" --target-project "{params.project}" --strategies {params.strategies}
         touch {output.token}
         """
