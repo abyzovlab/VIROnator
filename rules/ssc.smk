@@ -355,16 +355,11 @@ rule generate_distributions:
     Generates high-resolution TIFF distribution plots and virus_stats_summary TSV in flat staff bucket folders.
     """
     input:
-        dir_created="config/stats_dir.created",
         script="scripts/generate_distributions.py" if os.path.exists("scripts/generate_distributions.py") else os.path.join(config["scripts_dir"], config.get("distributions_script", "generate_distributions.py")),
         master_report=config.get("master_report_file", "master_all_cohorts_viral_report_final.tsv"),
         config_file="config/ssc_config.yaml"
     output:
-        stats_tsv=os.path.join(
-            config["output_dir"],
-            config.get("stats_out_dirname", "SSC_hg38_stats"),
-            f"virus_stats_summary_{'phase' + str(config['phase']) if not str(config['phase']).startswith('phase') else str(config['phase'])}_{config['project'] if config['project'] else 'base'}.tsv"
-        )
+        token="config/distributions.done"
     params:
         phase=lambda wildcards: str(config.get("phase", "")),
         project=lambda wildcards: str(config.get("project", "")),
@@ -380,4 +375,5 @@ rule generate_distributions:
     shell:
         """
         python3 {input.script} --input-report {input.master_report} --plots-dir "{params.plots_dir}" --stats-dir "{params.stats_dir}" --target-phase "{params.phase}" --target-project "{params.project}" --strategies {params.strategies}
+        touch {output.token}
         """
