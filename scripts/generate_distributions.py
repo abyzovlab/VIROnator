@@ -300,7 +300,10 @@ def main():
         plt.tight_layout(rect=[0, 0.06, 1, 0.91])
 
         out_tif = os.path.join(plots_dir, f"dist_{phase}_{project}_{short_strat}_{virus_acc}_{v_name_sanitized}.tif")
-        plt.savefig(out_tif, format='tiff', dpi=300, compression='lzw')
+        try:
+            plt.savefig(out_tif, format='tiff', dpi=300, pil_kwargs={'compression': 'tiff_lzw'})
+        except Exception:
+            plt.savefig(out_tif, format='tiff', dpi=300)
         plt.close(fig)
         plot_count += 1
 
