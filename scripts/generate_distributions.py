@@ -66,8 +66,10 @@ def main():
 
     plots_dir = args.plots_dir if args.plots_dir else os.path.join(args.out_dir, "plots")
     stats_dir = args.stats_dir if args.stats_dir else os.path.join(args.out_dir, "stats")
-    os.makedirs(plots_dir, exist_ok=True)
-    os.makedirs(stats_dir, exist_ok=True)
+    
+    import subprocess
+    subprocess.run(f"mkdir -p '{plots_dir}'", shell=True)
+    subprocess.run(f"mkdir -p '{stats_dir}'", shell=True)
 
     target_strategies = set(args.strategies)
 
