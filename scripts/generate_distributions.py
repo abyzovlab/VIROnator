@@ -247,6 +247,9 @@ def main():
         "raw_unfiltered": "#38a3a5"
     }
 
+    plt.rcParams['axes.grid'] = False
+    plt.rcParams['grid.alpha'] = 0.0
+
     from matplotlib.ticker import MaxNLocator
 
     total_plot_keys = len(sorted_v_keys)
@@ -274,8 +277,10 @@ def main():
         out_tif = os.path.join(plots_dir, f"dist_{phase}_{project}_{short_strat}_{virus_acc}_{v_name_sanitized}.tiff")
         print(f"  [{idx}/{total_plot_keys}] Generating plot: {os.path.basename(out_tif)} ...", flush=True)
 
-        # Publication Figure Setup (12 x 5 inches, 300 DPI)
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5.2), dpi=300)
+        # Publication Figure Setup (11 x 5.5 inches, 300 DPI, Square 1:1 Subplots)
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5.5), dpi=300)
+        ax1.set_box_aspect(1)
+        ax2.set_box_aspect(1)
         main_color = color_map.get(short_strat, "#57cc99")
 
         max_r = max(read_counts)
@@ -291,7 +296,7 @@ def main():
         unique_vals, val_counts = np.unique(read_counts, return_counts=True)
         bar_width = 0.35  # Thin bars with 65% clear spacing between bars
         ax1.bar(unique_vals, val_counts, width=bar_width, color=main_color, edgecolor='#ffffff', linewidth=0.8, alpha=0.9, align='center')
-        ax1.set_xlabel("Mapped Read Count", fontsize=11, fontweight='bold', labelpad=8, color='black')
+        ax1.set_xlabel("Mapped Read Count", fontsize=11, labelpad=8, color='black')
         
         # Enforce pure integer ticks (no decimals)
         ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -302,24 +307,19 @@ def main():
             ax1.set_xticks(unique_vals)
 
         ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
-        ax1.set_ylabel("Number of Samples", fontsize=11, fontweight='bold', labelpad=8, color='black')
-        ax1.set_title("A. Read Count Frequency Distribution", fontsize=12, fontweight='bold', pad=12, color='black')
+        ax1.set_ylabel("Number of Samples", fontsize=11, labelpad=8, color='black')
+        ax1.set_title("A. Read Count Frequency Distribution", fontsize=12, pad=12, color='black')
         
-        # Despine top and right axes
+        ax1.grid(False)
         ax1.spines['top'].set_visible(False)
         ax1.spines['right'].set_visible(False)
 
         # ----------------------------------------------------------------------
-        # Panel B: Ordered Read Counts (Solid-filled dots, no median line, no legend)
+        # Panel B: Ordered Read Counts (Solid-filled dots, clean no callout box)
         # ----------------------------------------------------------------------
         ranks = np.arange(1, pos_count + 1)
         ax2.plot(ranks, read_counts, marker='o', color=main_color, linewidth=2, markersize=6, markerfacecolor=main_color, markeredgecolor=main_color)
         ax2.fill_between(ranks, read_counts, color=main_color, alpha=0.15)
-        
-        # Sleek Summary Callout Badge
-        badge_text = f"Max Reads: {max_r}\nMedian Reads: {median_r:.1f}\nIQR: [{q25_r:.1f} - {q75_r:.1f}]"
-        ax2.text(0.04, 0.94, badge_text, transform=ax2.transAxes, fontsize=9.5, verticalalignment='top',
-                 bbox=dict(boxstyle='round,pad=0.5', facecolor='#f7fafc', edgecolor='#cbd5e0', alpha=0.92))
 
         ax2.xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 5, 10]))
         ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
@@ -328,16 +328,17 @@ def main():
             ax2.set_xticks(ranks)
         else:
             ax2.set_xticks(np.linspace(1, pos_count, min(10, pos_count), dtype=int))
-        ax2.set_xlabel("Sample Occurrence Rank (Increasing Order)", fontsize=11, fontweight='bold', labelpad=8, color='black')
-        ax2.set_ylabel("Mapped Read Count", fontsize=11, fontweight='bold', labelpad=8, color='black')
-        ax2.set_title("B. Ordered Read Counts Across Samples", fontsize=12, fontweight='bold', pad=12, color='black')
+        ax2.set_xlabel("Sample Occurrence Rank (Increasing Order)", fontsize=11, labelpad=8, color='black')
+        ax2.set_ylabel("Mapped Read Count", fontsize=11, labelpad=8, color='black')
+        ax2.set_title("B. Ordered Read Counts Across Samples", fontsize=12, pad=12, color='black')
 
+        ax2.grid(False)
         ax2.spines['top'].set_visible(False)
         ax2.spines['right'].set_visible(False)
 
         # Main Title (Running across both panels, no angled brackets)
         main_title = f"Phase: {phase} | Project: {project} | Strategy: {short_strat}\n{v_info['name']} ({virus_acc}) N = {pos_count} ({pct_viral_pos:.2f}%* / {pct_cohort:.2f}%**)"
-        fig.suptitle(main_title, fontsize=13, fontweight='bold', y=0.98, color='black')
+        fig.suptitle(main_title, fontsize=13, y=0.98, color='black')
 
         # Subtitle Footnote Legend (Clean black text)
         footnote = f"* % of total virus-positive samples in dataset ({pos_count} / {total_viral_pos})     ** % of total samples in dataset ({pos_count} / {total_cohort})"
@@ -348,6 +349,104 @@ def main():
         plt.savefig(out_tif, format='tiff', dpi=300)
         plt.close(fig)
         plot_count += 1
+
+    # --------------------------------------------------------------------------
+    # 3. Generate Overall Dataset-Wide Summary TIFF Plot and Overall Stats TSV
+    # --------------------------------------------------------------------------
+    overall_stats_tsv_name = f"virus_stats_summary_{phase_tag}_{proj_tag}_OVERALL.tsv"
+    overall_stats_tsv_path = os.path.join(stats_dir, overall_stats_tsv_name)
+    overall_plot_name = f"dist_{phase_tag}_{proj_tag}_OVERALL_SUMMARY.tiff"
+    overall_plot_path = os.path.join(plots_dir, overall_plot_name)
+
+    overall_rows = []
+    overall_header = [
+        "Phase", "Project", "Strategy", "Total_Cohort_Samples",
+        "Total_Viral_Positive_Samples", "Cohort_Positivity_Pct",
+        "Total_Mapped_Viral_Reads", "Unique_Viruses_Detected", "Top_Prevalent_Virus"
+    ]
+
+    # Aggregate overall stats per dataset key (phase, project, strategy)
+    for ds_key in sorted(total_samples_map.keys()):
+        d_phase, d_proj, d_strat = ds_key
+        d_short_strat = get_short_strategy(d_strat)
+        
+        tot_samples = len(total_samples_map[ds_key])
+        pos_samples = len(viral_pos_samples_map[ds_key])
+        pos_pct = (pos_samples / float(tot_samples) * 100.0) if tot_samples > 0 else 0.0
+        
+        # Total reads & unique viruses across all viruses in dataset
+        ds_total_reads = 0
+        ds_unique_v = set()
+        ds_virus_counts = collections.Counter()
+
+        for v_key, v_info in virus_data.items():
+            if v_key[0] == d_phase and v_key[1] == d_proj and v_key[2] == d_strat:
+                ds_unique_v.add(v_key[3])
+                for smp, r_cnt in v_info["samples"].items():
+                    ds_total_reads += r_cnt
+                    ds_virus_counts[v_info["name"]] += len(v_info["samples"])
+
+        top_v = ds_virus_counts.most_common(1)[0][0] if ds_virus_counts else "None"
+
+        overall_rows.append([
+            d_phase, d_proj, d_short_strat, str(tot_samples),
+            str(pos_samples), f"{pos_pct:.2f}", str(ds_total_reads),
+            str(len(ds_unique_v)), top_v
+        ])
+
+    with open(overall_stats_tsv_path, "w") as f:
+        f.write("\t".join(overall_header) + "\n")
+        for r in overall_rows:
+            f.write("\t".join(r) + "\n")
+
+    print(f"[SUCCESS] Written overall dataset stats summary TSV: {overall_stats_tsv_path}")
+
+    # Generate Overall Dataset Summary 2-Panel Plot
+    all_read_counts = []
+    for v_key, v_info in virus_data.items():
+        all_read_counts.extend(v_info["samples"].values())
+
+    if all_read_counts:
+        all_read_counts = sorted(all_read_counts)
+        tot_v_pos = len(all_read_counts)
+        
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5.5), dpi=300)
+        ax1.set_box_aspect(1)
+        ax2.set_box_aspect(1)
+        overall_color = "#22577a"
+
+        u_vals, u_cnts = np.unique(all_read_counts, return_counts=True)
+        ax1.bar(u_vals, u_cnts, width=0.35, color=overall_color, edgecolor='#ffffff', linewidth=0.8, alpha=0.9, align='center')
+        ax1.set_xlabel("Mapped Read Count (All Viruses)", fontsize=11, labelpad=8, color='black')
+        ax1.set_ylabel("Number of Mapped Occurrences", fontsize=11, labelpad=8, color='black')
+        ax1.set_title("A. Dataset-Wide Read Count Frequency", fontsize=12, pad=12, color='black')
+        ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax1.xaxis.set_major_formatter(FormatStrFormatter('%d'))
+        ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
+        ax1.grid(False)
+        ax1.spines['top'].set_visible(False)
+        ax1.spines['right'].set_visible(False)
+
+        o_ranks = np.arange(1, tot_v_pos + 1)
+        ax2.plot(o_ranks, all_read_counts, marker='o', color=overall_color, linewidth=2, markersize=6, markerfacecolor=overall_color, markeredgecolor=overall_color)
+        ax2.fill_between(o_ranks, all_read_counts, color=overall_color, alpha=0.15)
+        ax2.set_xlabel("Occurrence Rank Across Entire Dataset", fontsize=11, labelpad=8, color='black')
+        ax2.set_ylabel("Mapped Read Count", fontsize=11, labelpad=8, color='black')
+        ax2.set_title("B. Dataset-Wide Ordered Read Counts", fontsize=12, pad=12, color='black')
+        ax2.xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 5, 10]))
+        ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
+        ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
+        ax2.grid(False)
+        ax2.spines['top'].set_visible(False)
+        ax2.spines['right'].set_visible(False)
+
+        fig.suptitle(f"Dataset-Wide Overall Summary | Phase: {phase_tag} | Project: {proj_tag}\nTotal Viral Detections N = {tot_v_pos}", fontsize=13, y=0.98, color='black')
+        fig.text(0.5, 0.012, "Overall dataset-wide distribution across all detected viruses", ha='center', fontsize=9, style='italic', color='black')
+
+        plt.tight_layout(rect=[0, 0.06, 1, 0.91])
+        plt.savefig(overall_plot_path, format='tiff', dpi=300)
+        plt.close(fig)
+        print(f"[SUCCESS] Generated overall dataset TIFF plot: {overall_plot_path}")
 
     print(f"[SUCCESS] Generated {plot_count} high-resolution TIFF distribution plots in {plots_dir}")
 
