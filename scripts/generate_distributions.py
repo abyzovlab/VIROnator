@@ -283,59 +283,65 @@ def main():
         q25_r = float(np.percentile(read_counts, 25))
         q75_r = float(np.percentile(read_counts, 75))
 
+        from matplotlib.ticker import MaxNLocator, FormatStrFormatter
+
         # ----------------------------------------------------------------------
-        # Panel A: Read Count Frequency Distribution (Integer-centered, thinner bars)
+        # Panel A: Read Count Frequency Distribution (Strict Integer X-Axis & Spaced Bars)
         # ----------------------------------------------------------------------
         unique_vals, val_counts = np.unique(read_counts, return_counts=True)
-        if len(unique_vals) <= 25 and max_r <= 100:
-            # Discrete integer-centered thin bars
-            ax1.bar(unique_vals, val_counts, width=0.45, color=main_color, edgecolor='#ffffff', linewidth=0.8, alpha=0.9, align='center')
-            ax1.set_xlabel("Mapped Read Count", fontsize=11, fontweight='bold', labelpad=8)
-            ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
+        bar_width = 0.35  # Thin bars with 65% clear spacing between bars
+        ax1.bar(unique_vals, val_counts, width=bar_width, color=main_color, edgecolor='#ffffff', linewidth=0.8, alpha=0.9, align='center')
+        ax1.set_xlabel("Mapped Read Count", fontsize=11, fontweight='bold', labelpad=8, color='black')
+        
+        # Enforce pure integer ticks (no decimals)
+        ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax1.xaxis.set_major_formatter(FormatStrFormatter('%d'))
+        if max_r <= 25:
+            ax1.set_xticks(np.arange(min(unique_vals), max(unique_vals) + 1, dtype=int))
         else:
-            bins = max(5, min(20, len(unique_vals)))
-            ax1.hist(read_counts, bins=bins, color=main_color, edgecolor='#ffffff', linewidth=0.8, alpha=0.9, rwidth=0.75, align='mid')
-            ax1.set_xlabel("Mapped Read Count", fontsize=11, fontweight='bold', labelpad=8)
-            ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
+            ax1.set_xticks(unique_vals)
 
         ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
-        ax1.set_ylabel("Number of Samples", fontsize=11, fontweight='bold', labelpad=8)
-        ax1.set_title("A. Read Count Frequency Distribution", fontsize=12, fontweight='bold', pad=12, color='#2d3748')
-        ax1.grid(True, linestyle=':', alpha=0.4, color='#a0aec0')
+        ax1.set_ylabel("Number of Samples", fontsize=11, fontweight='bold', labelpad=8, color='black')
+        ax1.set_title("A. Read Count Frequency Distribution", fontsize=12, fontweight='bold', pad=12, color='black')
         
         # Despine top and right axes
         ax1.spines['top'].set_visible(False)
         ax1.spines['right'].set_visible(False)
 
         # ----------------------------------------------------------------------
-        # Panel B: Ordered Read Counts (Solid-filled dots, no median line)
+        # Panel B: Ordered Read Counts (Solid-filled dots, no median line, no legend)
         # ----------------------------------------------------------------------
         ranks = np.arange(1, pos_count + 1)
-        ax2.plot(ranks, read_counts, marker='o', color=main_color, linewidth=2, markersize=6, markerfacecolor=main_color, markeredgecolor=main_color, label='Samples')
+        ax2.plot(ranks, read_counts, marker='o', color=main_color, linewidth=2, markersize=6, markerfacecolor=main_color, markeredgecolor=main_color)
         ax2.fill_between(ranks, read_counts, color=main_color, alpha=0.15)
         
-        # Sleek Summary Callout Badge (Without median line)
+        # Sleek Summary Callout Badge
         badge_text = f"Max Reads: {max_r}\nMedian Reads: {median_r:.1f}\nIQR: [{q25_r:.1f} - {q75_r:.1f}]"
         ax2.text(0.04, 0.94, badge_text, transform=ax2.transAxes, fontsize=9.5, verticalalignment='top',
                  bbox=dict(boxstyle='round,pad=0.5', facecolor='#f7fafc', edgecolor='#cbd5e0', alpha=0.92))
 
-        ax2.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax2.xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 5, 10]))
+        ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
         ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
-        ax2.set_xlabel("Sample Occurrence Rank (Increasing Order)", fontsize=11, fontweight='bold', labelpad=8)
-        ax2.set_ylabel("Mapped Read Count", fontsize=11, fontweight='bold', labelpad=8)
-        ax2.set_title("B. Ordered Read Counts Across Samples", fontsize=12, fontweight='bold', pad=12, color='#2d3748')
-        ax2.grid(True, linestyle=':', alpha=0.4, color='#a0aec0')
+        if pos_count <= 25:
+            ax2.set_xticks(ranks)
+        else:
+            ax2.set_xticks(np.linspace(1, pos_count, min(10, pos_count), dtype=int))
+        ax2.set_xlabel("Sample Occurrence Rank (Increasing Order)", fontsize=11, fontweight='bold', labelpad=8, color='black')
+        ax2.set_ylabel("Mapped Read Count", fontsize=11, fontweight='bold', labelpad=8, color='black')
+        ax2.set_title("B. Ordered Read Counts Across Samples", fontsize=12, fontweight='bold', pad=12, color='black')
 
         ax2.spines['top'].set_visible(False)
         ax2.spines['right'].set_visible(False)
 
         # Main Title (Running across both panels, no angled brackets)
         main_title = f"Phase: {phase} | Project: {project} | Strategy: {short_strat}\n{v_info['name']} ({virus_acc}) N = {pos_count} ({pct_viral_pos:.2f}%* / {pct_cohort:.2f}%**)"
-        fig.suptitle(main_title, fontsize=13, fontweight='bold', y=0.98, color='#1a202c')
+        fig.suptitle(main_title, fontsize=13, fontweight='bold', y=0.98, color='black')
 
-        # Subtitle Footnote Legend (Clean text, NO gray background)
+        # Subtitle Footnote Legend (Clean black text)
         footnote = f"* % of total virus-positive samples in dataset ({pos_count} / {total_viral_pos})     ** % of total samples in dataset ({pos_count} / {total_cohort})"
-        fig.text(0.5, 0.012, footnote, ha='center', fontsize=9, style='italic', color='#4a5568')
+        fig.text(0.5, 0.012, footnote, ha='center', fontsize=9, style='italic', color='black')
 
         plt.tight_layout(rect=[0, 0.06, 1, 0.91])
 
