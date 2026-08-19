@@ -23,6 +23,10 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Generate per-virus read distribution plots and statistics.")
     parser.add_argument("--input-report", required=True, help="Path to master viral report TSV file")
     parser.add_argument("--out-dir", default=".", help="Base VIROnator directory (default: .)")
+    parser.add_argument("--plots-dir", default=None, help="Specific output directory for TIFF plots")
+    parser.add_argument("--stats-dir", default=None, help="Specific output directory for virus stats TSV")
+    parser.add_argument("--target-phase", default=None, help="Target phase to filter (e.g. phase1 or 1)")
+    parser.add_argument("--target-project", default=None, help="Target project to filter (e.g. base)")
     parser.add_argument("--strategies", nargs="*", default=[
         "exogeneSR_viral_clean_filtered.sorted.flags.cram",
         "exogeneSR_viral_raw_filtered.sorted.flags.cram"
@@ -60,12 +64,26 @@ def main():
         print(f"[ERROR] Master report file not found: {args.input_report}")
         sys.exit(1)
 
-    plots_dir = os.path.join(args.out_dir, "plots")
-    stats_dir = os.path.join(args.out_dir, "stats")
+    plots_dir = args.plots_dir if args.plots_dir else os.path.join(args.out_dir, "plots")
+    stats_dir = args.stats_dir if args.stats_dir else os.path.join(args.out_dir, "stats")
     os.makedirs(plots_dir, exist_ok=True)
     os.makedirs(stats_dir, exist_ok=True)
 
     target_strategies = set(args.strategies)
+
+    # Phase & Project target normalization
+    target_phase = str(args.target_phase).strip().lower() if args.target_phase else None
+    if target_phase:
+        if not target_phase.startswith("phase") and target_phase.isdigit():
+            target_phase_alt = f"phase{target_phase}"
+        else:
+            target_phase_alt = target_phase.replace("phase", "")
+    else:
+        target_phase_alt = None
+
+    target_project = str(args.target_project).strip().lower() if args.target_project else None
+    if not target_project:
+        target_project = "base"
 
     # Global tracking per dataset (phase, project, strategy)
     # total_samples_map: { (phase, project, strategy): set_of_all_samples }
@@ -118,6 +136,14 @@ def main():
             if target_strategies and strategy not in target_strategies:
                 continue
 
+            # Filter by requested target phase and project if specified
+            row_phase_lower = phase.lower().strip()
+            row_proj_lower = project.lower().strip()
+            if target_phase and not (row_phase_lower == target_phase or row_phase_lower == target_phase_alt):
+                continue
+            if target_project and target_project != "base" and row_proj_lower != target_project:
+                continue
+
             try:
                 mapped_reads = int(mapped_reads_str)
             except ValueError:
@@ -135,9 +161,12 @@ def main():
                 virus_data[v_key]["samples"][sample_id] = mapped_reads
 
     # --------------------------------------------------------------------------
-    # 1. Generate virus_stats_summary.tsv in stats/
+    # 1. Generate virus_stats_summary_<PHASE>_<PROJECT>.tsv in stats_dir
     # --------------------------------------------------------------------------
-    stats_tsv_path = os.path.join(stats_dir, "virus_stats_summary.tsv")
+    phase_tag = f"phase{args.target_phase}" if args.target_phase and not str(args.target_phase).startswith("phase") else (str(args.target_phase) if args.target_phase else "all")
+    proj_tag = str(args.target_project) if args.target_project else "base"
+    stats_tsv_name = f"virus_stats_summary_{phase_tag}_{proj_tag}.tsv"
+    stats_tsv_path = os.path.join(stats_dir, stats_tsv_name)
     stats_header = [
         "Phase",
         "Project",
@@ -233,7 +262,7 @@ def main():
         short_strat = get_short_strategy(strategy)
         v_name_sanitized = sanitize_filename(v_info["name"])
 
-        out_tif = os.path.join(plots_dir, f"dist_{phase}_{project}_{short_strat}_{virus_acc}_{v_name_sanitized}.tif")
+        out_tif = os.path.join(plots_dir, f"dist_{phase}_{project}_{short_strat}_{virus_acc}_{v_name_sanitized}.tiff")
         print(f"  [{idx}/{total_plot_keys}] Generating plot: {os.path.basename(out_tif)} ...", flush=True)
 
         # Publication Figure Setup (12 x 5 inches, 300 DPI)
