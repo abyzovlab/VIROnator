@@ -311,9 +311,9 @@ def main():
 
         ranks = np.arange(1, pos_count + 1)
 
-        ax2.plot(ranks, read_counts, marker="o", color=main_color, linewidth=0.8, markersize=8)
+        ax2.plot(ranks, read_counts, marker="o", color=main_color, linewidth=1.7, markersize=8)
         if pos_count == 1:
-            ax2.vlines(x=1, ymin=0, ymax=read_counts[0], color=main_color, linewidth=0.8)
+            ax2.vlines(x=1, ymin=0, ymax=read_counts[0], color=main_color, linewidth=1.7)
         else:
             ax2.fill_between(ranks, read_counts, alpha=0.15, color=main_color, edgecolor='none', linewidth=0)
         ax2.set_xlabel("Sample Occurrence Rank (Increasing Order)")
@@ -435,9 +435,9 @@ def main():
         ax1.spines['right'].set_visible(False)
 
         o_ranks = np.arange(1, tot_v_pos + 1)
-        ax2.plot(o_ranks, all_read_counts, marker='o', color=overall_color, linewidth=0.8, markersize=8, markerfacecolor=overall_color, markeredgecolor=overall_color)
+        ax2.plot(o_ranks, all_read_counts, marker='o', color=overall_color, linewidth=1.7, markersize=8, markerfacecolor=overall_color, markeredgecolor=overall_color)
         if tot_v_pos == 1:
-            ax2.vlines(x=1, ymin=0, ymax=all_read_counts[0], color=overall_color, linewidth=0.8)
+            ax2.vlines(x=1, ymin=0, ymax=all_read_counts[0], color=overall_color, linewidth=1.7)
         else:
             ax2.fill_between(o_ranks, all_read_counts, color=overall_color, alpha=0.15, edgecolor='none', linewidth=0)
         ax2.set_xlabel("Occurrence Rank Across Entire Dataset", fontsize=11, labelpad=8, color='black')
