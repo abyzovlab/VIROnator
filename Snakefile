@@ -67,6 +67,7 @@ if config.get("stats_module", "off") == "on":
 
 # Module 5: Distributions Plots & Virus Stats
 if config.get("distributions_module", "off") == "on":
+    targets.append("config/stats_dir.created")
     phase_str = f"phase{config['phase']}" if not str(config['phase']).startswith("phase") else str(config['phase'])
     proj_str = config['project'] if config['project'] else "base"
     target_stats_path = os.path.join(

@@ -332,11 +332,30 @@ rule generate_stats:
         python3 {input.script} --input-report {input.master_report} --out-dir .
         """
 
+rule create_stats_and_plots_directory:
+    """
+    Initializes staff bucket output directories for stats and plots using gsutil.
+    """
+    input:
+        placeholder=config["placeholder_file"],
+        config_file="config/ssc_config.yaml"
+    output:
+        token="config/stats_dir.created"
+    shell:
+        """
+        PLOTS_PATH="gs://{config[output_bucket]}/{config[plots_out_dirname]}/test.txt"
+        STATS_PATH="gs://{config[output_bucket]}/{config[stats_out_dirname]}/test.txt"
+        gsutil cp {input.placeholder} "$PLOTS_PATH" 2>/dev/null || true
+        gsutil cp {input.placeholder} "$STATS_PATH" 2>/dev/null || true
+        touch {output.token}
+        """
+
 rule generate_distributions:
     """
     Generates high-resolution TIFF distribution plots and virus_stats_summary TSV in flat staff bucket folders.
     """
     input:
+        dir_created="config/stats_dir.created",
         script="scripts/generate_distributions.py" if os.path.exists("scripts/generate_distributions.py") else os.path.join(config["scripts_dir"], config.get("distributions_script", "generate_distributions.py")),
         master_report=config.get("master_report_file", "master_all_cohorts_viral_report_final.tsv"),
         config_file="config/ssc_config.yaml"
