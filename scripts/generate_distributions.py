@@ -67,7 +67,15 @@ def main():
     plots_dir = args.plots_dir if args.plots_dir else os.path.join(args.out_dir, "plots")
     stats_dir = args.stats_dir if args.stats_dir else os.path.join(args.out_dir, "stats")
 
-    target_strategies = set(args.strategies)
+    for d in [plots_dir, stats_dir]:
+        if not os.path.exists(d):
+            try:
+                os.mkdir(d)
+            except Exception:
+                try:
+                    os.makedirs(d, exist_ok=True)
+                except Exception:
+                    pass
 
     # Phase & Project target normalization
     target_phase = str(args.target_phase).strip().lower() if args.target_phase else None
