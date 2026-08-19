@@ -372,7 +372,7 @@ rule generate_distributions:
             config["output_dir"],
             config.get("stats_out_dirname", "SSC_hg38_stats")
         ),
-        strategies=lambda wildcards: " ".join(config.get("target_strategies", ["exogeneSR_viral_clean_filtered.sorted.flags.cram", "exogeneSR_viral_raw_filtered.sorted.flags.cram"]))
+        strategies=lambda wildcards: " ".join(config.get("target_strategies", ["exogeneSR_viral_clean_filtered.sorted.flags.cram"]))
     shell:
         """
         PLOTS_GCS="gs://{config[output_bucket]}/{config[plots_out_dirname]}/test.txt"
