@@ -338,7 +338,7 @@ rule generate_distributions:
     """
     input:
         script="scripts/generate_distributions.py" if os.path.exists("scripts/generate_distributions.py") else os.path.join(config["scripts_dir"], config.get("distributions_script", "generate_distributions.py")),
-        master_report=config.get("master_report_file", "master_all_cohorts_viral_report.tsv"),
+        master_report=config.get("master_report_file", "master_all_cohorts_viral_report_final.tsv"),
         config_file="config/ssc_config.yaml"
     output:
         stats_tsv="stats/virus_stats_summary.tsv"

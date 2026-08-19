@@ -119,7 +119,7 @@ report_script: "generate_report.py"
 # 6. STATS MODULE (Cohort Statistical Summary Snapshot)
 # ==============================================================================
 stats_module: "off"  # Switch: "on" or "off" to run cohort stats summary
-master_report_file: "master_all_cohorts_viral_report.tsv"  # Input master report file
+master_report_file: "master_all_cohorts_viral_report_final.tsv"  # Input master report file
 stats_script: "generate_stats.py"
 
 
