@@ -4,19 +4,27 @@ configfile: "config/ssc_config.yaml"
 
 include: "rules/ssc.smk"
 
-# Validate that the samples list file exists in current execution directory or work_dir
-samples_list_path = config["samples_list"]
-if not os.path.isabs(samples_list_path):
-    if os.path.exists(samples_list_path):
-        samples_list_path = os.path.abspath(samples_list_path)
-    else:
-        work_dir = config.get("work_dir", ".")
-        samples_list_path = os.path.join(work_dir, samples_list_path)
+# Validate samples_list file only if batch job modules are active
+batch_modules_active = any([
+    config.get("unmapped_extraction", "off") == "on",
+    config.get("viral_db_alignment", "off") == "on",
+    config.get("reporting_module", "off") == "on",
+    config.get("coverage_module", "off") == "on"
+])
 
-if not os.path.exists(samples_list_path):
-    raise FileNotFoundError(
-        f"Samples list file not found at: {samples_list_path}. Please place it in your VIROnator directory."
-    )
+if batch_modules_active:
+    samples_list_path = config.get("samples_list", "")
+    if samples_list_path and not os.path.isabs(samples_list_path):
+        if os.path.exists(samples_list_path):
+            samples_list_path = os.path.abspath(samples_list_path)
+        else:
+            work_dir = config.get("work_dir", ".")
+            samples_list_path = os.path.join(work_dir, samples_list_path)
+
+    if not samples_list_path or not os.path.exists(samples_list_path):
+        raise FileNotFoundError(
+            f"Samples list file not found at: {samples_list_path}. Please place it in your VIROnator directory."
+        )
 
 project_part = f"{config['project']}/" if config["project"] else ""
 
