@@ -277,76 +277,56 @@ def main():
         out_tif = os.path.join(plots_dir, f"dist_{phase}_{project}_{short_strat}_{virus_acc}_{v_name_sanitized}.tiff")
         print(f"  [{idx}/{total_plot_keys}] Generating plot: {os.path.basename(out_tif)} ...", flush=True)
 
-        # Publication Figure Setup (11 x 5.5 inches, 300 DPI, Square 1:1 Subplots)
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5.5), dpi=300)
-        ax1.set_box_aspect(1)
-        ax2.set_box_aspect(1)
         main_color = color_map.get(short_strat, "#57cc99")
 
-        max_r = max(read_counts)
-        median_r = float(np.median(read_counts))
-        q25_r = float(np.percentile(read_counts, 25))
-        q75_r = float(np.percentile(read_counts, 75))
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5.5), dpi=300)
 
-        from matplotlib.ticker import MaxNLocator, FormatStrFormatter
+        ax1.set_box_aspect(1)
+        ax2.set_box_aspect(1)
 
-        # ----------------------------------------------------------------------
-        # Panel A: Read Count Frequency Distribution (Strict Integer X-Axis & Spaced Bars)
-        # ----------------------------------------------------------------------
         unique_vals, val_counts = np.unique(read_counts, return_counts=True)
-        bar_width = 0.35  # Thin bars with 65% clear spacing between bars
-        ax1.bar(unique_vals, val_counts, width=bar_width, color=main_color, edgecolor='#ffffff', linewidth=0.8, alpha=0.9, align='center')
-        ax1.set_xlabel("Mapped Read Count", fontsize=11, labelpad=8, color='black')
-        
-        # Enforce pure integer ticks (no decimals)
-        ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
-        ax1.xaxis.set_major_formatter(FormatStrFormatter('%d'))
-        if max_r <= 25:
-            ax1.set_xticks(np.arange(min(unique_vals), max(unique_vals) + 1, dtype=int))
-        else:
-            ax1.set_xticks(unique_vals)
 
+        ax1.bar(unique_vals, val_counts, width=0.35, color=main_color)
+        ax1.set_xlabel("Mapped Read Count")
+        ax1.set_ylabel("Number of Samples")
+        ax1.set_title("A. Read Count Frequency Distribution")
+        ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
-        ax1.set_ylabel("Number of Samples", fontsize=11, labelpad=8, color='black')
-        ax1.set_title("A. Read Count Frequency Distribution", fontsize=12, pad=12, color='black')
-        
         ax1.grid(False)
         ax1.spines['top'].set_visible(False)
         ax1.spines['right'].set_visible(False)
 
-        # ----------------------------------------------------------------------
-        # Panel B: Ordered Read Counts (Solid-filled dots, clean no callout box)
-        # ----------------------------------------------------------------------
         ranks = np.arange(1, pos_count + 1)
-        ax2.plot(ranks, read_counts, marker='o', color=main_color, linewidth=2, markersize=6, markerfacecolor=main_color, markeredgecolor=main_color)
-        ax2.fill_between(ranks, read_counts, color=main_color, alpha=0.15)
 
-        ax2.xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 5, 10]))
-        ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
+        ax2.plot(ranks, read_counts, marker="o", color=main_color)
+        ax2.fill_between(ranks, read_counts, alpha=0.15, color=main_color)
+        ax2.set_xlabel("Sample Occurrence Rank (Increasing Order)")
+        ax2.set_ylabel("Mapped Read Count")
+        ax2.set_title("B. Ordered Read Counts Across Samples")
+        ax2.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
-        if pos_count <= 25:
-            ax2.set_xticks(ranks)
-        else:
-            ax2.set_xticks(np.linspace(1, pos_count, min(10, pos_count), dtype=int))
-        ax2.set_xlabel("Sample Occurrence Rank (Increasing Order)", fontsize=11, labelpad=8, color='black')
-        ax2.set_ylabel("Mapped Read Count", fontsize=11, labelpad=8, color='black')
-        ax2.set_title("B. Ordered Read Counts Across Samples", fontsize=12, pad=12, color='black')
-
         ax2.grid(False)
         ax2.spines['top'].set_visible(False)
         ax2.spines['right'].set_visible(False)
 
-        # Main Title (Running across both panels, no angled brackets)
-        main_title = f"Phase: {phase} | Project: {project} | Strategy: {short_strat}\n{v_info['name']} ({virus_acc}) N = {pos_count} ({pct_viral_pos:.2f}%* / {pct_cohort:.2f}%**)"
-        fig.suptitle(main_title, fontsize=13, y=0.98, color='black')
+        main_title = (
+            f"Phase: {phase} | Project: {project} | Strategy: {short_strat}\n"
+            f"{v_info['name']} ({virus_acc}) N = {pos_count} "
+            f"({pct_viral_pos:.2f}%* / {pct_cohort:.2f}%**)"
+        )
 
-        # Subtitle Footnote Legend (Clean black text)
-        footnote = f"* % of total virus-positive samples in dataset ({pos_count} / {total_viral_pos})     ** % of total samples in dataset ({pos_count} / {total_cohort})"
-        fig.text(0.5, 0.012, footnote, ha='center', fontsize=9, style='italic', color='black')
+        fig.suptitle(main_title)
 
-        plt.tight_layout(rect=[0, 0.06, 1, 0.91])
+        fig.text(
+            0.5,
+            0.01,
+            f"* % of total virus-positive samples in dataset ({pos_count} / {total_viral_pos})     "
+            f"** % of total samples in dataset ({pos_count} / {total_cohort})",
+            ha="center"
+        )
 
-        plt.savefig(out_tif, format='tiff', dpi=300)
+        plt.tight_layout(rect=[0, 0.05, 1, 0.9])
+        plt.savefig(out_tif, format="tiff", dpi=300)
         plt.close(fig)
         plot_count += 1
 
