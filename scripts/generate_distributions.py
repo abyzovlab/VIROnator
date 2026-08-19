@@ -211,7 +211,10 @@ def main():
     plt.rcParams['axes.edgecolor'] = '#4a5568'
     plt.rcParams['axes.linewidth'] = 0.8
 
-    for v_key in sorted_v_keys:
+    total_plot_keys = len(sorted_v_keys)
+    print(f"[INFO] Rendering {total_plot_keys} distribution plots...")
+
+    for idx, v_key in enumerate(sorted_v_keys, 1):
         phase, project, strategy, virus_acc = v_key
         ds_key = (phase, project, strategy)
         
@@ -229,6 +232,9 @@ def main():
 
         short_strat = get_short_strategy(strategy)
         v_name_sanitized = sanitize_filename(v_info["name"])
+
+        out_tif = os.path.join(plots_dir, f"dist_{phase}_{project}_{short_strat}_{virus_acc}_{v_name_sanitized}.tif")
+        print(f"  [{idx}/{total_plot_keys}] Generating plot: {os.path.basename(out_tif)} ...", flush=True)
 
         # Publication Figure Setup (12 x 5 inches, 300 DPI)
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5.2), dpi=300)
@@ -299,11 +305,7 @@ def main():
 
         plt.tight_layout(rect=[0, 0.06, 1, 0.91])
 
-        out_tif = os.path.join(plots_dir, f"dist_{phase}_{project}_{short_strat}_{virus_acc}_{v_name_sanitized}.tif")
-        try:
-            plt.savefig(out_tif, format='tiff', dpi=300, pil_kwargs={'compression': 'tiff_lzw'})
-        except Exception:
-            plt.savefig(out_tif, format='tiff', dpi=300)
+        plt.savefig(out_tif, format='tiff', dpi=300)
         plt.close(fig)
         plot_count += 1
 
