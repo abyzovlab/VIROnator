@@ -135,5 +135,11 @@ target_strategies:
   - "exogeneSR_viral_clean_filtered.sorted.flags.cram"
   - "exogeneSR_viral_raw_filtered.sorted.flags.cram"
 
+strategy_colors:
+  clean_filtered: "#80ed99"
+  clean_flags: "#57cc99"
+  raw_filtered: "#38a3a5"
+  raw_flags: "#22577a"
+
 
 

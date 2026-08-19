@@ -239,17 +239,15 @@ def main():
     # --------------------------------------------------------------------------
     plot_count = 0
     color_map = {
-        "clean_flags": "#1a365d",       # Deep Navy
-        "raw_flags": "#9b2c2c",         # Crimson Red
-        "clean_filtered": "#22543d",    # Forest Green
-        "raw_filtered": "#742a2a",      # Burnt Orange
-        "clean_unfiltered": "#2b6cb0",  # Slate Blue
-        "raw_unfiltered": "#c53030"     # Ruby Red
+        "clean_filtered": "#80ed99",
+        "clean_flags": "#57cc99",
+        "raw_filtered": "#38a3a5",
+        "raw_flags": "#22577a",
+        "clean_unfiltered": "#80ed99",
+        "raw_unfiltered": "#38a3a5"
     }
 
-    plt.rcParams['font.sans-serif'] = 'DejaVu Sans'
-    plt.rcParams['axes.edgecolor'] = '#4a5568'
-    plt.rcParams['axes.linewidth'] = 0.8
+    from matplotlib.ticker import MaxNLocator
 
     total_plot_keys = len(sorted_v_keys)
     print(f"[INFO] Rendering {total_plot_keys} distribution plots...")
@@ -278,7 +276,7 @@ def main():
 
         # Publication Figure Setup (12 x 5 inches, 300 DPI)
         fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5.2), dpi=300)
-        main_color = color_map.get(short_strat, "#1a365d")
+        main_color = color_map.get(short_strat, "#57cc99")
 
         max_r = max(read_counts)
         median_r = float(np.median(read_counts))
@@ -286,50 +284,47 @@ def main():
         q75_r = float(np.percentile(read_counts, 75))
 
         # ----------------------------------------------------------------------
-        # Panel A: Read Count Frequency Distribution
+        # Panel A: Read Count Frequency Distribution (Integer-centered, thinner bars)
         # ----------------------------------------------------------------------
-        if max_r > 100:
-            log_bins = np.logspace(0, np.log10(max_r + 1), 18)
-            n_vals, bins_vals, patches = ax1.hist(read_counts, bins=log_bins, color=main_color, edgecolor='#ffffff', linewidth=0.8, alpha=0.85)
-            ax1.set_xscale('log')
-            ax1.set_xlabel("Mapped Read Count (Log10 Scale)", fontsize=11, fontweight='bold', labelpad=8)
-        else:
-            bins = max(5, min(18, max_r))
-            n_vals, bins_vals, patches = ax1.hist(read_counts, bins=bins, color=main_color, edgecolor='#ffffff', linewidth=0.8, alpha=0.85)
+        unique_vals, val_counts = np.unique(read_counts, return_counts=True)
+        if len(unique_vals) <= 25 and max_r <= 100:
+            # Discrete integer-centered thin bars
+            ax1.bar(unique_vals, val_counts, width=0.45, color=main_color, edgecolor='#ffffff', linewidth=0.8, alpha=0.9, align='center')
             ax1.set_xlabel("Mapped Read Count", fontsize=11, fontweight='bold', labelpad=8)
+            ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
+        else:
+            bins = max(5, min(20, len(unique_vals)))
+            ax1.hist(read_counts, bins=bins, color=main_color, edgecolor='#ffffff', linewidth=0.8, alpha=0.9, rwidth=0.75, align='mid')
+            ax1.set_xlabel("Mapped Read Count", fontsize=11, fontweight='bold', labelpad=8)
+            ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
 
-        # Median reference line in Panel A
-        ax1.axvline(median_r, color='#d69e2e', linestyle='--', linewidth=1.5, label=f'Median ({median_r:.1f})')
-        ax1.legend(loc='upper right', frameon=True, framealpha=0.9, facecolor='#f7fafc', edgecolor='#cbd5e0', fontsize=9)
-
+        ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
         ax1.set_ylabel("Number of Samples", fontsize=11, fontweight='bold', labelpad=8)
         ax1.set_title("A. Read Count Frequency Distribution", fontsize=12, fontweight='bold', pad=12, color='#2d3748')
         ax1.grid(True, linestyle=':', alpha=0.4, color='#a0aec0')
         
-        # Despine top and right axes for clean journal look
+        # Despine top and right axes
         ax1.spines['top'].set_visible(False)
         ax1.spines['right'].set_visible(False)
 
         # ----------------------------------------------------------------------
-        # Panel B: Ordered Read Counts (Rank-Abundance Curve)
+        # Panel B: Ordered Read Counts (Solid-filled dots, no median line)
         # ----------------------------------------------------------------------
         ranks = np.arange(1, pos_count + 1)
-        ax2.plot(ranks, read_counts, marker='o', color=main_color, linewidth=2, markersize=5.5, markerfacecolor='#ffffff', markeredgewidth=1.8, label='Samples')
-        ax2.fill_between(ranks, read_counts, color=main_color, alpha=0.12)
-
-        # Median threshold line in Panel B
-        ax2.axhline(median_r, color='#d69e2e', linestyle='--', linewidth=1.5, label=f'Median: {median_r:.1f}')
+        ax2.plot(ranks, read_counts, marker='o', color=main_color, linewidth=2, markersize=6, markerfacecolor=main_color, markeredgecolor=main_color, label='Samples')
+        ax2.fill_between(ranks, read_counts, color=main_color, alpha=0.15)
         
-        # Sleek Summary Callout Badge
+        # Sleek Summary Callout Badge (Without median line)
         badge_text = f"Max Reads: {max_r}\nMedian Reads: {median_r:.1f}\nIQR: [{q25_r:.1f} - {q75_r:.1f}]"
         ax2.text(0.04, 0.94, badge_text, transform=ax2.transAxes, fontsize=9.5, verticalalignment='top',
                  bbox=dict(boxstyle='round,pad=0.5', facecolor='#f7fafc', edgecolor='#cbd5e0', alpha=0.92))
 
+        ax2.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
         ax2.set_xlabel("Sample Occurrence Rank (Increasing Order)", fontsize=11, fontweight='bold', labelpad=8)
         ax2.set_ylabel("Mapped Read Count", fontsize=11, fontweight='bold', labelpad=8)
         ax2.set_title("B. Ordered Read Counts Across Samples", fontsize=12, fontweight='bold', pad=12, color='#2d3748')
         ax2.grid(True, linestyle=':', alpha=0.4, color='#a0aec0')
-        ax2.legend(loc='lower right', frameon=True, framealpha=0.9, facecolor='#f7fafc', edgecolor='#cbd5e0', fontsize=9)
 
         ax2.spines['top'].set_visible(False)
         ax2.spines['right'].set_visible(False)
@@ -338,10 +333,9 @@ def main():
         main_title = f"Phase: {phase} | Project: {project} | Strategy: {short_strat}\n{v_info['name']} ({virus_acc}) N = {pos_count} ({pct_viral_pos:.2f}%* / {pct_cohort:.2f}%**)"
         fig.suptitle(main_title, fontsize=13, fontweight='bold', y=0.98, color='#1a202c')
 
-        # Subtitle Footnote Legend (Below both panels)
+        # Subtitle Footnote Legend (Clean text, NO gray background)
         footnote = f"* % of total virus-positive samples in dataset ({pos_count} / {total_viral_pos})     ** % of total samples in dataset ({pos_count} / {total_cohort})"
-        fig.text(0.5, 0.012, footnote, ha='center', fontsize=9, style='italic', color='#4a5568',
-                 bbox=dict(boxstyle='round,pad=0.3', facecolor='#edf2f7', edgecolor='none', alpha=0.7))
+        fig.text(0.5, 0.012, footnote, ha='center', fontsize=9, style='italic', color='#4a5568')
 
         plt.tight_layout(rect=[0, 0.06, 1, 0.91])
 
