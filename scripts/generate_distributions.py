@@ -81,7 +81,7 @@ def main():
     else:
         target_phase_alt = None
 
-    target_project = str(args.target_project).strip().lower() if args.target_project else None
+    target_project = str(args.target_project).strip().lower() if args.target_project else "base"
     if not target_project:
         target_project = "base"
 
@@ -139,9 +139,12 @@ def main():
             # Filter by requested target phase and project if specified
             row_phase_lower = phase.lower().strip()
             row_proj_lower = project.lower().strip()
+            if not row_proj_lower:
+                row_proj_lower = "base"
+
             if target_phase and not (row_phase_lower == target_phase or row_phase_lower == target_phase_alt):
                 continue
-            if target_project and target_project != "base" and row_proj_lower != target_project:
+            if target_project and row_proj_lower != target_project:
                 continue
 
             try:
