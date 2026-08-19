@@ -290,25 +290,42 @@ def main():
 
         unique_vals, val_counts = np.unique(read_counts, return_counts=True)
 
-        ax1.bar(unique_vals, val_counts, width=0.35, color=main_color)
+        ax1.bar(unique_vals, val_counts, width=0.7, color=main_color)
         ax1.set_xlabel("Mapped Read Count")
         ax1.set_ylabel("Number of Samples")
         ax1.set_title("A. Read Count Frequency Distribution")
         ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax1.xaxis.set_major_formatter(FormatStrFormatter('%d'))
         ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
+        ax1.yaxis.set_major_formatter(FormatStrFormatter('%d'))
+        
+        # Prevent decimal autoscale limits on single-value histograms
+        if len(unique_vals) == 1:
+            v_val = unique_vals[0]
+            ax1.set_xlim(max(0, v_val - 2), v_val + 2)
+            ax1.set_xticks(np.arange(max(0, v_val - 2), v_val + 3, dtype=int))
+
         ax1.grid(False)
         ax1.spines['top'].set_visible(False)
         ax1.spines['right'].set_visible(False)
 
         ranks = np.arange(1, pos_count + 1)
 
-        ax2.plot(ranks, read_counts, marker="o", color=main_color)
+        ax2.plot(ranks, read_counts, marker="o", color=main_color, linewidth=1, markersize=8)
         ax2.fill_between(ranks, read_counts, alpha=0.15, color=main_color)
         ax2.set_xlabel("Sample Occurrence Rank (Increasing Order)")
         ax2.set_ylabel("Mapped Read Count")
         ax2.set_title("B. Ordered Read Counts Across Samples")
         ax2.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
         ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
+        ax2.yaxis.set_major_formatter(FormatStrFormatter('%d'))
+        
+        # Prevent decimal autoscale limits on single-sample plots
+        if pos_count == 1:
+            ax2.set_xlim(0, 2)
+            ax2.set_xticks([0, 1, 2])
+
         ax2.grid(False)
         ax2.spines['top'].set_visible(False)
         ax2.spines['right'].set_visible(False)
@@ -323,13 +340,16 @@ def main():
 
         fig.text(
             0.5,
-            0.01,
+            0.015,
             f"* % of total virus-positive samples in dataset ({pos_count} / {total_viral_pos})     "
             f"** % of total samples in dataset ({pos_count} / {total_cohort})",
-            ha="center"
+            ha="center",
+            fontsize=10.5,
+            color="black",
+            style="normal"
         )
 
-        plt.tight_layout(rect=[0, 0.05, 1, 0.9])
+        plt.tight_layout(rect=[0, 0.08, 1, 0.92])
         plt.savefig(out_tif, format="tiff", dpi=300)
         plt.close(fig)
         plot_count += 1
@@ -400,7 +420,7 @@ def main():
         overall_color = "#22577a"
 
         u_vals, u_cnts = np.unique(all_read_counts, return_counts=True)
-        ax1.bar(u_vals, u_cnts, width=0.35, color=overall_color, edgecolor='#ffffff', linewidth=0.8, alpha=0.9, align='center')
+        ax1.bar(u_vals, u_cnts, width=0.7, color=overall_color)
         ax1.set_xlabel("Mapped Read Count (All Viruses)", fontsize=11, labelpad=8, color='black')
         ax1.set_ylabel("Number of Mapped Occurrences", fontsize=11, labelpad=8, color='black')
         ax1.set_title("A. Dataset-Wide Read Count Frequency", fontsize=12, pad=12, color='black')
@@ -412,7 +432,7 @@ def main():
         ax1.spines['right'].set_visible(False)
 
         o_ranks = np.arange(1, tot_v_pos + 1)
-        ax2.plot(o_ranks, all_read_counts, marker='o', color=overall_color, linewidth=2, markersize=6, markerfacecolor=overall_color, markeredgecolor=overall_color)
+        ax2.plot(o_ranks, all_read_counts, marker='o', color=overall_color, linewidth=1, markersize=8, markerfacecolor=overall_color, markeredgecolor=overall_color)
         ax2.fill_between(o_ranks, all_read_counts, color=overall_color, alpha=0.15)
         ax2.set_xlabel("Occurrence Rank Across Entire Dataset", fontsize=11, labelpad=8, color='black')
         ax2.set_ylabel("Mapped Read Count", fontsize=11, labelpad=8, color='black')
@@ -425,9 +445,9 @@ def main():
         ax2.spines['right'].set_visible(False)
 
         fig.suptitle(f"Dataset-Wide Overall Summary | Phase: {phase_tag} | Project: {proj_tag}\nTotal Viral Detections N = {tot_v_pos}", fontsize=13, y=0.98, color='black')
-        fig.text(0.5, 0.012, "Overall dataset-wide distribution across all detected viruses", ha='center', fontsize=9, style='italic', color='black')
+        fig.text(0.5, 0.015, "Overall dataset-wide distribution across all detected viruses", ha='center', fontsize=10.5, style='normal', color='black')
 
-        plt.tight_layout(rect=[0, 0.06, 1, 0.91])
+        plt.tight_layout(rect=[0, 0.08, 1, 0.92])
         plt.savefig(overall_plot_path, format='tiff', dpi=300)
         plt.close(fig)
         print(f"[SUCCESS] Generated overall dataset TIFF plot: {overall_plot_path}")
