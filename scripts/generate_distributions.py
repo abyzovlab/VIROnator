@@ -93,6 +93,9 @@ def main():
     if not target_project:
         target_project = "base"
 
+    phase_tag = f"phase{target_phase}" if target_phase and not str(target_phase).startswith("phase") else (target_phase if target_phase else "all")
+    proj_tag = target_project if target_project else "base"
+
     # Global tracking per dataset (phase, project, strategy)
     # total_samples_map: { (phase, project, strategy): set_of_all_samples }
     # viral_pos_samples_map: { (phase, project, strategy): set_of_virus_pos_samples }
