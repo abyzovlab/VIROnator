@@ -27,6 +27,7 @@ def parse_args():
     parser.add_argument("--plots-dir", default=None, help="Specific output directory for TIFF plots")
     parser.add_argument("--stats-dir", default=None, help="Specific output directory for virus stats TSV")
     parser.add_argument("--target-phase", default=None, help="Target phase to filter (e.g. phase1 or 1)")
+    parser.add_argument("--target-project", default=None, help="Target project to filter (e.g. base)")
     parser.add_argument("--strategies", nargs="*", default=[
         "exogeneSR_viral_clean_filtered.sorted.flags.cram"
     ], help="Target CRAM strategy file names to evaluate")
@@ -151,37 +152,40 @@ def main():
             if target_strategies and strategy not in target_strategies:
                 continue
 
-            if cohort_scope == "combined_all":
-                phase = "all_cohorts"
-                project = "combined"
-            else:
-                phase = raw_phase
-                project = raw_project if raw_project else "base"
-                row_phase_lower = phase.lower().strip()
-                row_proj_lower = project.lower().strip()
-                if not row_proj_lower:
-                    row_proj_lower = "base"
-
-                if target_phase and not (row_phase_lower == target_phase or row_phase_lower == target_phase_alt):
-                    continue
-                if target_project and row_proj_lower != target_project:
-                    continue
-
             try:
                 mapped_reads = int(mapped_reads_str)
             except ValueError:
                 mapped_reads = 0
 
-            ds_key = (phase, project, strategy)
-            total_samples_map[ds_key].add(sample_id)
+            # Determine whether this row matches target phase/project
+            raw_phase_clean = raw_phase.lower().strip()
+            raw_proj_clean = raw_project.lower().strip() if raw_project else "base"
+            if not raw_proj_clean:
+                raw_proj_clean = "base"
 
-            if virus_acc and virus_acc.lower() != "none" and mapped_reads > 0:
-                viral_pos_samples_map[ds_key].add(sample_id)
-                
-                v_key = (phase, project, strategy, virus_acc)
-                display_name = virus_name if virus_name and virus_name.lower() != "none" else virus_acc
-                virus_data[v_key]["name"] = display_name
-                virus_data[v_key]["samples"][sample_id] = mapped_reads
+            matches_target = True
+            if target_phase and not (raw_phase_clean == target_phase or raw_phase_clean == target_phase_alt):
+                matches_target = False
+            if target_project and raw_proj_clean != target_project:
+                matches_target = False
+
+            # Add entries based on cohort_scope setting
+            keys_to_add = []
+            if cohort_scope in ["target_only", "both"] and matches_target:
+                keys_to_add.append((raw_phase, raw_proj_clean))
+            if cohort_scope in ["combined_all", "both"]:
+                keys_to_add.append(("all_cohorts", "combined"))
+
+            for p_val, prj_val in keys_to_add:
+                ds_key = (p_val, prj_val, strategy)
+                total_samples_map[ds_key].add(sample_id)
+
+                if virus_acc and virus_acc.lower() != "none" and mapped_reads > 0:
+                    viral_pos_samples_map[ds_key].add(sample_id)
+                    v_key = (p_val, prj_val, strategy, virus_acc)
+                    display_name = virus_name if virus_name and virus_name.lower() != "none" else virus_acc
+                    virus_data[v_key]["name"] = display_name
+                    virus_data[v_key]["samples"][sample_id] = mapped_reads
 
     # --------------------------------------------------------------------------
     # 1. Generate virus_stats_summary_<PHASE>_<PROJECT>.tsv in stats_dir
