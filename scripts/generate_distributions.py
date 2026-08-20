@@ -361,7 +361,8 @@ def main():
         ax1.spines['right'].set_visible(False)
 
         ranks = np.arange(1, pos_count + 1)
-        ax2.bar(ranks, read_counts, width=0.9, color=main_color, edgecolor='none')
+        bar_w = 1.0 if pos_count > 50 else 0.88
+        ax2.bar(ranks, read_counts, width=bar_w, color=main_color, edgecolor='none')
         
         if use_log_b and v_max > args.log_scale_read_cutoff and len(unique_vals) > 1:
             ax2.set_yscale('log')
@@ -374,7 +375,7 @@ def main():
 
         ax2.set_xlabel("Sample Occurrence Rank (Increasing Order)")
         ax2.set_title("B. Ordered Read Counts Across Samples")
-        ax2.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax2.xaxis.set_major_locator(MaxNLocator(nbins=5, integer=True))
         ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
         
         # Prevent decimal autoscale limits on single-sample plots
@@ -582,7 +583,8 @@ def main():
             ax1.spines['right'].set_visible(False)
 
             o_ranks = np.arange(1, tot_v_pos + 1)
-            ax2.bar(o_ranks, group_read_counts, width=0.9, color=overall_color, edgecolor='none')
+            bar_w_o = 1.0 if tot_v_pos > 50 else 0.88
+            ax2.bar(o_ranks, group_read_counts, width=bar_w_o, color=overall_color, edgecolor='none')
             
             if use_log_b and max_r > args.log_scale_read_cutoff and len(u_vals) > 1:
                 ax2.set_yscale('log')
@@ -595,7 +597,7 @@ def main():
 
             ax2.set_xlabel("Occurrence Rank Across Entire Dataset", fontsize=11, labelpad=8, color='black')
             ax2.set_title("B. Dataset-Wide Ordered Read Counts", fontsize=12, pad=12, color='black')
-            ax2.xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 5, 10]))
+            ax2.xaxis.set_major_locator(MaxNLocator(nbins=5, integer=True))
             ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
             ax2.grid(False)
             ax2.spines['top'].set_visible(False)
