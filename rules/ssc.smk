@@ -375,13 +375,16 @@ rule generate_distributions:
         strategies=lambda wildcards: " ".join(config.get("target_strategies", ["exogeneSR_viral_clean_filtered.sorted.flags.cram"])),
         cohort_scope=lambda wildcards: str(config.get("cohort_scope", "combined_all")),
         panel_a_loglog=lambda wildcards: str(config.get("panel_a_loglog", "on")),
-        panel_b_log_y=lambda wildcards: str(config.get("panel_b_log_y", "on"))
+        panel_b_log_y=lambda wildcards: str(config.get("panel_b_log_y", "on")),
+        min_total_reads=lambda wildcards: int(config.get("min_total_reads_to_plot", 3)),
+        min_max_reads=lambda wildcards: int(config.get("min_max_reads_to_plot", 3)),
+        log_scale_cutoff=lambda wildcards: int(config.get("log_scale_read_cutoff", 30))
     shell:
         """
         PLOTS_GCS="gs://{config[output_bucket]}/{config[plots_out_dirname]}/test.txt"
         STATS_GCS="gs://{config[output_bucket]}/{config[stats_out_dirname]}/test.txt"
         gsutil cp config/ssc_config.yaml "$PLOTS_GCS" 2>/dev/null || true
         gsutil cp config/ssc_config.yaml "$STATS_GCS" 2>/dev/null || true
-        python3 {input.script} --input-report {input.master_report} --plots-dir "{params.plots_dir}" --stats-dir "{params.stats_dir}" --target-phase "{params.phase}" --target-project "{params.project}" --strategies {params.strategies} --cohort-scope "{params.cohort_scope}" --panel-a-loglog "{params.panel_a_loglog}" --panel-b-log-y "{params.panel_b_log_y}"
+        python3 {input.script} --input-report {input.master_report} --plots-dir "{params.plots_dir}" --stats-dir "{params.stats_dir}" --target-phase "{params.phase}" --target-project "{params.project}" --strategies {params.strategies} --cohort-scope "{params.cohort_scope}" --panel-a-loglog "{params.panel_a_loglog}" --panel-b-log-y "{params.panel_b_log_y}" --min-total-reads-to-plot {params.min_total_reads} --min-max-reads-to-plot {params.min_max_reads} --log-scale-read-cutoff {params.log_scale_cutoff}
         touch {output.token}
         """

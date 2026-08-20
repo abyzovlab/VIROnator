@@ -37,6 +37,12 @@ def parse_args():
                         help="Panel A scale: 'on' for Log-Log, 'off' for linear")
     parser.add_argument("--panel-b-log-y", default="on", choices=["on", "off"],
                         help="Panel B scale: 'on' for Log Y, 'off' for linear")
+    parser.add_argument("--min-total-reads-to-plot", type=int, default=3,
+                        help="Minimum total mapped reads across cohort required to render a per-virus TIFF plot")
+    parser.add_argument("--min-max-reads-to-plot", type=int, default=3,
+                        help="Minimum maximum mapped reads across any single sample required to render a per-virus TIFF plot")
+    parser.add_argument("--log-scale-read-cutoff", type=int, default=30,
+                        help="Read count threshold to trigger Log-Scale transformations in Panels A and B")
     return parser.parse_args()
 
 
@@ -205,7 +211,8 @@ def main():
         "Total_Cohort_Samples",
         "Pct_Of_Viral_Positive_Samples",
         "Pct_Of_Total_Cohort_Samples",
-        "Total_Reads_Assigned"
+        "Total_Reads_Assigned",
+        "Mean_Mapped_Reads_Per_Positive_Sample"
     ]
 
     # Group v_keys per dataset (phase, project)
@@ -238,6 +245,7 @@ def main():
             pct_viral_pos = (pos_count / float(total_viral_pos) * 100.0) if total_viral_pos > 0 else 0.0
             pct_cohort = (pos_count / float(total_cohort) * 100.0) if total_cohort > 0 else 0.0
             total_reads = sum(sample_dict.values())
+            mean_reads_per_pos = (total_reads / float(pos_count)) if pos_count > 0 else 0.0
             
             short_strat = get_short_strategy(strategy)
 
@@ -252,7 +260,8 @@ def main():
                 str(total_cohort),
                 f"{pct_viral_pos:.2f}",
                 f"{pct_cohort:.2f}",
-                str(total_reads)
+                str(total_reads),
+                f"{mean_reads_per_pos:.2f}"
             ]
             stats_rows.append(row)
 
@@ -291,7 +300,7 @@ def main():
         
         v_info = virus_data[v_key]
         read_counts = sorted(v_info["samples"].values())
-        if not read_counts:
+        if not read_counts or sum(read_counts) < args.min_total_reads_to_plot or max(read_counts) < args.min_max_reads_to_plot:
             continue
 
         pos_count = len(read_counts)
@@ -321,7 +330,7 @@ def main():
         use_log_a = (args.panel_a_loglog == "on")
         use_log_b = (args.panel_b_log_y == "on")
 
-        if use_log_a and len(unique_vals) > 1 and (v_max - v_min) > 30:
+        if use_log_a and len(unique_vals) > 1 and (v_max - v_min) > args.log_scale_read_cutoff:
             bins = np.logspace(np.log10(max(1, v_min)), np.log10(v_max), 30)
             ax1.hist(read_counts, bins=bins, color=main_color, rwidth=0.92, edgecolor='none')
             ax1.set_xscale('log')
@@ -354,7 +363,7 @@ def main():
         ranks = np.arange(1, pos_count + 1)
         ax2.bar(ranks, read_counts, width=0.9, color=main_color, edgecolor='none')
         
-        if use_log_b and v_max > 30 and len(unique_vals) > 1:
+        if use_log_b and v_max > args.log_scale_read_cutoff and len(unique_vals) > 1:
             ax2.set_yscale('log')
             ax2.set_ylabel("Mapped Read Count (Log Scale)")
         else:
@@ -486,7 +495,8 @@ def main():
             "Phase", "Project", "Strategy",
             "Total_Viral_Positive_Samples", "Total_Cohort_Samples",
             "Cohort_Positivity_Pct", "Total_Mapped_Viral_Reads",
-            "Unique_Viruses_Detected", "Top_Prevalent_Virus"
+            "Unique_Viruses_Detected", "Top_Prevalent_Virus",
+            "Mean_Mapped_Reads_Per_Positive_Sample"
         ]
 
         group_ds_keys = [k for k in total_samples_map.keys() if k[0] == cur_phase and k[1] == cur_proj]
@@ -510,12 +520,14 @@ def main():
                         ds_virus_counts[v_info["name"]] += len(v_info["samples"])
 
             top_v = ds_virus_counts.most_common(1)[0][0] if ds_virus_counts else "None"
+            mean_ds_reads_per_pos = (ds_total_reads / float(pos_samples)) if pos_samples > 0 else 0.0
 
             overall_rows.append([
                 d_phase, d_proj, d_short_strat,
                 str(pos_samples), str(tot_samples),
                 f"{pos_pct:.2f}", str(ds_total_reads),
-                str(len(ds_unique_v)), top_v
+                str(len(ds_unique_v)), top_v,
+                f"{mean_ds_reads_per_pos:.2f}"
             ])
 
         with open(overall_stats_tsv_path, "w") as f:
@@ -546,7 +558,7 @@ def main():
             use_log_a = (args.panel_a_loglog == "on")
             use_log_b = (args.panel_b_log_y == "on")
 
-            if use_log_a and max_r > 30 and len(u_vals) > 1:
+            if use_log_a and max_r > args.log_scale_read_cutoff and len(u_vals) > 1:
                 bins = np.logspace(np.log10(max(1, min_r)), np.log10(max_r), 30)
                 ax1.hist(group_read_counts, bins=bins, color=overall_color, rwidth=0.92, edgecolor='none')
                 ax1.set_xscale('log')
@@ -572,7 +584,7 @@ def main():
             o_ranks = np.arange(1, tot_v_pos + 1)
             ax2.bar(o_ranks, group_read_counts, width=0.9, color=overall_color, edgecolor='none')
             
-            if use_log_b and max_r > 30 and len(u_vals) > 1:
+            if use_log_b and max_r > args.log_scale_read_cutoff and len(u_vals) > 1:
                 ax2.set_yscale('log')
                 ax2.set_ylabel("Mapped Read Count (Log Scale)", fontsize=11, labelpad=8, color='black')
             else:

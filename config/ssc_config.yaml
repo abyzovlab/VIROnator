@@ -147,6 +147,17 @@ cohort_scope: "combined_all"
 panel_a_loglog: "on"
 panel_b_log_y: "on"
 
+# Minimum total mapped reads threshold for rendering per-virus TIFF plots:
+#   min_total_reads_to_plot: 3 (Skips plotting viruses with only 1 single read pair / <=2 reads)
+#   min_max_reads_to_plot  : 3 (Skips plotting viruses where every single positive sample has <= 2 reads)
+#   Note: All viruses remain 100% recorded in summary TSV tables regardless of this setting!
+min_total_reads_to_plot: 3
+min_max_reads_to_plot: 3
+
+# Read count threshold to trigger Log-Scale transformations in Panels A and B:
+#   log_scale_read_cutoff: 30 (Reads <= 30 use Linear scale; Reads > 30 use Log-Log/Log-Y)
+log_scale_read_cutoff: 30
+
 strategy_colors:
   clean_filtered: "#ff98ff"
   clean_flags: "#ff98ff"
