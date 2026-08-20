@@ -56,7 +56,29 @@ def get_short_strategy(fname):
         return "clean_unfiltered"
     elif "raw" in fname:
         return "raw_unfiltered"
-    return sanitize_filename(fname)
+def check_log_transformation_needed(read_counts):
+    """
+    2D Dual-Trigger Rule for log transformation:
+    Triggers Log-Log (Panel A) and Log-Y (Panel B) ONLY IF:
+    1. Read count span > 100 reads (Max Reads - Min Reads > 100)
+    AND
+    2. Y-axis mass concentration > 60% (more than 60% of positive occurrences have 1-2 reads)
+    """
+    if not read_counts or len(read_counts) == 0:
+        return False
+    
+    r_counts = np.array(sorted(read_counts))
+    max_r = r_counts[-1]
+    min_r = r_counts[0]
+    total_pos = len(r_counts)
+    
+    if (max_r - min_r) <= 100:
+        return False
+    
+    low_count_samples = np.sum(r_counts <= 2)
+    mass_concentration = low_count_samples / float(total_pos) if total_pos > 0 else 0.0
+    
+    return mass_concentration > 0.60
 
 
 def main():
@@ -314,15 +336,17 @@ def main():
         v_max = max(unique_vals) if len(unique_vals) > 0 else 1
         v_min = min(unique_vals) if len(unique_vals) > 0 else 0
 
-        if v_max - v_min > 50:
+        use_log_scale = check_log_transformation_needed(read_counts)
+
+        if use_log_scale:
             bins = np.logspace(np.log10(max(1, v_min)), np.log10(v_max), 30)
-            ax1.hist(read_counts, bins=bins, color=main_color, rwidth=0.85, edgecolor='none')
+            ax1.hist(read_counts, bins=bins, color=main_color, rwidth=0.92, edgecolor='none')
             ax1.set_xscale('log')
             ax1.set_yscale('log')
             ax1.set_xlabel("Mapped Read Count (Log Scale)")
             ax1.set_ylabel("Number of Samples (Log Scale)")
         else:
-            ax1.bar(unique_vals, val_counts, width=0.8, color=main_color)
+            ax1.bar(unique_vals, val_counts, width=0.88, color=main_color)
             ax1.set_xlabel("Mapped Read Count")
             ax1.set_ylabel("Number of Samples")
             ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -349,13 +373,19 @@ def main():
             ax2.vlines(x=1, ymin=0, ymax=read_counts[0], color=main_color, linewidth=1.7)
         else:
             ax2.fill_between(ranks, read_counts, alpha=0.15, color=main_color, edgecolor='none', linewidth=0)
+        
+        if use_log_scale:
+            ax2.set_yscale('log')
+            ax2.set_ylabel("Mapped Read Count (Log Scale)")
+        else:
+            ax2.set_ylabel("Mapped Read Count")
+            ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
+            ax2.yaxis.set_major_formatter(FormatStrFormatter('%d'))
+
         ax2.set_xlabel("Sample Occurrence Rank (Increasing Order)")
-        ax2.set_ylabel("Mapped Read Count")
         ax2.set_title("B. Ordered Read Counts Across Samples")
         ax2.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
-        ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
-        ax2.yaxis.set_major_formatter(FormatStrFormatter('%d'))
         
         # Prevent decimal autoscale limits on single-sample plots
         if pos_count == 1:
@@ -433,14 +463,14 @@ def main():
             bar_height = 0.98
             bars = ax.barh(df_sorted['viruses'], df_sorted['positivity_pct'], height=bar_height, color='#ff98ff')
 
-            ax.set_xlabel('Viral Prevalence (%)', fontsize=14, color='black', labelpad=8)
-            ax.set_ylabel('Virus', fontsize=14, color='black', labelpad=8)
-            ax.tick_params(axis='x', labelsize=14)
-            ax.tick_params(axis='y', labelsize=14)
+            ax.set_xlabel('Viral Prevalence (%)', fontsize=16, color='black', labelpad=8)
+            ax.set_ylabel('Virus', fontsize=16, color='black', labelpad=8)
+            ax.tick_params(axis='x', labelsize=16)
+            ax.tick_params(axis='y', labelsize=16)
             ax.set_title(
                 f"Overall Viral Prevalence (% of Total Cohort Samples)\n"
                 f"Phase: {cur_phase_tag} | Project: {cur_proj_tag}",
-                fontsize=13, pad=12, color='black'
+                fontsize=15, pad=12, color='black'
             )
 
             max_pct = df_sorted['positivity_pct'].max() if not df_sorted.empty else 1.0
@@ -452,7 +482,7 @@ def main():
                             xy=(w, bar.get_y() + bar.get_height() / 2),
                             xytext=(6, 0),
                             textcoords="offset points",
-                            ha='left', va='center', fontsize=11, color='black')
+                            ha='left', va='center', fontsize=13, color='black')
 
             ax.grid(False)
             ax.spines['top'].set_visible(False)
@@ -532,22 +562,27 @@ def main():
             max_r = max(u_vals) if len(u_vals) > 0 else 1
             min_r = min(u_vals) if len(u_vals) > 0 else 1
 
-            if max_r - min_r > 50:
-                # Large dynamic range: Logarithmic binning with log-log scale
+            use_group_log = check_log_transformation_needed(group_read_counts)
+
+            if use_group_log:
+                # Large dynamic range with high low-count concentration: Log-Log scale
                 bins = np.logspace(np.log10(max(1, min_r)), np.log10(max_r), 30)
-                ax1.hist(group_read_counts, bins=bins, color=overall_color, rwidth=0.85, edgecolor='none')
+                ax1.hist(group_read_counts, bins=bins, color=overall_color, rwidth=0.92, edgecolor='none')
                 ax1.set_xscale('log')
                 ax1.set_yscale('log')
+                ax1.set_xlabel("Mapped Read Count (All Viruses, Log Scale)", fontsize=11, labelpad=8, color='black')
+                ax1.set_ylabel("Number of Mapped Occurrences (Log Scale)", fontsize=11, labelpad=8, color='black')
+                ax1.set_title("A. Dataset-Wide Read Count Frequency (Log-Log)", fontsize=12, pad=12, color='black')
             else:
-                # Small range: Discrete integer bars
-                ax1.bar(u_vals, u_cnts, width=0.8, color=overall_color)
+                # Small or uniform range: Discrete linear integer bars
+                ax1.bar(u_vals, u_cnts, width=0.88, color=overall_color)
+                ax1.set_xlabel("Mapped Read Count (All Viruses)", fontsize=11, labelpad=8, color='black')
+                ax1.set_ylabel("Number of Mapped Occurrences", fontsize=11, labelpad=8, color='black')
+                ax1.set_title("A. Dataset-Wide Read Count Frequency", fontsize=12, pad=12, color='black')
                 ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
                 ax1.xaxis.set_major_formatter(FormatStrFormatter('%d'))
                 ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
 
-            ax1.set_xlabel("Mapped Read Count (All Viruses, Log Scale)", fontsize=11, labelpad=8, color='black')
-            ax1.set_ylabel("Number of Mapped Occurrences (Log Scale)", fontsize=11, labelpad=8, color='black')
-            ax1.set_title("A. Dataset-Wide Read Count Frequency (Log-Log)", fontsize=12, pad=12, color='black')
             ax1.grid(False)
             ax1.spines['top'].set_visible(False)
             ax1.spines['right'].set_visible(False)
@@ -558,12 +593,19 @@ def main():
                 ax2.vlines(x=1, ymin=0, ymax=group_read_counts[0], color=overall_color, linewidth=1.7)
             else:
                 ax2.fill_between(o_ranks, group_read_counts, color=overall_color, alpha=0.15, edgecolor='none', linewidth=0)
+            
+            if use_group_log:
+                ax2.set_yscale('log')
+                ax2.set_ylabel("Mapped Read Count (Log Scale)", fontsize=11, labelpad=8, color='black')
+            else:
+                ax2.set_ylabel("Mapped Read Count", fontsize=11, labelpad=8, color='black')
+                ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
+                ax2.yaxis.set_major_formatter(FormatStrFormatter('%d'))
+
             ax2.set_xlabel("Occurrence Rank Across Entire Dataset", fontsize=11, labelpad=8, color='black')
-            ax2.set_ylabel("Mapped Read Count", fontsize=11, labelpad=8, color='black')
             ax2.set_title("B. Dataset-Wide Ordered Read Counts", fontsize=12, pad=12, color='black')
             ax2.xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 5, 10]))
             ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
-            ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
             ax2.grid(False)
             ax2.spines['top'].set_visible(False)
             ax2.spines['right'].set_visible(False)
