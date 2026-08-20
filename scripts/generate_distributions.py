@@ -190,10 +190,6 @@ def main():
     # --------------------------------------------------------------------------
     # 1. Generate virus_stats_summary_<PHASE>_<PROJECT>.tsv in stats_dir
     # --------------------------------------------------------------------------
-    phase_tag = f"phase{args.target_phase}" if args.target_phase and not str(args.target_phase).startswith("phase") else (str(args.target_phase) if args.target_phase else "all")
-    proj_tag = str(args.target_project) if args.target_project else "base"
-    stats_tsv_name = f"virus_stats_summary_{phase_tag}_{proj_tag}.tsv"
-    stats_tsv_path = os.path.join(stats_dir, stats_tsv_name)
     stats_header = [
         "Phase",
         "Project",
@@ -208,48 +204,63 @@ def main():
         "Total_Reads_Assigned"
     ]
 
-    stats_rows = []
-    # Sort viruses descending by frequency of positive samples (most prevalent first)
+    # Group v_keys per dataset (phase, project)
+    dataset_groups = collections.defaultdict(list)
+    for v_key in virus_data.keys():
+        dataset_groups[(v_key[0], v_key[1])].append(v_key)
+
+    for (cur_phase, cur_proj), group_v_keys in dataset_groups.items():
+        cur_phase_tag = f"phase{cur_phase}" if cur_phase and not str(cur_phase).startswith("phase") and not str(cur_phase).startswith("all") else (str(cur_phase) if cur_phase else "all")
+        cur_proj_tag = str(cur_proj) if cur_proj else "base"
+        
+        stats_tsv_name = f"virus_stats_summary_{cur_phase_tag}_{cur_proj_tag}.tsv"
+        stats_tsv_path = os.path.join(stats_dir, stats_tsv_name)
+
+        stats_rows = []
+        # Sort viruses descending by frequency of positive samples (most prevalent first)
+        sorted_group_v_keys = sorted(group_v_keys, key=lambda x: len(virus_data[x]["samples"]), reverse=True)
+
+        for v_key in sorted_group_v_keys:
+            phase, project, strategy, virus_acc = v_key
+            ds_key = (phase, project, strategy)
+            
+            v_info = virus_data[v_key]
+            sample_dict = v_info["samples"]
+            
+            pos_count = len(sample_dict)
+            total_viral_pos = len(viral_pos_samples_map[ds_key])
+            total_cohort = len(total_samples_map[ds_key])
+            
+            pct_viral_pos = (pos_count / float(total_viral_pos) * 100.0) if total_viral_pos > 0 else 0.0
+            pct_cohort = (pos_count / float(total_cohort) * 100.0) if total_cohort > 0 else 0.0
+            total_reads = sum(sample_dict.values())
+            
+            short_strat = get_short_strategy(strategy)
+
+            row = [
+                phase,
+                project,
+                short_strat,
+                virus_acc,
+                v_info["name"],
+                str(pos_count),
+                str(total_viral_pos),
+                str(total_cohort),
+                f"{pct_viral_pos:.2f}",
+                f"{pct_cohort:.2f}",
+                str(total_reads)
+            ]
+            stats_rows.append(row)
+
+        with open(stats_tsv_path, "w") as f:
+            f.write("\t".join(stats_header) + "\n")
+            for r in stats_rows:
+                f.write("\t".join(r) + "\n")
+
+        print(f"[SUCCESS] Written virus stats summary TSV: {stats_tsv_path}")
+
+    # Overall sorted v_keys across all datasets for plot rendering
     sorted_v_keys = sorted(virus_data.keys(), key=lambda x: len(virus_data[x]["samples"]), reverse=True)
-
-    for v_key in sorted_v_keys:
-        phase, project, strategy, virus_acc = v_key
-        ds_key = (phase, project, strategy)
-        
-        v_info = virus_data[v_key]
-        sample_dict = v_info["samples"]
-        
-        pos_count = len(sample_dict)
-        total_viral_pos = len(viral_pos_samples_map[ds_key])
-        total_cohort = len(total_samples_map[ds_key])
-        
-        pct_viral_pos = (pos_count / float(total_viral_pos) * 100.0) if total_viral_pos > 0 else 0.0
-        pct_cohort = (pos_count / float(total_cohort) * 100.0) if total_cohort > 0 else 0.0
-        total_reads = sum(sample_dict.values())
-        
-        short_strat = get_short_strategy(strategy)
-
-        row = [
-            phase,
-            project,
-            short_strat,
-            virus_acc,
-            v_info["name"],
-            str(pos_count),
-            str(total_viral_pos),
-            str(total_cohort),
-            f"{pct_viral_pos:.2f}",
-            f"{pct_cohort:.2f}",
-            str(total_reads)
-        ]
-        stats_rows.append(row)
-
-    with open(stats_tsv_path, "w") as f:
-        f.write("\t".join(stats_header) + "\n")
-        for r in stats_rows:
-            f.write("\t".join(r) + "\n")
-
-    print(f"[SUCCESS] Written virus stats summary TSV: {stats_tsv_path}")
 
     # --------------------------------------------------------------------------
     # 2. Generate 2-Panel Publication Quality TIFF Plots in plots/
@@ -369,156 +380,159 @@ def main():
         plot_count += 1
 
     # --------------------------------------------------------------------------
-    # 3. Generate Viral Positivity Rate Comparison TIFF Plot
+    # 3. Generate Viral Positivity Rate Comparison TIFF Plot & Overall Summaries Per Dataset
     # --------------------------------------------------------------------------
-    positivity_plot_name = f"dist_{phase_tag}_{proj_tag}_VIRAL_POSITIVITY_RATES.tiff"
-    positivity_plot_path = os.path.join(plots_dir, positivity_plot_name)
+    for (cur_phase, cur_proj), group_v_keys in dataset_groups.items():
+        cur_phase_tag = f"phase{cur_phase}" if cur_phase and not str(cur_phase).startswith("phase") and not str(cur_phase).startswith("all") else (str(cur_phase) if cur_phase else "all")
+        cur_proj_tag = str(cur_proj) if cur_proj else "base"
 
-    v_names_labels = []
-    v_positivity_pcts = []
+        positivity_plot_name = f"dist_{cur_phase_tag}_{cur_proj_tag}_VIRAL_POSITIVITY_RATES.tiff"
+        positivity_plot_path = os.path.join(plots_dir, positivity_plot_name)
 
-    for v_key in sorted_v_keys:
-        v_info = virus_data[v_key]
-        pos_c = len(v_info["samples"])
-        ds_k = (v_key[0], v_key[1], v_key[2])
-        tot_c = len(total_samples_map[ds_k])
-        pct_c = (pos_c / float(tot_c) * 100.0) if tot_c > 0 else 0.0
-        
-        # Label format: Virus Name (Accession)
-        lbl = f"{v_info['name']}\n({v_key[3]})"
-        v_names_labels.append(lbl)
-        v_positivity_pcts.append(pct_c)
+        sorted_group_v_keys = sorted(group_v_keys, key=lambda x: len(virus_data[x]["samples"]), reverse=True)
 
-    if v_names_labels:
-        fig_width = max(8, len(v_names_labels) * 2.2)
-        fig, ax = plt.subplots(figsize=(fig_width, 6), dpi=300)
-        ax.set_box_aspect(0.6)
-        
-        bars = ax.bar(np.arange(len(v_names_labels)), v_positivity_pcts, width=0.6, color="#ff98ff", edgecolor='#ffffff', linewidth=0.8)
-        ax.set_xticks(np.arange(len(v_names_labels)))
-        ax.set_xticklabels(v_names_labels, rotation=0, ha='center', fontsize=9.5, color='black')
-        ax.set_ylabel("Cohort Positivity Rate (%)", fontsize=11, labelpad=8, color='black')
-        ax.set_title(f"Viral Positivity Rates Across Cohort | Phase: {phase_tag} | Project: {proj_tag}", fontsize=12, pad=12, color='black')
-        
-        # Annotate percentage values above each bar
-        for bar in bars:
-            height = bar.get_height()
-            ax.annotate(f"{height:.2f}%",
-                        xy=(bar.get_x() + bar.get_width() / 2, height),
-                        xytext=(0, 4),  # 4 points vertical offset
-                        textcoords="offset points",
-                        ha='center', va='bottom', fontsize=9.5, color='black')
+        v_names_labels = []
+        v_positivity_pcts = []
 
-        ax.grid(False)
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        plt.tight_layout()
-        plt.savefig(positivity_plot_path, format="tiff", dpi=300)
-        plt.close(fig)
-        print(f"[SUCCESS] Generated viral positivity rate plot: {positivity_plot_path}")
+        for v_key in sorted_group_v_keys:
+            v_info = virus_data[v_key]
+            pos_c = len(v_info["samples"])
+            ds_k = (v_key[0], v_key[1], v_key[2])
+            tot_c = len(total_samples_map[ds_k])
+            pct_c = (pos_c / float(tot_c) * 100.0) if tot_c > 0 else 0.0
+            
+            lbl = f"{v_info['name']}\n({v_key[3]})"
+            v_names_labels.append(lbl)
+            v_positivity_pcts.append(pct_c)
 
-    # --------------------------------------------------------------------------
-    # 4. Generate Overall Dataset-Wide Summary TIFF Plot and Overall Stats TSV
-    # --------------------------------------------------------------------------
-    overall_stats_tsv_name = f"virus_stats_summary_{phase_tag}_{proj_tag}_OVERALL.tsv"
-    overall_stats_tsv_path = os.path.join(stats_dir, overall_stats_tsv_name)
-    overall_plot_name = f"dist_{phase_tag}_{proj_tag}_OVERALL_SUMMARY.tiff"
-    overall_plot_path = os.path.join(plots_dir, overall_plot_name)
+        if v_names_labels:
+            fig_width = max(8, len(v_names_labels) * 2.2)
+            fig, ax = plt.subplots(figsize=(fig_width, 6), dpi=300)
+            ax.set_box_aspect(0.6)
+            
+            bars = ax.bar(np.arange(len(v_names_labels)), v_positivity_pcts, width=0.6, color="#ff98ff", edgecolor='#ffffff', linewidth=0.8)
+            ax.set_xticks(np.arange(len(v_names_labels)))
+            ax.set_xticklabels(v_names_labels, rotation=0, ha='center', fontsize=9.5, color='black')
+            ax.set_ylabel("Cohort Positivity Rate (%)", fontsize=11, labelpad=8, color='black')
+            ax.set_title(f"Viral Positivity Rates Across Cohort | Phase: {cur_phase_tag} | Project: {cur_proj_tag}", fontsize=12, pad=12, color='black')
+            
+            for bar in bars:
+                height = bar.get_height()
+                ax.annotate(f"{height:.2f}%",
+                            xy=(bar.get_x() + bar.get_width() / 2, height),
+                            xytext=(0, 4),
+                            textcoords="offset points",
+                            ha='center', va='bottom', fontsize=9.5, color='black')
 
-    overall_rows = []
-    overall_header = [
-        "Phase", "Project", "Strategy",
-        "Total_Viral_Positive_Samples", "Total_Cohort_Samples",
-        "Cohort_Positivity_Pct", "Total_Mapped_Viral_Reads",
-        "Unique_Viruses_Detected", "Top_Prevalent_Virus"
-    ]
+            ax.grid(False)
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            plt.tight_layout()
+            plt.savefig(positivity_plot_path, format="tiff", dpi=300)
+            plt.close(fig)
+            print(f"[SUCCESS] Generated viral positivity rate plot: {positivity_plot_path}")
 
-    # Aggregate overall stats per dataset key (phase, project, strategy)
-    for ds_key in sorted(total_samples_map.keys()):
-        d_phase, d_proj, d_strat = ds_key
-        d_short_strat = get_short_strategy(d_strat)
-        
-        tot_samples = len(total_samples_map[ds_key])
-        pos_samples = len(viral_pos_samples_map[ds_key])
-        pos_pct = (pos_samples / float(tot_samples) * 100.0) if tot_samples > 0 else 0.0
-        
-        # Total reads & unique viruses across all viruses in dataset
-        ds_total_reads = 0
-        ds_unique_v = set()
-        ds_virus_counts = collections.Counter()
+        # --------------------------------------------------------------------------
+        # 4. Generate Overall Summary TIFF Plot and Executive Overall TSV
+        # --------------------------------------------------------------------------
+        overall_stats_tsv_name = f"virus_stats_summary_{cur_phase_tag}_{cur_proj_tag}_OVERALL.tsv"
+        overall_stats_tsv_path = os.path.join(stats_dir, overall_stats_tsv_name)
+        overall_plot_name = f"dist_{cur_phase_tag}_{cur_proj_tag}_OVERALL_SUMMARY.tiff"
+        overall_plot_path = os.path.join(plots_dir, overall_plot_name)
 
-        for v_key, v_info in virus_data.items():
-            if v_key[0] == d_phase and v_key[1] == d_proj and v_key[2] == d_strat:
-                ds_unique_v.add(v_key[3])
-                for smp, r_cnt in v_info["samples"].items():
-                    ds_total_reads += r_cnt
-                    ds_virus_counts[v_info["name"]] += len(v_info["samples"])
+        overall_rows = []
+        overall_header = [
+            "Phase", "Project", "Strategy",
+            "Total_Viral_Positive_Samples", "Total_Cohort_Samples",
+            "Cohort_Positivity_Pct", "Total_Mapped_Viral_Reads",
+            "Unique_Viruses_Detected", "Top_Prevalent_Virus"
+        ]
 
-        top_v = ds_virus_counts.most_common(1)[0][0] if ds_virus_counts else "None"
+        group_ds_keys = [k for k in total_samples_map.keys() if k[0] == cur_phase and k[1] == cur_proj]
+        for ds_key in sorted(group_ds_keys):
+            d_phase, d_proj, d_strat = ds_key
+            d_short_strat = get_short_strategy(d_strat)
+            
+            tot_samples = len(total_samples_map[ds_key])
+            pos_samples = len(viral_pos_samples_map[ds_key])
+            pos_pct = (pos_samples / float(tot_samples) * 100.0) if tot_samples > 0 else 0.0
+            
+            ds_total_reads = 0
+            ds_unique_v = set()
+            ds_virus_counts = collections.Counter()
 
-        overall_rows.append([
-            d_phase, d_proj, d_short_strat,
-            str(pos_samples), str(tot_samples),
-            f"{pos_pct:.2f}", str(ds_total_reads),
-            str(len(ds_unique_v)), top_v
-        ])
+            for v_key, v_info in virus_data.items():
+                if v_key[0] == d_phase and v_key[1] == d_proj and v_key[2] == d_strat:
+                    ds_unique_v.add(v_key[3])
+                    for smp, r_cnt in v_info["samples"].items():
+                        ds_total_reads += r_cnt
+                        ds_virus_counts[v_info["name"]] += len(v_info["samples"])
 
-    with open(overall_stats_tsv_path, "w") as f:
-        f.write("\t".join(overall_header) + "\n")
-        for r in overall_rows:
-            f.write("\t".join(r) + "\n")
+            top_v = ds_virus_counts.most_common(1)[0][0] if ds_virus_counts else "None"
 
-    print(f"[SUCCESS] Written overall dataset stats summary TSV: {overall_stats_tsv_path}")
+            overall_rows.append([
+                d_phase, d_proj, d_short_strat,
+                str(pos_samples), str(tot_samples),
+                f"{pos_pct:.2f}", str(ds_total_reads),
+                str(len(ds_unique_v)), top_v
+            ])
 
-    # Generate Overall Dataset Summary 2-Panel Plot
-    all_read_counts = []
-    for v_key, v_info in virus_data.items():
-        all_read_counts.extend(v_info["samples"].values())
+        with open(overall_stats_tsv_path, "w") as f:
+            f.write("\t".join(overall_header) + "\n")
+            for r in overall_rows:
+                f.write("\t".join(r) + "\n")
 
-    if all_read_counts:
-        all_read_counts = sorted(all_read_counts)
-        tot_v_pos = len(all_read_counts)
-        
-        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5.5), dpi=300)
-        ax1.set_box_aspect(1)
-        ax2.set_box_aspect(1)
-        overall_color = "#008fbf"
+        print(f"[SUCCESS] Written overall dataset stats summary TSV: {overall_stats_tsv_path}")
 
-        u_vals, u_cnts = np.unique(all_read_counts, return_counts=True)
-        ax1.bar(u_vals, u_cnts, width=0.8, color=overall_color)
-        ax1.set_xlabel("Mapped Read Count (All Viruses)", fontsize=11, labelpad=8, color='black')
-        ax1.set_ylabel("Number of Mapped Occurrences", fontsize=11, labelpad=8, color='black')
-        ax1.set_title("A. Dataset-Wide Read Count Frequency", fontsize=12, pad=12, color='black')
-        ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
-        ax1.xaxis.set_major_formatter(FormatStrFormatter('%d'))
-        ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
-        ax1.grid(False)
-        ax1.spines['top'].set_visible(False)
-        ax1.spines['right'].set_visible(False)
+        # Overall 2-Panel Plot for this group
+        group_read_counts = []
+        for v_key in group_v_keys:
+            group_read_counts.extend(virus_data[v_key]["samples"].values())
 
-        o_ranks = np.arange(1, tot_v_pos + 1)
-        ax2.plot(o_ranks, all_read_counts, marker='o', color=overall_color, linewidth=1.7, markersize=8, markerfacecolor=overall_color, markeredgecolor=overall_color)
-        if tot_v_pos == 1:
-            ax2.vlines(x=1, ymin=0, ymax=all_read_counts[0], color=overall_color, linewidth=1.7)
-        else:
-            ax2.fill_between(o_ranks, all_read_counts, color=overall_color, alpha=0.15, edgecolor='none', linewidth=0)
-        ax2.set_xlabel("Occurrence Rank Across Entire Dataset", fontsize=11, labelpad=8, color='black')
-        ax2.set_ylabel("Mapped Read Count", fontsize=11, labelpad=8, color='black')
-        ax2.set_title("B. Dataset-Wide Ordered Read Counts", fontsize=12, pad=12, color='black')
-        ax2.xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 5, 10]))
-        ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
-        ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
-        ax2.grid(False)
-        ax2.spines['top'].set_visible(False)
-        ax2.spines['right'].set_visible(False)
+        if group_read_counts:
+            group_read_counts = sorted(group_read_counts)
+            tot_v_pos = len(group_read_counts)
+            
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5.5), dpi=300)
+            ax1.set_box_aspect(1)
+            ax2.set_box_aspect(1)
+            overall_color = "#008fbf"
 
-        fig.suptitle(f"Dataset-Wide Overall Summary | Phase: {phase_tag} | Project: {proj_tag}\nTotal Viral Detections N = {tot_v_pos}", fontsize=13, y=0.98, color='black')
-        fig.text(0.5, 0.015, "Overall dataset-wide distribution across all detected viruses", ha='center', fontsize=10.5, style='normal', color='black')
+            u_vals, u_cnts = np.unique(group_read_counts, return_counts=True)
+            ax1.bar(u_vals, u_cnts, width=0.8, color=overall_color)
+            ax1.set_xlabel("Mapped Read Count (All Viruses)", fontsize=11, labelpad=8, color='black')
+            ax1.set_ylabel("Number of Mapped Occurrences", fontsize=11, labelpad=8, color='black')
+            ax1.set_title("A. Dataset-Wide Read Count Frequency", fontsize=12, pad=12, color='black')
+            ax1.xaxis.set_major_locator(MaxNLocator(integer=True))
+            ax1.xaxis.set_major_formatter(FormatStrFormatter('%d'))
+            ax1.yaxis.set_major_locator(MaxNLocator(integer=True))
+            ax1.grid(False)
+            ax1.spines['top'].set_visible(False)
+            ax1.spines['right'].set_visible(False)
 
-        plt.tight_layout(rect=[0, 0.08, 1, 0.92])
-        plt.savefig(overall_plot_path, format='tiff', dpi=300)
-        plt.close(fig)
-        print(f"[SUCCESS] Generated overall dataset TIFF plot: {overall_plot_path}")
+            o_ranks = np.arange(1, tot_v_pos + 1)
+            ax2.plot(o_ranks, group_read_counts, marker='o', color=overall_color, linewidth=1.7, markersize=8, markerfacecolor=overall_color, markeredgecolor=overall_color)
+            if tot_v_pos == 1:
+                ax2.vlines(x=1, ymin=0, ymax=group_read_counts[0], color=overall_color, linewidth=1.7)
+            else:
+                ax2.fill_between(o_ranks, group_read_counts, color=overall_color, alpha=0.15, edgecolor='none', linewidth=0)
+            ax2.set_xlabel("Occurrence Rank Across Entire Dataset", fontsize=11, labelpad=8, color='black')
+            ax2.set_ylabel("Mapped Read Count", fontsize=11, labelpad=8, color='black')
+            ax2.set_title("B. Dataset-Wide Ordered Read Counts", fontsize=12, pad=12, color='black')
+            ax2.xaxis.set_major_locator(MaxNLocator(integer=True, steps=[1, 2, 5, 10]))
+            ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
+            ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
+            ax2.grid(False)
+            ax2.spines['top'].set_visible(False)
+            ax2.spines['right'].set_visible(False)
+
+            fig.suptitle(f"Dataset-Wide Overall Summary | Phase: {cur_phase_tag} | Project: {cur_proj_tag}\nTotal Viral Detections N = {tot_v_pos}", fontsize=13, y=0.98, color='black')
+            fig.text(0.5, 0.015, "Overall dataset-wide distribution across all detected viruses", ha='center', fontsize=10.5, style='normal', color='black')
+
+            plt.tight_layout(rect=[0, 0.08, 1, 0.92])
+            plt.savefig(overall_plot_path, format="tiff", dpi=300)
+            plt.close(fig)
+            print(f"[SUCCESS] Generated overall dataset TIFF plot: {overall_plot_path}")
 
     print(f"[SUCCESS] Generated {plot_count} high-resolution TIFF distribution plots in {plots_dir}")
 
