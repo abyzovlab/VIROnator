@@ -135,6 +135,12 @@ target_strategy_type: "clean_flags"  # Options: "clean_flags" or "clean_filtered
 target_strategies:
   - "exogeneSR_viral_clean_filtered.sorted.flags.cram"
 
+# Cohort Scope Options:
+#   "target_only"  : Plot only the specific phase & project defined in config
+#   "combined_all" : Aggregate ALL samples across ALL phases and ALL projects into unified plots/stats
+#   "both"         : Generate both per-phase/project AND combined cohort-wide plots/stats
+cohort_scope: "combined_all"
+
 strategy_colors:
   clean_filtered: "#ff98ff"
   clean_flags: "#ff98ff"

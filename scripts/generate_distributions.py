@@ -27,11 +27,11 @@ def parse_args():
     parser.add_argument("--plots-dir", default=None, help="Specific output directory for TIFF plots")
     parser.add_argument("--stats-dir", default=None, help="Specific output directory for virus stats TSV")
     parser.add_argument("--target-phase", default=None, help="Target phase to filter (e.g. phase1 or 1)")
-    parser.add_argument("--target-project", default=None, help="Target project to filter (e.g. base)")
     parser.add_argument("--strategies", nargs="*", default=[
-        "exogeneSR_viral_clean_filtered.sorted.flags.cram",
-        "exogeneSR_viral_raw_filtered.sorted.flags.cram"
+        "exogeneSR_viral_clean_filtered.sorted.flags.cram"
     ], help="Target CRAM strategy file names to evaluate")
+    parser.add_argument("--cohort-scope", default="combined_all", choices=["target_only", "combined_all", "both"],
+                        help="Cohort scope: target_only, combined_all (pooling all phases/projects), or both")
     return parser.parse_args()
 
 
@@ -94,8 +94,14 @@ def main():
     if not target_project:
         target_project = "base"
 
-    phase_tag = f"phase{target_phase}" if target_phase and not str(target_phase).startswith("phase") else (target_phase if target_phase else "all")
-    proj_tag = target_project if target_project else "base"
+    cohort_scope = args.cohort_scope.strip().lower() if args.cohort_scope else "combined_all"
+
+    if cohort_scope == "combined_all":
+        phase_tag = "all_cohorts"
+        proj_tag = "combined"
+    else:
+        phase_tag = f"phase{target_phase}" if target_phase and not str(target_phase).startswith("phase") else (target_phase if target_phase else "all")
+        proj_tag = target_project if target_project else "base"
 
     # Global tracking per dataset (phase, project, strategy)
     # total_samples_map: { (phase, project, strategy): set_of_all_samples }
@@ -137,27 +143,29 @@ def main():
             virus_acc = row.get("virus_accession", parts[1] if len(parts) > 1 else "").strip()
             mapped_reads_str = row.get("virus_mapped_reads", parts[3] if len(parts) > 3 else "0").strip()
             virus_name = row.get("virus_name_sanitized", parts[9] if len(parts) > 9 else "").strip()
-            phase = row.get("phase", parts[11] if len(parts) > 11 else "unknown").strip()
-            project = row.get("project", parts[12] if len(parts) > 12 else "base").strip()
+            raw_phase = row.get("phase", parts[11] if len(parts) > 11 else "unknown").strip()
+            raw_project = row.get("project", parts[12] if len(parts) > 12 else "base").strip()
             strategy = row.get("source_file", parts[13] if len(parts) > 13 else "unknown").strip()
-
-            if not project:
-                project = "base"
 
             # Filter by requested target strategies if specified
             if target_strategies and strategy not in target_strategies:
                 continue
 
-            # Filter by requested target phase and project if specified
-            row_phase_lower = phase.lower().strip()
-            row_proj_lower = project.lower().strip()
-            if not row_proj_lower:
-                row_proj_lower = "base"
+            if cohort_scope == "combined_all":
+                phase = "all_cohorts"
+                project = "combined"
+            else:
+                phase = raw_phase
+                project = raw_project if raw_project else "base"
+                row_phase_lower = phase.lower().strip()
+                row_proj_lower = project.lower().strip()
+                if not row_proj_lower:
+                    row_proj_lower = "base"
 
-            if target_phase and not (row_phase_lower == target_phase or row_phase_lower == target_phase_alt):
-                continue
-            if target_project and row_proj_lower != target_project:
-                continue
+                if target_phase and not (row_phase_lower == target_phase or row_phase_lower == target_phase_alt):
+                    continue
+                if target_project and row_proj_lower != target_project:
+                    continue
 
             try:
                 mapped_reads = int(mapped_reads_str)
