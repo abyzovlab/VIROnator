@@ -351,7 +351,7 @@ def main():
 
         ranks = np.arange(1, pos_count + 1)
 
-        ax2.plot(ranks, read_counts, marker="o", color=main_color, linewidth=1.7, markersize=8)
+        ax2.plot(ranks, read_counts, color=main_color, linewidth=1.7)
         if pos_count == 1:
             ax2.vlines(x=1, ymin=0, ymax=read_counts[0], color=main_color, linewidth=1.7)
         else:
@@ -385,11 +385,11 @@ def main():
             f"({pct_viral_pos:.2f}%* / {pct_cohort:.2f}%**)"
         )
 
-        fig.suptitle(main_title)
+        fig.suptitle(main_title, y=1.02, fontsize=12, color='black')
 
         fig.text(
             0.5,
-            0.015,
+            0.005,
             f"* % of total virus-positive samples in dataset ({pos_count} / {total_viral_pos})     "
             f"** % of total samples in dataset ({pos_count} / {total_cohort})",
             ha="center",
@@ -398,7 +398,7 @@ def main():
             style="normal"
         )
 
-        fig.subplots_adjust(top=0.88, bottom=0.12, left=0.10, right=0.95, wspace=0.30)
+        fig.subplots_adjust(top=0.82, bottom=0.18, left=0.10, right=0.95, wspace=0.30)
         plt.savefig(out_tif, format="tiff", dpi=300, bbox_inches="tight")
         plt.close(fig)
         plot_count += 1
@@ -453,7 +453,7 @@ def main():
             ax.set_title(
                 f"Overall Viral Prevalence (% of Total Cohort Samples)\n"
                 f"Phase: {cur_phase_tag} | Project: {cur_proj_tag}",
-                fontsize=15, pad=12, color='black'
+                fontsize=19, pad=14, color='black'
             )
 
             max_pct = df_sorted['positivity_pct'].max() if not df_sorted.empty else 1.0
@@ -570,7 +570,7 @@ def main():
             ax1.spines['right'].set_visible(False)
 
             o_ranks = np.arange(1, tot_v_pos + 1)
-            ax2.plot(o_ranks, group_read_counts, marker='o', color=overall_color, linewidth=1.7, markersize=8, markerfacecolor=overall_color, markeredgecolor=overall_color)
+            ax2.plot(o_ranks, group_read_counts, color=overall_color, linewidth=1.7)
             if tot_v_pos == 1:
                 ax2.vlines(x=1, ymin=0, ymax=group_read_counts[0], color=overall_color, linewidth=1.7)
             else:
@@ -592,10 +592,10 @@ def main():
             ax2.spines['top'].set_visible(False)
             ax2.spines['right'].set_visible(False)
 
-            fig.suptitle(f"Dataset-Wide Overall Summary | Phase: {cur_phase_tag} | Project: {cur_proj_tag}\nTotal Viral Detections N = {tot_v_pos}", fontsize=13, y=0.98, color='black')
-            fig.text(0.5, 0.015, "Overall dataset-wide distribution across all detected viruses", ha='center', fontsize=10.5, style='normal', color='black')
+            fig.suptitle(f"Dataset-Wide Overall Summary | Phase: {cur_phase_tag} | Project: {cur_proj_tag}\nTotal Viral Detections N = {tot_v_pos}", fontsize=13, y=1.02, color='black')
+            fig.text(0.5, 0.005, "Overall dataset-wide distribution across all detected viruses", ha='center', fontsize=10.5, style='normal', color='black')
 
-            fig.subplots_adjust(top=0.88, bottom=0.12, left=0.10, right=0.95, wspace=0.30)
+            fig.subplots_adjust(top=0.82, bottom=0.18, left=0.10, right=0.95, wspace=0.30)
             plt.savefig(overall_plot_path, format="tiff", dpi=300, bbox_inches="tight")
             plt.close(fig)
             print(f"[SUCCESS] Generated overall dataset TIFF plot: {overall_plot_path}")
