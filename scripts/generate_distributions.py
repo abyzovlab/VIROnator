@@ -351,10 +351,18 @@ def main():
 
         ranks = np.arange(1, pos_count + 1)
 
-        ax2.plot(ranks, read_counts, color=main_color, linewidth=1.7)
         if pos_count == 1:
+            ax2.plot(ranks, read_counts, color=main_color, linewidth=1.7)
             ax2.vlines(x=1, ymin=0, ymax=read_counts[0], color=main_color, linewidth=1.7)
+        elif pos_count >= 4:
+            from scipy.interpolate import make_interp_spline
+            ranks_smooth = np.linspace(ranks.min(), ranks.max(), 300)
+            spl = make_interp_spline(ranks, read_counts, k=3)
+            counts_smooth = np.maximum(spl(ranks_smooth), min(read_counts))
+            ax2.plot(ranks_smooth, counts_smooth, color=main_color, linewidth=1.7)
+            ax2.fill_between(ranks_smooth, counts_smooth, alpha=0.15, color=main_color, edgecolor='none', linewidth=0)
         else:
+            ax2.plot(ranks, read_counts, color=main_color, linewidth=1.7)
             ax2.fill_between(ranks, read_counts, alpha=0.15, color=main_color, edgecolor='none', linewidth=0)
         
         if use_log_b and v_max > 1:
@@ -570,10 +578,19 @@ def main():
             ax1.spines['right'].set_visible(False)
 
             o_ranks = np.arange(1, tot_v_pos + 1)
-            ax2.plot(o_ranks, group_read_counts, color=overall_color, linewidth=1.7)
+
             if tot_v_pos == 1:
+                ax2.plot(o_ranks, group_read_counts, color=overall_color, linewidth=1.7)
                 ax2.vlines(x=1, ymin=0, ymax=group_read_counts[0], color=overall_color, linewidth=1.7)
+            elif tot_v_pos >= 4:
+                from scipy.interpolate import make_interp_spline
+                o_ranks_smooth = np.linspace(o_ranks.min(), o_ranks.max(), 400)
+                spl_o = make_interp_spline(o_ranks, group_read_counts, k=3)
+                o_counts_smooth = np.maximum(spl_o(o_ranks_smooth), min(group_read_counts))
+                ax2.plot(o_ranks_smooth, o_counts_smooth, color=overall_color, linewidth=1.7)
+                ax2.fill_between(o_ranks_smooth, o_counts_smooth, color=overall_color, alpha=0.15, edgecolor='none', linewidth=0)
             else:
+                ax2.plot(o_ranks, group_read_counts, color=overall_color, linewidth=1.7)
                 ax2.fill_between(o_ranks, group_read_counts, color=overall_color, alpha=0.15, edgecolor='none', linewidth=0)
             
             if use_log_b and max_r > 1:
