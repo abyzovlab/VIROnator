@@ -33,6 +33,10 @@ def parse_args():
     ], help="Target CRAM strategy file names to evaluate")
     parser.add_argument("--cohort-scope", default="combined_all", choices=["target_only", "combined_all", "both"],
                         help="Cohort scope: target_only, combined_all (pooling all phases/projects), or both")
+    parser.add_argument("--panel-a-loglog", default="on", choices=["on", "off"],
+                        help="Panel A scale: 'on' for Log-Log, 'off' for linear")
+    parser.add_argument("--panel-b-log-y", default="on", choices=["on", "off"],
+                        help="Panel B scale: 'on' for Log Y, 'off' for linear")
     return parser.parse_args()
 
 
@@ -56,29 +60,7 @@ def get_short_strategy(fname):
         return "clean_unfiltered"
     elif "raw" in fname:
         return "raw_unfiltered"
-def check_log_transformation_needed(read_counts):
-    """
-    2D Dual-Trigger Rule for log transformation:
-    Triggers Log-Log (Panel A) and Log-Y (Panel B) ONLY IF:
-    1. Read count span > 100 reads (Max Reads - Min Reads > 100)
-    AND
-    2. Y-axis mass concentration > 60% (more than 60% of positive occurrences have 1-2 reads)
-    """
-    if not read_counts or len(read_counts) == 0:
-        return False
-    
-    r_counts = np.array(sorted(read_counts))
-    max_r = r_counts[-1]
-    min_r = r_counts[0]
-    total_pos = len(r_counts)
-    
-    if (max_r - min_r) <= 100:
-        return False
-    
-    low_count_samples = np.sum(r_counts <= 2)
-    mass_concentration = low_count_samples / float(total_pos) if total_pos > 0 else 0.0
-    
-    return mass_concentration > 0.60
+    return sanitize_filename(fname)
 
 
 def main():
@@ -336,9 +318,10 @@ def main():
         v_max = max(unique_vals) if len(unique_vals) > 0 else 1
         v_min = min(unique_vals) if len(unique_vals) > 0 else 0
 
-        use_log_scale = check_log_transformation_needed(read_counts)
+        use_log_a = (args.panel_a_loglog == "on")
+        use_log_b = (args.panel_b_log_y == "on")
 
-        if use_log_scale:
+        if use_log_a and v_max > 1:
             bins = np.logspace(np.log10(max(1, v_min)), np.log10(v_max), 30)
             ax1.hist(read_counts, bins=bins, color=main_color, rwidth=0.92, edgecolor='none')
             ax1.set_xscale('log')
@@ -374,7 +357,7 @@ def main():
         else:
             ax2.fill_between(ranks, read_counts, alpha=0.15, color=main_color, edgecolor='none', linewidth=0)
         
-        if use_log_scale:
+        if use_log_b and v_max > 1:
             ax2.set_yscale('log')
             ax2.set_ylabel("Mapped Read Count (Log Scale)")
         else:
@@ -415,8 +398,8 @@ def main():
             style="normal"
         )
 
-        plt.tight_layout(rect=[0, 0.08, 1, 0.92])
-        plt.savefig(out_tif, format="tiff", dpi=300)
+        fig.subplots_adjust(top=0.88, bottom=0.12, left=0.10, right=0.95, wspace=0.30)
+        plt.savefig(out_tif, format="tiff", dpi=300, bbox_inches="tight")
         plt.close(fig)
         plot_count += 1
 
@@ -562,10 +545,10 @@ def main():
             max_r = max(u_vals) if len(u_vals) > 0 else 1
             min_r = min(u_vals) if len(u_vals) > 0 else 1
 
-            use_group_log = check_log_transformation_needed(group_read_counts)
+            use_log_a = (args.panel_a_loglog == "on")
+            use_log_b = (args.panel_b_log_y == "on")
 
-            if use_group_log:
-                # Large dynamic range with high low-count concentration: Log-Log scale
+            if use_log_a and max_r > 1:
                 bins = np.logspace(np.log10(max(1, min_r)), np.log10(max_r), 30)
                 ax1.hist(group_read_counts, bins=bins, color=overall_color, rwidth=0.92, edgecolor='none')
                 ax1.set_xscale('log')
@@ -574,7 +557,6 @@ def main():
                 ax1.set_ylabel("Number of Mapped Occurrences (Log Scale)", fontsize=11, labelpad=8, color='black')
                 ax1.set_title("A. Dataset-Wide Read Count Frequency (Log-Log)", fontsize=12, pad=12, color='black')
             else:
-                # Small or uniform range: Discrete linear integer bars
                 ax1.bar(u_vals, u_cnts, width=0.88, color=overall_color)
                 ax1.set_xlabel("Mapped Read Count (All Viruses)", fontsize=11, labelpad=8, color='black')
                 ax1.set_ylabel("Number of Mapped Occurrences", fontsize=11, labelpad=8, color='black')
@@ -594,7 +576,7 @@ def main():
             else:
                 ax2.fill_between(o_ranks, group_read_counts, color=overall_color, alpha=0.15, edgecolor='none', linewidth=0)
             
-            if use_group_log:
+            if use_log_b and max_r > 1:
                 ax2.set_yscale('log')
                 ax2.set_ylabel("Mapped Read Count (Log Scale)", fontsize=11, labelpad=8, color='black')
             else:
@@ -613,8 +595,8 @@ def main():
             fig.suptitle(f"Dataset-Wide Overall Summary | Phase: {cur_phase_tag} | Project: {cur_proj_tag}\nTotal Viral Detections N = {tot_v_pos}", fontsize=13, y=0.98, color='black')
             fig.text(0.5, 0.015, "Overall dataset-wide distribution across all detected viruses", ha='center', fontsize=10.5, style='normal', color='black')
 
-            plt.tight_layout(rect=[0, 0.08, 1, 0.92])
-            plt.savefig(overall_plot_path, format="tiff", dpi=300)
+            fig.subplots_adjust(top=0.88, bottom=0.12, left=0.10, right=0.95, wspace=0.30)
+            plt.savefig(overall_plot_path, format="tiff", dpi=300, bbox_inches="tight")
             plt.close(fig)
             print(f"[SUCCESS] Generated overall dataset TIFF plot: {overall_plot_path}")
 

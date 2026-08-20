@@ -373,13 +373,15 @@ rule generate_distributions:
             config.get("stats_out_dirname", "SSC_hg38_stats")
         ),
         strategies=lambda wildcards: " ".join(config.get("target_strategies", ["exogeneSR_viral_clean_filtered.sorted.flags.cram"])),
-        cohort_scope=lambda wildcards: str(config.get("cohort_scope", "combined_all"))
+        cohort_scope=lambda wildcards: str(config.get("cohort_scope", "combined_all")),
+        panel_a_loglog=lambda wildcards: str(config.get("panel_a_loglog", "on")),
+        panel_b_log_y=lambda wildcards: str(config.get("panel_b_log_y", "on"))
     shell:
         """
         PLOTS_GCS="gs://{config[output_bucket]}/{config[plots_out_dirname]}/test.txt"
         STATS_GCS="gs://{config[output_bucket]}/{config[stats_out_dirname]}/test.txt"
         gsutil cp config/ssc_config.yaml "$PLOTS_GCS" 2>/dev/null || true
         gsutil cp config/ssc_config.yaml "$STATS_GCS" 2>/dev/null || true
-        python3 {input.script} --input-report {input.master_report} --plots-dir "{params.plots_dir}" --stats-dir "{params.stats_dir}" --target-phase "{params.phase}" --target-project "{params.project}" --strategies {params.strategies} --cohort-scope "{params.cohort_scope}"
+        python3 {input.script} --input-report {input.master_report} --plots-dir "{params.plots_dir}" --stats-dir "{params.stats_dir}" --target-phase "{params.phase}" --target-project "{params.project}" --strategies {params.strategies} --cohort-scope "{params.cohort_scope}" --panel-a-loglog "{params.panel_a_loglog}" --panel-b-log-y "{params.panel_b_log_y}"
         touch {output.token}
         """

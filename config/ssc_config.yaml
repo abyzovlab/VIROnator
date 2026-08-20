@@ -141,6 +141,12 @@ target_strategies:
 #   "both"         : Generate both per-phase/project AND combined cohort-wide plots/stats
 cohort_scope: "combined_all"
 
+# Transformation Switches for Panels A and B:
+#   panel_a_loglog: "on" or "off" (Triggers Log-Log scale for Panel A frequency histogram)
+#   panel_b_log_y : "on" or "off" (Triggers Log-Scale Y-axis for Panel B rank-abundance curve)
+panel_a_loglog: "on"
+panel_b_log_y: "on"
+
 strategy_colors:
   clean_filtered: "#ff98ff"
   clean_flags: "#ff98ff"
