@@ -321,7 +321,7 @@ def main():
         use_log_a = (args.panel_a_loglog == "on")
         use_log_b = (args.panel_b_log_y == "on")
 
-        if use_log_a and v_max > 1:
+        if use_log_a and len(unique_vals) > 1 and (v_max - v_min) > 30:
             bins = np.logspace(np.log10(max(1, v_min)), np.log10(v_max), 30)
             ax1.hist(read_counts, bins=bins, color=main_color, rwidth=0.92, edgecolor='none')
             ax1.set_xscale('log')
@@ -329,6 +329,8 @@ def main():
             ax1.set_xlabel("Mapped Read Count (Log Scale)")
             ax1.set_ylabel("Number of Samples (Log Scale)")
         else:
+            ax1.set_xscale('linear')
+            ax1.set_yscale('linear')
             ax1.bar(unique_vals, val_counts, width=0.88, color=main_color)
             ax1.set_xlabel("Mapped Read Count")
             ax1.set_ylabel("Number of Samples")
@@ -350,25 +352,13 @@ def main():
         ax1.spines['right'].set_visible(False)
 
         ranks = np.arange(1, pos_count + 1)
-
-        if pos_count == 1:
-            ax2.plot(ranks, read_counts, color=main_color, linewidth=1.7)
-            ax2.vlines(x=1, ymin=0, ymax=read_counts[0], color=main_color, linewidth=1.7)
-        elif pos_count >= 4:
-            from scipy.interpolate import make_interp_spline
-            ranks_smooth = np.linspace(ranks.min(), ranks.max(), 300)
-            spl = make_interp_spline(ranks, read_counts, k=3)
-            counts_smooth = np.maximum(spl(ranks_smooth), min(read_counts))
-            ax2.plot(ranks_smooth, counts_smooth, color=main_color, linewidth=1.7)
-            ax2.fill_between(ranks_smooth, counts_smooth, alpha=0.15, color=main_color, edgecolor='none', linewidth=0)
-        else:
-            ax2.plot(ranks, read_counts, color=main_color, linewidth=1.7)
-            ax2.fill_between(ranks, read_counts, alpha=0.15, color=main_color, edgecolor='none', linewidth=0)
+        ax2.bar(ranks, read_counts, width=0.9, color=main_color, edgecolor='none')
         
-        if use_log_b and v_max > 1:
+        if use_log_b and v_max > 30 and len(unique_vals) > 1:
             ax2.set_yscale('log')
             ax2.set_ylabel("Mapped Read Count (Log Scale)")
         else:
+            ax2.set_yscale('linear')
             ax2.set_ylabel("Mapped Read Count")
             ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
             ax2.yaxis.set_major_formatter(FormatStrFormatter('%d'))
@@ -556,7 +546,7 @@ def main():
             use_log_a = (args.panel_a_loglog == "on")
             use_log_b = (args.panel_b_log_y == "on")
 
-            if use_log_a and max_r > 1:
+            if use_log_a and max_r > 30 and len(u_vals) > 1:
                 bins = np.logspace(np.log10(max(1, min_r)), np.log10(max_r), 30)
                 ax1.hist(group_read_counts, bins=bins, color=overall_color, rwidth=0.92, edgecolor='none')
                 ax1.set_xscale('log')
@@ -565,6 +555,8 @@ def main():
                 ax1.set_ylabel("Number of Mapped Occurrences (Log Scale)", fontsize=11, labelpad=8, color='black')
                 ax1.set_title("A. Dataset-Wide Read Count Frequency (Log-Log)", fontsize=12, pad=12, color='black')
             else:
+                ax1.set_xscale('linear')
+                ax1.set_yscale('linear')
                 ax1.bar(u_vals, u_cnts, width=0.88, color=overall_color)
                 ax1.set_xlabel("Mapped Read Count (All Viruses)", fontsize=11, labelpad=8, color='black')
                 ax1.set_ylabel("Number of Mapped Occurrences", fontsize=11, labelpad=8, color='black')
@@ -578,25 +570,13 @@ def main():
             ax1.spines['right'].set_visible(False)
 
             o_ranks = np.arange(1, tot_v_pos + 1)
-
-            if tot_v_pos == 1:
-                ax2.plot(o_ranks, group_read_counts, color=overall_color, linewidth=1.7)
-                ax2.vlines(x=1, ymin=0, ymax=group_read_counts[0], color=overall_color, linewidth=1.7)
-            elif tot_v_pos >= 4:
-                from scipy.interpolate import make_interp_spline
-                o_ranks_smooth = np.linspace(o_ranks.min(), o_ranks.max(), 400)
-                spl_o = make_interp_spline(o_ranks, group_read_counts, k=3)
-                o_counts_smooth = np.maximum(spl_o(o_ranks_smooth), min(group_read_counts))
-                ax2.plot(o_ranks_smooth, o_counts_smooth, color=overall_color, linewidth=1.7)
-                ax2.fill_between(o_ranks_smooth, o_counts_smooth, color=overall_color, alpha=0.15, edgecolor='none', linewidth=0)
-            else:
-                ax2.plot(o_ranks, group_read_counts, color=overall_color, linewidth=1.7)
-                ax2.fill_between(o_ranks, group_read_counts, color=overall_color, alpha=0.15, edgecolor='none', linewidth=0)
+            ax2.bar(o_ranks, group_read_counts, width=0.9, color=overall_color, edgecolor='none')
             
-            if use_log_b and max_r > 1:
+            if use_log_b and max_r > 30 and len(u_vals) > 1:
                 ax2.set_yscale('log')
                 ax2.set_ylabel("Mapped Read Count (Log Scale)", fontsize=11, labelpad=8, color='black')
             else:
+                ax2.set_yscale('linear')
                 ax2.set_ylabel("Mapped Read Count", fontsize=11, labelpad=8, color='black')
                 ax2.yaxis.set_major_locator(MaxNLocator(integer=True))
                 ax2.yaxis.set_major_formatter(FormatStrFormatter('%d'))
