@@ -389,7 +389,8 @@ def main():
         positivity_plot_name = f"dist_{cur_phase_tag}_{cur_proj_tag}_VIRAL_POSITIVITY_RATES.tiff"
         positivity_plot_path = os.path.join(plots_dir, positivity_plot_name)
 
-        sorted_group_v_keys = sorted(group_v_keys, key=lambda x: len(virus_data[x]["samples"]), reverse=True)
+        # Sort ascending for horizontal barh plot so highest positivity is at the TOP
+        sorted_group_v_keys = sorted(group_v_keys, key=lambda x: len(virus_data[x]["samples"]), reverse=False)
 
         v_names_labels = []
         v_positivity_pcts = []
@@ -401,28 +402,42 @@ def main():
             tot_c = len(total_samples_map[ds_k])
             pct_c = (pos_c / float(tot_c) * 100.0) if tot_c > 0 else 0.0
             
-            lbl = f"{v_info['name']}\n({v_key[3]})"
+            lbl = f"{v_info['name']} ({v_key[3]})"
             v_names_labels.append(lbl)
             v_positivity_pcts.append(pct_c)
 
         if v_names_labels:
-            fig_width = max(8, len(v_names_labels) * 2.2)
-            fig, ax = plt.subplots(figsize=(fig_width, 6), dpi=300)
-            ax.set_box_aspect(0.6)
+            fig, ax = plt.subplots(dpi=300)
             
-            bars = ax.bar(np.arange(len(v_names_labels)), v_positivity_pcts, width=0.6, color="#ff98ff", edgecolor='#ffffff', linewidth=0.8)
-            ax.set_xticks(np.arange(len(v_names_labels)))
-            ax.set_xticklabels(v_names_labels, rotation=0, ha='center', fontsize=9.5, color='black')
-            ax.set_ylabel("Cohort Positivity Rate (%)", fontsize=11, labelpad=8, color='black')
-            ax.set_title(f"Viral Positivity Rates Across Cohort | Phase: {cur_phase_tag} | Project: {cur_proj_tag}", fontsize=12, pad=12, color='black')
+            y_positions = np.arange(len(v_names_labels))
+            bar_height = 0.8
+            bars = ax.barh(y_positions, v_positivity_pcts, height=bar_height, color="#ff98ff", edgecolor='#ffffff', linewidth=0.8)
+            
+            ax.set_yticks(y_positions)
+            ax.set_yticklabels(v_names_labels, fontsize=14, color='black')
+            ax.set_xlabel("Viral Positivity Rate (%)", fontsize=14, labelpad=8, color='black')
+            ax.set_ylabel("Virus", fontsize=14, labelpad=8, color='black')
+            
+            ax.tick_params(axis='x', labelsize=14)
+            ax.tick_params(axis='y', labelsize=14)
+
+            ax.set_title(
+                f"Viral Positivity Rate (Across Cohort) - among positive and negative\n"
+                f"Phase: {cur_phase_tag} | Project: {cur_proj_tag}",
+                fontsize=12, pad=12, color='black'
+            )
+            
+            # Annotate percentage values to the right of each horizontal bar
+            max_pct = max(v_positivity_pcts) if v_positivity_pcts else 1.0
+            ax.set_xlim(0, max_pct * 1.20)  # Expand right margin for percentage labels
             
             for bar in bars:
-                height = bar.get_height()
-                ax.annotate(f"{height:.2f}%",
-                            xy=(bar.get_x() + bar.get_width() / 2, height),
-                            xytext=(0, 4),
+                width = bar.get_width()
+                ax.annotate(f"{width:.2f}%",
+                            xy=(width, bar.get_y() + bar.get_height() / 2),
+                            xytext=(6, 0),  # 6 points horizontal offset
                             textcoords="offset points",
-                            ha='center', va='bottom', fontsize=9.5, color='black')
+                            ha='left', va='center', fontsize=11, color='black')
 
             ax.grid(False)
             ax.spines['top'].set_visible(False)
