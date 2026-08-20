@@ -311,8 +311,13 @@ def main():
         ax2.set_box_aspect(1)
 
         unique_vals, val_counts = np.unique(read_counts, return_counts=True)
+        v_max = max(unique_vals) if len(unique_vals) > 0 else 1
+        v_min = min(unique_vals) if len(unique_vals) > 0 else 0
 
-        ax1.bar(unique_vals, val_counts, width=0.8, color=main_color)
+        if v_max - v_min > 50:
+            ax1.hist(read_counts, bins=30, color=main_color, rwidth=0.85, edgecolor='none')
+        else:
+            ax1.bar(unique_vals, val_counts, width=0.8, color=main_color)
         ax1.set_xlabel("Mapped Read Count")
         ax1.set_ylabel("Number of Samples")
         ax1.set_title("A. Read Count Frequency Distribution")
@@ -392,10 +397,12 @@ def main():
         # Sort ascending for horizontal barh plot so highest positivity is at the TOP
         sorted_group_v_keys = sorted(group_v_keys, key=lambda x: len(virus_data[x]["samples"]), reverse=False)
 
+        import pandas as pd
+
         v_names_labels = []
         v_positivity_pcts = []
 
-        for v_key in sorted_group_v_keys:
+        for v_key in group_v_keys:
             v_info = virus_data[v_key]
             pos_c = len(v_info["samples"])
             ds_k = (v_key[0], v_key[1], v_key[2])
@@ -407,35 +414,37 @@ def main():
             v_positivity_pcts.append(pct_c)
 
         if v_names_labels:
-            fig, ax = plt.subplots(dpi=300)
-            
-            y_positions = np.arange(len(v_names_labels))
-            bar_height = 0.8
-            bars = ax.barh(y_positions, v_positivity_pcts, height=bar_height, color="#ff98ff", edgecolor='#ffffff', linewidth=0.8)
-            
-            ax.set_yticks(y_positions)
-            ax.set_yticklabels(v_names_labels, fontsize=14, color='black')
-            ax.set_xlabel("Viral Positivity Rate (%)", fontsize=14, labelpad=8, color='black')
-            ax.set_ylabel("Virus", fontsize=14, labelpad=8, color='black')
-            
+            df = pd.DataFrame({
+                'viruses': v_names_labels,
+                'positivity_pct': v_positivity_pcts
+            })
+            df_sorted = df.sort_values(by='positivity_pct', ascending=True)
+
+            num_v = len(df_sorted)
+            fig_height = max(8.0, num_v * 0.4 + 2.0)
+            fig, ax = plt.subplots(figsize=(10, fig_height), dpi=300)
+
+            bar_height = 0.98
+            bars = ax.barh(df_sorted['viruses'], df_sorted['positivity_pct'], height=bar_height, color='#ff98ff')
+
+            ax.set_xlabel('Viral Positivity Rate (%)', fontsize=14, color='black', labelpad=8)
+            ax.set_ylabel('Virus', fontsize=14, color='black', labelpad=8)
             ax.tick_params(axis='x', labelsize=14)
             ax.tick_params(axis='y', labelsize=14)
-
             ax.set_title(
                 f"Viral Positivity Rate (Across Cohort) - among positive and negative\n"
                 f"Phase: {cur_phase_tag} | Project: {cur_proj_tag}",
                 fontsize=12, pad=12, color='black'
             )
-            
-            # Annotate percentage values to the right of each horizontal bar
-            max_pct = max(v_positivity_pcts) if v_positivity_pcts else 1.0
-            ax.set_xlim(0, max_pct * 1.20)  # Expand right margin for percentage labels
-            
+
+            max_pct = df_sorted['positivity_pct'].max() if not df_sorted.empty else 1.0
+            ax.set_xlim(0, max_pct * 1.22)
+
             for bar in bars:
-                width = bar.get_width()
-                ax.annotate(f"{width:.2f}%",
-                            xy=(width, bar.get_y() + bar.get_height() / 2),
-                            xytext=(6, 0),  # 6 points horizontal offset
+                w = bar.get_width()
+                ax.annotate(f"{w:.2f}%",
+                            xy=(w, bar.get_y() + bar.get_height() / 2),
+                            xytext=(6, 0),
                             textcoords="offset points",
                             ha='left', va='center', fontsize=11, color='black')
 
@@ -443,7 +452,7 @@ def main():
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
             plt.tight_layout()
-            plt.savefig(positivity_plot_path, format="tiff", dpi=300)
+            plt.savefig(positivity_plot_path, format="tiff", dpi=300, bbox_inches="tight")
             plt.close(fig)
             print(f"[SUCCESS] Generated viral positivity rate plot: {positivity_plot_path}")
 
@@ -514,7 +523,15 @@ def main():
             overall_color = "#008fbf"
 
             u_vals, u_cnts = np.unique(group_read_counts, return_counts=True)
-            ax1.bar(u_vals, u_cnts, width=0.8, color=overall_color)
+            max_r = max(u_vals) if len(u_vals) > 0 else 1
+            min_r = min(u_vals) if len(u_vals) > 0 else 0
+
+            if max_r - min_r > 50:
+                # Large dynamic range (e.g. 1 to 320,000 reads): Use binned histogram for visible bars
+                ax1.hist(group_read_counts, bins=30, color=overall_color, rwidth=0.85, edgecolor='none')
+            else:
+                # Small range: Discrete integer bars
+                ax1.bar(u_vals, u_cnts, width=0.8, color=overall_color)
             ax1.set_xlabel("Mapped Read Count (All Viruses)", fontsize=11, labelpad=8, color='black')
             ax1.set_ylabel("Number of Mapped Occurrences", fontsize=11, labelpad=8, color='black')
             ax1.set_title("A. Dataset-Wide Read Count Frequency", fontsize=12, pad=12, color='black')
