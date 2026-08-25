@@ -37,6 +37,7 @@ def main():
     tsv_pattern = os.path.join(args.flag_dir, "**", "*_flag_comparison.tsv")
     tsv_files = sorted(glob.glob(tsv_pattern, recursive=True))
 
+    seen = set()
     rows = []
     for fpath in tsv_files:
         if os.path.basename(fpath) == os.path.basename(args.out_file):
@@ -48,7 +49,11 @@ def main():
                     for line in lines[1:]:
                         parts = line.split("\t")
                         if len(parts) >= 7:
-                            rows.append(parts)
+                            # Unique key per (phase, project, sample, strategy)
+                            key = (parts[0], parts[1], parts[2], parts[3])
+                            if key not in seen:
+                                seen.add(key)
+                                rows.append(parts)
         except Exception as e:
             print(f"[WARNING] Could not read {fpath}: {e}")
 
@@ -57,7 +62,7 @@ def main():
         for r in rows:
             f.write("\t".join(r) + "\n")
 
-    print(f"[SUCCESS] Consolidated {len(rows)} sample records from {len(tsv_files)} files into {args.out_file}")
+    print(f"[SUCCESS] Consolidated {len(rows)} unique (phase, project, sample) records from {len(tsv_files)} files into {args.out_file}")
 
 
 if __name__ == "__main__":
