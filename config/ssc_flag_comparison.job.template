@@ -1,0 +1,95 @@
+# =========================================================================================================================
+# VIROnator Flag Comparison Job Template
+# Evaluates SAM flag filtering methods for the clean strategy across cohort samples
+
+job_name=SSC_FLAG_COMPARISON
+job_identifier=phase{phase}_[SAMPLE]
+
+
+####
+#### Buckets
+####
+
+input_bucket=gs://{output_bucket}/{vironator_jobexec_dirname}/output
+output_bucket=gs://{output_bucket}/{flag_comparison_jobexec_dirname}/output
+log_bucket=gs://{output_bucket}/{flag_comparison_jobexec_dirname}/logs
+
+####
+#### Tools
+####
+
+repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
+tool=samtools
+
+####
+#### Post-Job Configuration
+####
+
+clear_output=true
+clear_input=true 
+
+
+####
+#### Script to run
+####
+
+commands_start
+
+# Automatically load environment modules if Lmod/Modules are available on node
+if command -v module >/dev/null 2>&1 || [ -f /usr/share/modules/init/bash ]; then
+    [ -f /usr/share/modules/init/bash ] && . /usr/share/modules/init/bash 2>/dev/null || true
+    module load samtools bwa python 2>/dev/null || true
+fi
+
+set -ex
+
+echo "Start: $(date)"
+
+VIRAL_BED="{viral_bed_path}"
+PYTHON_BIN="{python_bin}"
+if [ ! -x "${PYTHON_BIN}" ] && ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
+    if command -v python3 >/dev/null 2>&1; then
+        PYTHON_BIN="python3"
+    elif command -v python >/dev/null 2>&1; then
+        PYTHON_BIN="python"
+    fi
+fi
+
+FLAG_SCRIPT="{flag_script_path}"
+
+PHASE="{phase}"
+PROJECT="{project}"
+SAMPLE="[SAMPLE]"
+
+# Directory paths
+if [ -z "${PROJECT}" ]; then
+    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${SAMPLE}"
+    FLAG_DIR="{output_dir}/{flag_comparison_out_dirname}/phase${PHASE}/${SAMPLE}"
+else
+    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
+    FLAG_DIR="{output_dir}/{flag_comparison_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
+fi
+OUT_FLAG_TSV="${FLAG_DIR}/${SAMPLE}_flag_comparison.tsv"
+
+mkdir -p "${FLAG_DIR}"
+
+echo "VIRONATOR INPUT DIR: ${VIRONATOR_DIR}"
+echo "OUTPUT TSV: ${OUT_FLAG_TSV}"
+
+if [ ! -d "${VIRONATOR_DIR}" ]; then
+    echo "[WARNING] VIRONATOR INPUT DIR does not exist: ${VIRONATOR_DIR}"
+fi
+
+# Run consolidated Python flag comparison script
+PYTHONUNBUFFERED=1 "${PYTHON_BIN}" "${FLAG_SCRIPT}" \
+    --sample-id "${SAMPLE}" \
+    --phase "${PHASE}" \
+    --project "${PROJECT}" \
+    --vironator-dir "${VIRONATOR_DIR}" \
+    --viral-bed "${VIRAL_BED}" \
+    --out-file "${OUT_FLAG_TSV}" 2>&1
+
+echo "Flag Comparison Completed Successfully for ${SAMPLE}"
+echo "End: $(date)"
+
+# =========================================================================================================================

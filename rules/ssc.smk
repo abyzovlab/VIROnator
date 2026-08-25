@@ -64,7 +64,8 @@ rule generate_resources_config:
         unmapped_config="config/batch_jobexec_unmapped.config",
         vironator_config="config/batch_jobexec_vironator.config",
         reporting_config="config/batch_jobexec_reporting.config",
-        coverage_config="config/batch_jobexec_coverage.config"
+        coverage_config="config/batch_jobexec_coverage.config",
+        flag_comparison_config="config/batch_jobexec_flag_comparison.config"
     run:
         with open(input.template, "r") as f:
             template_content = f.read()
@@ -98,8 +99,15 @@ rule generate_resources_config:
         with open(output.coverage_config, "w") as f:
             f.write(coverage_content)
 
+        # 5. Flag Comparison config
+        flag_comparison_content = base_sub.replace("{jobexec_dirname}", str(config.get("flag_comparison_jobexec_dirname", "jobexec_flag_comparison")))
+        with open(output.flag_comparison_config, "w") as f:
+            f.write(flag_comparison_content)
+
         # Active default config based on active module switch
-        if config.get("coverage_module", "off") == "on":
+        if config.get("flag_comparison_module", "off") == "on":
+            active_content = flag_comparison_content
+        elif config.get("coverage_module", "off") == "on":
             active_content = coverage_content
         elif config.get("reporting_module", "off") == "on":
             active_content = reporting_content
@@ -291,6 +299,80 @@ rule generate_reporting_job_file:
         with open(output.job, "w") as f:
             f.write(formatted_content)
 
+rule create_flag_comparison_directory:
+    """
+    Initializes target flag comparison directory on GCS using gsutil.
+    """
+    input:
+        placeholder=config["placeholder_file"],
+        config_file="config/ssc_config.yaml"
+    output:
+        token="config/flag_comparison_dir.created"
+    shell:
+        """
+        TARGET_PATH="gs://{config[output_bucket]}/{config[flag_comparison_out_dirname]}/phase{config[phase]}/{project_part}test.txt"
+        if ! gsutil -q stat "$TARGET_PATH"; then
+            gsutil cp {input.placeholder} "$TARGET_PATH"
+        fi
+        touch {output.token}
+        """
+
+rule generate_flag_comparison_job_file:
+    """
+    Generates ssc_flag_comparison.job from ssc_flag_comparison.job.template.
+    """
+    input:
+        template="config/ssc_flag_comparison.job.template",
+        config_file="config/ssc_config.yaml"
+    output:
+        job="config/ssc_flag_comparison.job"
+    run:
+        import shutil, subprocess
+        staff_scripts = os.path.join(config["output_dir"], "scripts")
+        try:
+            os.makedirs(staff_scripts, exist_ok=True)
+            if os.path.exists("scripts"):
+                shutil.copytree("scripts", staff_scripts, dirs_exist_ok=True)
+        except Exception:
+            bucket = config.get("output_bucket")
+            if bucket:
+                subprocess.run(f"gsutil -q cp -r scripts/* gs://{bucket}/scripts/ 2>/dev/null", shell=True)
+
+        with open(input.template, "r") as f:
+            content = f.read()
+        
+        formatted_content = (
+            content.replace("{phase}", str(config["phase"]))
+            .replace("{project}", str(config["project"]))
+            .replace("{output_bucket}", str(config["output_bucket"]))
+            .replace("{output_dir}", str(config["output_dir"]))
+            .replace("{viral_bed_path}", os.path.join(config["ref_dir"], config["viral_bed_file"]))
+            .replace("{python_bin}", str(config.get("python_bin", "python3")))
+            .replace("{flag_script_path}", os.path.join(config["scripts_dir"], config.get("flag_comparison_script", "run_flag_comparison.py")))
+            .replace("{vironator_out_dirname}", str(config["vironator_out_dirname"]))
+            .replace("{flag_comparison_out_dirname}", str(config.get("flag_comparison_out_dirname", "SSC_hg38_flag_comparison")))
+            .replace("{vironator_jobexec_dirname}", str(config["vironator_jobexec_dirname"]))
+            .replace("{flag_comparison_jobexec_dirname}", str(config.get("flag_comparison_jobexec_dirname", "jobexec_flag_comparison")))
+        )
+        
+        with open(output.job, "w") as f:
+            f.write(formatted_content)
+
+rule merge_flag_comparison_reports:
+    """
+    Consolidates individual per-sample flag comparison reports into a single master cohort report.
+    """
+    input:
+        script="scripts/merge_flag_comparison.py",
+        config_file="config/ssc_config.yaml"
+    output:
+        master_report="cohort_flag_comparison_master.tsv"
+    run:
+        import subprocess
+        flag_dir = os.path.join(config["output_dir"], config.get("flag_comparison_out_dirname", "SSC_hg38_flag_comparison"))
+        cmd = f"python3 {input.script} --flag-dir \"{flag_dir}\" --out-file \"{output.master_report}\""
+        subprocess.run(cmd, shell=True, check=True)
+
 rule generate_coverage_job_file:
     """
     Generates ssc_coverage.job from ssc_coverage.job.template.
@@ -378,13 +460,15 @@ rule generate_distributions:
         panel_b_log_y=lambda wildcards: str(config.get("panel_b_log_y", "on")),
         min_total_reads=lambda wildcards: int(config.get("min_total_reads_to_plot", 3)),
         min_max_reads=lambda wildcards: int(config.get("min_max_reads_to_plot", 3)),
-        log_scale_cutoff=lambda wildcards: int(config.get("log_scale_read_cutoff", 30))
+        log_scale_cutoff=lambda wildcards: int(config.get("log_scale_read_cutoff", 30)),
+        prelim_prev_cutoff=lambda wildcards: float(config.get("prelim_prevalence_cutoff_pct", 5.0)),
+        prelim_mean_cutoff=lambda wildcards: float(config.get("prelim_mean_read_cutoff", 6.0))
     shell:
         """
         PLOTS_GCS="gs://{config[output_bucket]}/{config[plots_out_dirname]}/test.txt"
         STATS_GCS="gs://{config[output_bucket]}/{config[stats_out_dirname]}/test.txt"
         gsutil cp config/ssc_config.yaml "$PLOTS_GCS" 2>/dev/null || true
         gsutil cp config/ssc_config.yaml "$STATS_GCS" 2>/dev/null || true
-        python3 {input.script} --input-report {input.master_report} --plots-dir "{params.plots_dir}" --stats-dir "{params.stats_dir}" --target-phase "{params.phase}" --target-project "{params.project}" --strategies {params.strategies} --cohort-scope "{params.cohort_scope}" --panel-a-loglog "{params.panel_a_loglog}" --panel-b-log-y "{params.panel_b_log_y}" --min-total-reads-to-plot {params.min_total_reads} --min-max-reads-to-plot {params.min_max_reads} --log-scale-read-cutoff {params.log_scale_cutoff}
+        python3 {input.script} --input-report {input.master_report} --plots-dir "{params.plots_dir}" --stats-dir "{params.stats_dir}" --target-phase "{params.phase}" --target-project "{params.project}" --strategies {params.strategies} --cohort-scope "{params.cohort_scope}" --panel-a-loglog "{params.panel_a_loglog}" --panel-b-log-y "{params.panel_b_log_y}" --min-total-reads-to-plot {params.min_total_reads} --min-max-reads-to-plot {params.min_max_reads} --log-scale-read-cutoff {params.log_scale_cutoff} --prelim-prevalence-cutoff-pct {params.prelim_prev_cutoff} --prelim-mean-read-cutoff {params.prelim_mean_cutoff}
         touch {output.token}
         """

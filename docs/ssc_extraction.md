@@ -153,9 +153,24 @@ batchRun -multibatch samples_p2_base -config config/batch_jobexec_vironator.conf
 batchRun -multibatch samples_p2_base -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator MDJ -pau 0
 ```
 
+#### Module 4: SAM Flag Comparison Module (`ssc_flag_comparison.job`)
+```bash
+batchRun -multibatch samples_all_cohorts -config config/batch_jobexec_flag_comparison.config -non-spot config/ssc_flag_comparison.job -investigator MDJ -pau 0
+```
+
 ---
 
-## Reporting Module Overview <small>(ssc_reporting.job)</small>
+## SAM Flag Comparison Module Overview <small>(ssc_flag_comparison.job)</small>
+
+### Overview
+Evaluates the clean strategy across 3 SAM flag filtering commands to systematically quantify the difference between aligner `-f 2` flags vs manual bitwise flags.
+
+### Automated Cohort Consolidation:
+Once all batch jobs complete, merge all per-sample TSV files across all phases and projects into a single master TSV report:
+
+```bash
+snakemake cohort_flag_comparison_master.tsv --cores 1
+```
 
 ### Outputs (`/mnt/disks/staff/SSC_hg38_reports/phase2/[project]/<sample_id>/`):
 

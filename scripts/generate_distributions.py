@@ -43,7 +43,31 @@ def parse_args():
                         help="Minimum maximum mapped reads across any single sample required to render a per-virus TIFF plot")
     parser.add_argument("--log-scale-read-cutoff", type=int, default=30,
                         help="Read count threshold to trigger Log-Scale transformations in Panels A and B")
+    parser.add_argument("--prelim-prevalence-cutoff-pct", type=float, default=5.0,
+                        help="Preliminary prevalence cutoff % differentiating noise/infection from systematic/virome")
+    parser.add_argument("--prelim-mean-read-cutoff", type=float, default=6.0,
+                        help="Preliminary mean read count per sample cutoff differentiating noise vs virome/infection")
     return parser.parse_args()
+
+
+def classify_virus(pct_cohort, mean_reads, prev_cutoff=5.0, mean_cutoff=6.0):
+    """
+    Preliminary Classification Decision Matrix:
+    - sporadic_noise   : Prevalence < 5%  AND Mean Reads <= 6.0
+    - systematic_noise : Prevalence >= 5% AND Mean Reads <= 6.0
+    - virome           : Prevalence >= 5% AND Mean Reads > 6.0
+    - infection        : Prevalence < 5%  AND Mean Reads > 6.0
+    """
+    if mean_reads <= mean_cutoff:
+        if pct_cohort < prev_cutoff:
+            return "sporadic_noise"
+        else:
+            return "systematic_noise"
+    else:
+        if pct_cohort >= prev_cutoff:
+            return "virome"
+        else:
+            return "infection"
 
 
 def sanitize_filename(name):
@@ -212,7 +236,8 @@ def main():
         "Pct_Of_Viral_Positive_Samples",
         "Pct_Of_Total_Cohort_Samples",
         "Total_Reads_Assigned",
-        "Mean_Mapped_Reads_Per_Positive_Sample"
+        "Mean_Mapped_Reads_Per_Positive_Sample",
+        "Preliminary_Classification"
     ]
 
     # Group v_keys per dataset (phase, project)
@@ -246,6 +271,7 @@ def main():
             pct_cohort = (pos_count / float(total_cohort) * 100.0) if total_cohort > 0 else 0.0
             total_reads = sum(sample_dict.values())
             mean_reads_per_pos = (total_reads / float(pos_count)) if pos_count > 0 else 0.0
+            prelim_class = classify_virus(pct_cohort, mean_reads_per_pos, args.prelim_prevalence_cutoff_pct, args.prelim_mean_read_cutoff)
             
             short_strat = get_short_strategy(strategy)
 
@@ -261,7 +287,8 @@ def main():
                 f"{pct_viral_pos:.2f}",
                 f"{pct_cohort:.2f}",
                 str(total_reads),
-                f"{mean_reads_per_pos:.2f}"
+                f"{mean_reads_per_pos:.2f}",
+                prelim_class
             ]
             stats_rows.append(row)
 
@@ -309,6 +336,12 @@ def main():
 
         pct_viral_pos = (pos_count / float(total_viral_pos) * 100.0) if total_viral_pos > 0 else 0.0
         pct_cohort = (pos_count / float(total_cohort) * 100.0) if total_cohort > 0 else 0.0
+        total_reads = sum(read_counts)
+        mean_reads_per_pos = (total_reads / float(pos_count)) if pos_count > 0 else 0.0
+
+        v_class = classify_virus(pct_cohort, mean_reads_per_pos, args.prelim_prevalence_cutoff_pct, args.prelim_mean_read_cutoff)
+        if v_class in ("sporadic_noise", "systematic_noise"):
+            continue
 
         short_strat = get_short_strategy(strategy)
         v_name_sanitized = sanitize_filename(v_info["name"])
@@ -497,7 +530,8 @@ def main():
             "Total_Viral_Positive_Samples", "Total_Cohort_Samples",
             "Cohort_Positivity_Pct", "Total_Mapped_Viral_Reads",
             "Unique_Viruses_Detected", "Top_Prevalent_Virus",
-            "Mean_Mapped_Reads_Per_Positive_Sample"
+            "Mean_Mapped_Reads_Per_Positive_Sample",
+            "Preliminary_Classification"
         ]
 
         group_ds_keys = [k for k in total_samples_map.keys() if k[0] == cur_phase and k[1] == cur_proj]
@@ -522,13 +556,15 @@ def main():
 
             top_v = ds_virus_counts.most_common(1)[0][0] if ds_virus_counts else "None"
             mean_ds_reads_per_pos = (ds_total_reads / float(pos_samples)) if pos_samples > 0 else 0.0
+            overall_prelim_class = classify_virus(pos_pct, mean_ds_reads_per_pos, args.prelim_prevalence_cutoff_pct, args.prelim_mean_read_cutoff)
 
             overall_rows.append([
                 d_phase, d_proj, d_short_strat,
                 str(pos_samples), str(tot_samples),
                 f"{pos_pct:.2f}", str(ds_total_reads),
                 str(len(ds_unique_v)), top_v,
-                f"{mean_ds_reads_per_pos:.2f}"
+                f"{mean_ds_reads_per_pos:.2f}",
+                overall_prelim_class
             ])
 
         with open(overall_stats_tsv_path, "w") as f:

@@ -158,8 +158,39 @@ To generate publication-quality 300 DPI **TIFF distribution figures** (`plots/`)
    snakemake --cores 1
    ```
 3. Outputs:
-   - **`stats/virus_stats_summary.tsv`**: Per-virus prevalence, positivity ratios, and total assigned reads (un-signed percentage values).
-   - **`plots/`**: 300 DPI publication-grade TIFF figures (`.tif`) with 2-panel layout, median reference lines, and metric callout badges.
+   - **`stats/virus_stats_summary_<PHASE>_<PROJECT>.tsv`**: Detailed per-virus summary table containing prevalence, sample counts, read counts, mean mapped reads, and preliminary classifications (`sporadic_noise`, `systematic_noise`, `virome`, `infection`).
+   - **`stats/virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv`**: High-level executive dataset summary table reporting total positive samples, cohort size, overall positivity rate, total mapped reads, unique viruses detected, top prevalent virus, mean reads per positive sample, and overall classification.
+   - **`plots/`**: 300 DPI publication-grade TIFF figures (`.tif`) with 2-panel layout and horizontal viral prevalence bar plots.
+
+#### Distributions Module TSV Output Schemas:
+
+##### A. Per-Virus Summary Table (`virus_stats_summary_<PHASE>_<PROJECT>.tsv`) — 13 Columns:
+1. `Phase` — Cohort phase (e.g. `all_cohorts` or `phase1`)
+2. `Project` — Cohort project identifier (e.g. `combined` or `base`)
+3. `Strategy` — Alignment strategy label (e.g. `clean_flags`)
+4. `Virus_Accession` — RefSeq accession ID of the viral species (e.g. `NC_001829`)
+5. `Virus_Name_Sanitized` — Full viral species name
+6. `Positive_Samples_Count` — Number of positive samples containing this virus
+7. `Total_Viral_Positive_Samples` — Total number of positive samples in the cohort (with $\ge 1$ viral hit)
+8. `Total_Cohort_Samples` — Total number of samples in the entire cohort ($N = 9,040$)
+9. `Pct_Of_Viral_Positive_Samples` — % of virus-positive samples containing this species
+10. `Pct_Of_Total_Cohort_Samples` — % of total cohort samples containing this species (Prevalence)
+11. `Total_Reads_Assigned` — Total mapped reads assigned to this virus across the cohort
+12. `Mean_Mapped_Reads_Per_Positive_Sample` — Average mapped reads per positive sample ($\frac{\text{Total Reads}}{\text{Positive Samples}}$)
+13. `Preliminary_Classification` — Automated classification (`sporadic_noise`, `systematic_noise`, `virome`, `infection`)
+
+##### B. Executive Dataset Overview Table (`virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv`) — 11 Columns:
+1. `Phase` — Cohort phase (e.g. `all_cohorts`)
+2. `Project` — Cohort project identifier (e.g. `combined`)
+3. `Strategy` — Alignment strategy label (e.g. `clean_flags`)
+4. `Total_Viral_Positive_Samples` — Total samples testing positive for any virus
+5. `Total_Cohort_Samples` — Total sample count in the dataset ($N = 9,040$)
+6. `Cohort_Positivity_Pct` — Overall viral positivity rate (% of total cohort)
+7. `Total_Mapped_Viral_Reads` — Total mapped viral reads across all detected viruses
+8. `Unique_Viruses_Detected` — Total number of distinct viral species identified
+9. `Top_Prevalent_Virus` — Most prevalent viral species in the dataset
+10. `Mean_Mapped_Reads_Per_Positive_Sample` — Cohort-wide average mapped reads per positive sample
+11. `Preliminary_Classification` — Overall dataset-wide classification
 
 #### 14-Column Master Report Schema:
 1. `Sample_ID`
@@ -174,5 +205,34 @@ To generate publication-quality 300 DPI **TIFF distribution figures** (`plots/`)
 10. `Virus_Name_Sanitized` (`None` if zero reads detected)
 11. `Specimen`
 12. `Phase`
-13. `Project` (or `base` if project is empty)
 14. `Source_File` (CRAM source file name)
+
+### 5. Systematic SAM Flag Comparison Module (`flag_comparison_module`)
+Evaluates the clean strategy across 3 SAM flag filtering commands to isolate the impact of aligner `-f 2` flags vs manual bitwise flags:
+
+1. Enable Module 8 in `config/ssc_config.yaml`:
+   ```yaml
+   flag_comparison_module: "on"
+   cohort_scope: "combined_all"
+   ```
+2. Compile job and resource config files on head node:
+   ```bash
+   snakemake --cores 1
+   ```
+3. Submit parallel batch run across all cohort samples (single batch across all phases & projects):
+   ```bash
+   batchRun -multibatch samples_all_cohorts -config config/batch_jobexec_flag_comparison.config -non-spot config/ssc_flag_comparison.job -investigator MDJ -pau 0
+   ```
+4. Merge all cohort outputs into single master TSV report:
+   ```bash
+   snakemake cohort_flag_comparison_master.tsv --cores 1
+   ```
+
+#### 7-Column Flag Comparison Master TSV Schema (`cohort_flag_comparison_master.tsv`):
+1. `phase` — Cohort phase (e.g. `phase1`)
+2. `project` — Cohort project identifier (e.g. `base`)
+3. `sample` — Sample ID
+4. `strategy` — Strategy evaluated (`clean`)
+5. `original_command_flags_reads` — Read pair count using original command WITH `-f 2`
+6. `original_command_flags_modified_reads` — Read pair count using original command WITHOUT `-f 2`
+7. `manual_flags_reads` — Read pair count using manual `gawk` bitwise flag verification

@@ -154,6 +154,17 @@ panel_b_log_y: "on"
 min_total_reads_to_plot: 3
 min_max_reads_to_plot: 3
 
+# Preliminary Classification Cutoffs:
+#   prelim_prevalence_cutoff_pct : 5.0 (Prevalence % cutoff differentiating noise/infection from systematic/virome)
+#   prelim_mean_read_cutoff      : 6.0 (Mean read count per sample cutoff differentiating noise vs virome/infection)
+#   Classes:
+#     - "sporadic_noise"  : Prevalence < 5% AND Mean Reads <= 6.0 (NOT plotted)
+#     - "systematic_noise": Prevalence >= 5% AND Mean Reads <= 6.0 (Plotted)
+#     - "virome"          : Prevalence >= 5% AND Mean Reads > 6.0 (Plotted)
+#     - "infection"       : Prevalence < 5% AND Mean Reads > 6.0 (Plotted)
+prelim_prevalence_cutoff_pct: 5.0
+prelim_mean_read_cutoff: 6.0
+
 # Read count threshold to trigger Log-Scale transformations in Panels A and B:
 #   log_scale_read_cutoff: 30 (Reads <= 30 use Linear scale; Reads > 30 use Log-Log/Log-Y)
 log_scale_read_cutoff: 30
@@ -162,6 +173,14 @@ strategy_colors:
   clean_filtered: "#ff98ff"
   clean_flags: "#ff98ff"
   overall: "#008fbf"
+
+# ==============================================================================
+# 8. FLAG COMPARISON MODULE (SAM Flag Comparison for Clean Strategy)
+# ==============================================================================
+flag_comparison_module: "on"  # Switch: "on" or "off" to enable SAM flag comparison module
+flag_comparison_out_dirname: "SSC_hg38_flag_comparison"
+flag_comparison_jobexec_dirname: "jobexec_flag_comparison"
+flag_comparison_script: "run_flag_comparison.py"
 
 
 
