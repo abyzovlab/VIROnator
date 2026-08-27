@@ -165,6 +165,9 @@ batchRun -multibatch samples_all_cohorts -config config/batch_jobexec_flag_compa
 ### Overview
 Evaluates the clean strategy across 3 SAM flag filtering commands to systematically quantify the difference between aligner `-f 2` flags vs manual bitwise flags.
 
+> [!NOTE]
+> This module is not estimating viral abundance. It is estimating high-confidence, reference-discriminating read-pair support. That is useful, however it will undercount viruses when related references share homologous sequence. This is for the reference-unique evidence. We report high-specificity reference-discriminating read support.
+
 ### Automated Cohort Consolidation:
 Once all batch jobs complete, merge all per-sample TSV files across all phases and projects into a single master TSV report:
 
@@ -224,7 +227,7 @@ PROJECT="base"  # Or sub-project name e.g. Project_CCDG_...
 6. `Physical_Coverage` (Percentage formatted without `%` sign: `00.00`)
 7. `Human_Genome_Size`
 8. `Sample_Read_Depth`
-9. `Viral_Copy_Number` (Rounded to 6 decimals: `0.000000`)
+9. `Viral_Copy_Number` (Reference-discriminating copy-number lower bound, rounded to 6 decimals: `0.000000`)
 10. `Virus_Name_Sanitized` (`None` if zero reads detected)
 11. `Specimen`
 12. `Phase`

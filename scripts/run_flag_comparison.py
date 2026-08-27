@@ -129,7 +129,7 @@ def process_cram(in_cram, viral_bed):
     # Command 3: Manual gawk bitwise flag check
     cmd_manual = (
         f"samtools view -F 2048 -F 12 -q 20 \"{in_cram}\" --region-file \"{viral_bed}\" "
-        f"| gawk '((and($2,97) && !and($2,16) && ($9 >= 150 && $9 <= 1500)) || (and($2,81) && !and($2,32) && ($9 >= -1500 && $9 <= -150)) || (and($2,145) && !and($2,32) && ($9 >= 150 && $9 <= 1500)) || (and($2,161) && !and($2,16) && ($9 >= -1500 && $9 <= -150)))' "
+        f"| gawk 'function abs(v){{return v<0?-v:v}} ((and($2,97)==97 && !and($2,16)) || (and($2,81)==81 && !and($2,32)) || (and($2,145)==145 && !and($2,32)) || (and($2,161)==161 && !and($2,16))) && (abs($9) >= 150 && abs($9) <= 1500)' "
         f"| awk '$6==\"151M\" || $6==\"150M\"' "
         f"| awk '$7==\"=\"' "
         f"| cut -f1 | sort | uniq -c | awk '$1==\"2\"' | wc -l"
