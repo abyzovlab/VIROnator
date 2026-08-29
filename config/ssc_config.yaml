@@ -2,6 +2,9 @@
 # 1. COMMON / JOINT VARIABLES (Global parameters used across modules)
 # ==============================================================================
 data_dir: "/mnt/disks/lab"
+data_subdir: "tertiary/SSC_hg38/WGS"  # Middle subdirectory path inside data_dir (set to "" for flat datasets)
+input_keyword: "final"                 # Optional middle keyword after sample dot (e.g. "final", "sorted", or "" for none)
+input_suffix: "cram"                   # File extension after keyword (e.g. "cram", "bam")
 output_dir: "/mnt/disks/staff"
 work_dir: "."  # Current VIROnator execution directory
 placeholder_file: "test.txt"
@@ -92,6 +95,8 @@ mouse_contigs_file: "mm39_modified.contigs.txt"
 
 # Tool paths and script names (scripts are stored in scripts_dir)
 bwa_bin: "/mnt/disks/staff/bin/bwa"
+bowtie2_bin: "/mnt/disks/staff/bin/bowtie2"
+bowtie2_build_bin: "/mnt/disks/staff/bin/bowtie2-build"
 python_bin: "python3"
 init_ref_script: "init_ref.sh"
 combined_refs_dir: ""  # Output folder for combined reference (resolves directly to ref_dir)
@@ -181,6 +186,35 @@ flag_comparison_module: "on"  # Switch: "on" or "off" to enable SAM flag compari
 flag_comparison_out_dirname: "SSC_hg38_flag_comparison"
 flag_comparison_jobexec_dirname: "jobexec_flag_comparison"
 flag_comparison_script: "run_flag_comparison.py"
+
+# ==============================================================================
+# 9. REFINEMENT MODULE (NCBI RefSeq Strain Resolution & Species Collapse)
+# ==============================================================================
+refinement_module: "on"                 # Master switch: "on" or "off"
+
+# Stage-by-Stage Sub-Switches:
+make_taxonomy_index_stage: "on"         # Stage 1: Build 14-column taxonomy index TSV
+ncbi_download_stage: "on"               # Stage 2: Download complete RefSeq genomes from NCBI
+build_combined_ref_stage: "on"          # Stage 3: Merge references & run bowtie2-build
+refinement_alignment_stage: "on"        # Stage 4: Run Bowtie2 alignment, filter & report
+
+# Input Files & Output Locations:
+db_fasta_file: "HumanViral_Reference_02-07-2022.fa"   # Source viral database FASTA for taxonomy index
+master_report_file: "master_all_cohorts_viral_report_final.tsv"
+taxonomy_index_file: "config/db_metadata/viral_reference_taxonomy_index.tsv"
+refinement_samples_list: "config/refinement_samples.tsv" # Sample list TSV (sample, phase, project)
+
+# Reference & Output Storage Paths (under /mnt/disks/staff/refs/):
+ncbi_taxdump_dir: "/mnt/disks/staff/refs/ncbi_taxdump"   # Storage for nodes.dmp, names.dmp, accession2taxid
+ncbi_download_dir: "/mnt/disks/staff/refs/ncbi_download" # Storage for downloaded RefSeq FASTA genomes
+refinement_combined_ref_file: "combined_human_mouse_plasmids_refinement_viral_2026-08-29.fa"
+
+# Algorithmic & Output Settings:
+ncbi_download_rank: "species"           # Taxonomic rank for NCBI query: "species" or "genus"
+refinement_out_dirname: "SSC_hg38_refinement"
+refinement_jobexec_dirname: "jobexec_refinement"
+refinement_strategy: "clean"            # Candidate read source strategy: "clean" or "raw"
+bowtie2_max_multimaps: 10               # -k flag for Bowtie2 multimapping alignment
 
 
 

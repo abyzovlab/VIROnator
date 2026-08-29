@@ -73,6 +73,52 @@ Executing the sanitizer script creates five output files in the **exact director
 
 ---
 
+## Standalone Utility: Taxonomy Index Builder <small>(make_taxonomy_index.py)</small>
+
+`scripts/make_taxonomy_index.py` is a standalone helper script that pre-processes NCBI taxonomy dump files (`nodes.dmp`, `names.dmp`) and accession-to-taxid mapping files (`nucl_gb.accession2taxid`) into a unified, 14-column viral taxonomy lookup index (`viral_reference_taxonomy_index.tsv`).
+
+### Downloading NCBI Taxonomy Source Files
+Before executing the script, download the latest NCBI taxonomy dump and accession mapping files:
+
+```bash
+mkdir -p /tmp/ncbi_taxdump && cd /tmp/ncbi_taxdump
+
+# Download NCBI taxonomy nodes and names:
+wget -q ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz
+tar -xzf taxdump.tar.gz nodes.dmp names.dmp
+
+# Download GenBank nucleotide accession-to-taxid mapping:
+wget -q ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz
+gunzip nucl_gb.accession2taxid.gz
+```
+
+### Execution Command
+```bash
+python3 scripts/make_taxonomy_index.py \
+    --accession-taxid /tmp/ncbi_taxdump/nucl_gb.accession2taxid \
+    --nodes /tmp/ncbi_taxdump/nodes.dmp \
+    --names /tmp/ncbi_taxdump/names.dmp \
+    --output config/db_metadata/viral_reference_taxonomy_index.tsv
+```
+
+### Generated Output 14-Column Index Schema (`viral_reference_taxonomy_index.tsv`)
+1. `accession` — RefSeq / GenBank accession ID (e.g. `NC_001829`)
+2. `accession_version` — Accession version (e.g. `NC_001829.1`)
+3. `accession_taxid` — NCBI TaxID assigned to accession
+4. `accession_name` — Scientific name assigned to accession
+5. `species_taxid` — TaxID of the species rank
+6. `species_name` — Species scientific name
+7. `genus_taxid` — TaxID of the genus rank
+8. `genus_name` — Genus scientific name
+9. `family_taxid` — TaxID of the family rank
+10. `family_name` — Family scientific name
+11. `order_taxid` — TaxID of the order rank
+12. `order_name` — Order scientific name
+13. `realm_taxid` — TaxID of the realm rank
+14. `realm_name` — Realm scientific name
+
+---
+
 ## Setup and Execution
 
 ### Phase 1: Prepare your Workspace
@@ -158,9 +204,115 @@ batchRun -multibatch samples_p2_base -config config/batch_jobexec_reporting.conf
 batchRun -multibatch samples_all_cohorts -config config/batch_jobexec_flag_comparison.config -non-spot config/ssc_flag_comparison.job -investigator MDJ -pau 0
 ```
 
+#### Module 5: NCBI RefSeq Refinement Module (`ssc_refinement.job`)
+```bash
+# 1. Build taxonomy index TSV:
+snakemake config/db_metadata/viral_reference_taxonomy_index.tsv --cores 1
+
+# 2. Download RefSeq complete genomes & build date-stamped Bowtie2 combined reference:
+snakemake config/ncbi_download.completed --cores 1
+
+# 3. Compile refinement jobexec cluster files:
+snakemake config/ssc_refinement.job --cores 1
+
+# 4. Submit parallel batch run across target refinement samples:
+batchRun -multibatch config/refinement_samples.tsv -config config/batch_jobexec_refinement.config -non-spot config/ssc_refinement.job -investigator MDJ -pau 0
+
+# 5. Merge all cohort outputs into master report:
+snakemake cohort_refinement_master.tsv --cores 1
+```
+
 ---
 
-## SAM Flag Comparison Module Overview <small>(ssc_flag_comparison.job)</small>
+## NCBI RefSeq Refinement Module Overview <small>(ssc_refinement.job)</small>
+
+### Overview & Purpose
+The Refinement Module re-aligns candidate viral reads (from the `clean` strategy) against an expanded reference index containing **all complete RefSeq viral genomes** for detected viral groups. It uses Bowtie2 multimapping (`-k 10`) and a **Hierarchical Two-Tier Classification Cascade** (`Reference_Unique` vs `Species_Supportive`).
+
+> [!NOTE]
+> This module is not estimating viral abundance. It is estimating high-confidence, reference-discriminating read-pair support. That is useful, however it will undercount viruses when related references share homologous sequence. This is for the reference-unique evidence. We report high-specificity reference-discriminating read support.
+
+---
+
+### The 4 Submodules / Stages
+
+#### Stage 1: Taxonomy Index Construction (`make_taxonomy_index_stage`)
+* **Purpose**: Parses NCBI taxdump files (`nodes.dmp`, `names.dmp`) and accession-to-taxid mapping files (`nucl_gb.accession2taxid`) cached in `/mnt/disks/staff/refs/ncbi_taxdump/`, cross-referencing your database FASTA (`HumanViral_Reference_02-07-2022.fa`) entries up to the highest rank (**Realm**).
+* **Snakemake Command**:
+  ```bash
+  snakemake config/db_metadata/viral_reference_taxonomy_index.tsv --cores 1
+  ```
+* **Output File**: `config/db_metadata/viral_reference_taxonomy_index.tsv` (14-column taxonomy index TSV).
+
+#### Stage 2: NCBI Complete RefSeq Genome Fetcher (`ncbi_download_stage`)
+* **Purpose**: Extracts unique viral accessions from Column 2 (`Virus_Accession`) of `master_all_cohorts_viral_report_final.tsv`, looks up their `species_taxid` (or `genus_taxid`), downloads **all complete nucleotide RefSeq genomes** under detected taxIDs from NCBI Entrez into `/mnt/disks/staff/refs/ncbi_download/`, and runs contig header sanitization (`rename_fasta_contigs.sh --ncbi`).
+* **Snakemake Command**:
+  ```bash
+  snakemake config/ncbi_download.completed --cores 1
+  ```
+* **Outputs**:
+  - `/mnt/disks/staff/refs/ncbi_download/refinement_species_<TAXID>.renamed.fa` (Sanitized RefSeq FASTA files)
+  - `/mnt/disks/staff/SSC_hg38_refinement/logs/refinement_ncbi_fetch.log` (Audit fetch log)
+  - `config/ncbi_download.completed` (Stage completion token)
+
+#### Stage 3: Date-Stamped Combined Reference & Bowtie2 Index Builder (`build_combined_ref_stage`)
+* **Purpose**: Concatenates Human (GRCh38), Mouse (`mm39`), Plasmids (`SnapGene`), and all downloaded RefSeq viral FASTAs into a single date-stamped reference and builds `samtools faidx` (`.fai`) and `bowtie2-build` (`.bt2` / `.bt2l`) binary indices.
+* **Snakemake Command**:
+  ```bash
+  snakemake config/ssc_refinement.job --cores 1
+  ```
+* **Outputs (`/mnt/disks/staff/refs/`)**:
+  - `combined_human_mouse_plasmids_refinement_viral_2026-08-29.fa` (Combined FASTA)
+  - `combined_human_mouse_plasmids_refinement_viral_2026-08-29.fa.fai` (FASTA Index)
+  - `combined_human_mouse_plasmids_refinement_viral_2026-08-29.fa.1.bt2` through `.4.bt2` (or `.1.bt2l` through `.4.bt2l`) (Bowtie2 Binary Indices)
+
+#### Stage 4: Multimapping Alignment & Two-Tier Classification Cascade (`refinement_alignment_stage`)
+* **Purpose**: Executes Bowtie2 multimapping alignment (`-k 10 --very-sensitive`) per sample, followed by the **Hierarchical Two-Tier Classification Cascade**:
+  - **Tier 1 (Strict Primary Unique Check)**: MAPQ $\ge 20$, $F\,12 == 0$, $F\,2048 == 0$, CIGAR $150M$/$151M$, $150 \le |TLEN| \le 1500$, unique accession hit $\rightarrow$ `REFERENCE_UNIQUE`. (Strictly locked in Tier 1! Does NOT inspect alternative alignments or species-supportive assignments).
+  - **Tier 2 (Species-Supportive Cascade Check)**: Evaluates remaining reads to test if target accessions share the same `species_taxid` $\rightarrow$ `SPECIES_SUPPORTIVE`.
+* **Batch Execution Command**:
+  ```bash
+  batchRun -multibatch config/refinement_samples.tsv -config config/batch_jobexec_refinement.config -non-spot config/ssc_refinement.job -investigator MDJ -pau 0
+  ```
+
+> [!IMPORTANT]
+> **Post-Cluster Consolidation**: Because `batchRun` dispatches sample alignments to compute nodes in parallel, each job writes its own individual TSV report under `/mnt/disks/staff/SSC_hg38_refinement/phase<PHASE>/[PROJECT]/<SAMPLE_ID>/`.
+> Once all parallel cluster jobs have completed, you **must run the consolidation command separately on the head node** to aggregate all per-sample reports into `cohort_refinement_master.tsv`:
+
+* **Master Consolidation Command (Run on Head Node After Cluster Jobs Finish)**:
+  ```bash
+  snakemake cohort_refinement_master.tsv --cores 1
+  ```
+
+---
+
+### Output Directory Structure & File Contents
+
+#### 1. Per-Sample Refinement Output Directory:
+`Path: /mnt/disks/staff/SSC_hg38_refinement/phase<PHASE>/[PROJECT]/<SAMPLE_ID>/`
+
+* **`exogeneSR_viral_refinement.cram` & `.crai`**:
+  - **Content**: Compressed, indexed Bowtie2 multimapping CRAM file containing all aligned candidate reads against the date-stamped combined reference.
+* **`bowtie2_refinement.log`**:
+  - **Content**: Bowtie2 alignment summary log detailing overall alignment rate, mapped pair count, and multimapping distribution.
+* **`<PHASE>_<PROJECT>_<SAMPLE_ID>_refined_report.tsv`**:
+  - **Content**: 11-column per-sample TSV report summarizing refined read counts and lower-bound copy numbers per viral species.
+
+#### 2. Master Cohort Output TSV File (`cohort_refinement_master.tsv`):
+`Path: /mnt/disks/staff/VIROnator/cohort_refinement_master.tsv`
+
+#### 11-Column Schema:
+1. `Sample_ID` — Sample accession identifier (e.g., `SS0012978`)
+2. `Phase` — Cohort phase tag (e.g., `phase1`)
+3. `Project` — Cohort project tag (or `base` if empty)
+4. `Virus_Accession` — Best-supported RefSeq Accession ID (e.g., `NC_001829.1`)
+5. `Species_TaxID` — NCBI Species Taxonomy ID (e.g., `10509`)
+6. `Species_Name` — Taxonomic Species Scientific Name (e.g., `Human gammaherpesvirus 4`)
+7. `Reference_Unique_Reads` — Read pairs uniquely supporting this specific reference (Tier 1 strict count)
+8. `Species_Supportive_Reads` — Read pairs supporting this species group (Tier 2 group-collapsed count)
+9. `Total_Refined_Reads` — Total refined read pairs (`Reference_Unique_Reads` + `Species_Supportive_Reads`)
+10. `Refined_Copy_Number` — Reference-discriminating copy-number lower bound
+11. `Classification_Status` — Call status (`CONFIRMED_UNIQUE` or `SPECIES_COLLAPSED`)
 
 ### Overview
 Evaluates the clean strategy across 3 SAM flag filtering commands to systematically quantify the difference between aligner `-f 2` flags vs manual bitwise flags.

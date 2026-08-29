@@ -1,0 +1,106 @@
+# =========================================================================================================================
+# VIROnator Refinement Job Template
+# Executes Bowtie2 multimapping alignment, hierarchical classification and per-sample refined reporting
+
+job_name=SSC_REFINEMENT
+job_identifier=phase{phase}_[SAMPLE]
+
+
+####
+#### Buckets
+####
+
+input_bucket=gs://{output_bucket}/{vironator_jobexec_dirname}/output
+output_bucket=gs://{output_bucket}/{refinement_jobexec_dirname}/output
+log_bucket=gs://{output_bucket}/{refinement_jobexec_dirname}/logs
+
+####
+#### Tools
+####
+
+repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
+tool=samtools
+
+####
+#### Post-Job Configuration
+####
+
+clear_output=true
+clear_input=true 
+
+
+####
+#### Script to run
+####
+
+commands_start
+
+# Automatically load environment modules if Lmod/Modules are available on node
+if command -v module >/dev/null 2>&1 || [ -f /usr/share/modules/init/bash ]; then
+    [ -f /usr/share/modules/init/bash ] && . /usr/share/modules/init/bash 2>/dev/null || true
+    module load samtools bwa bowtie2/2.3.3.1 python 2>/dev/null || true
+fi
+
+set -ex
+
+echo "Start: $(date)"
+
+COMBINED_REF="{refinement_combined_ref_path}"
+TAXONOMY_INDEX="{taxonomy_index_path}"
+
+PYTHON_BIN="{python_bin}"
+if [ ! -x "${PYTHON_BIN}" ] && ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
+    if command -v python3 >/dev/null 2>&1; then
+        PYTHON_BIN="python3"
+    elif command -v python >/dev/null 2>&1; then
+        PYTHON_BIN="python"
+    fi
+fi
+
+BOWTIE2_BIN="{bowtie2_bin}"
+if [ ! -x "${BOWTIE2_BIN}" ] && ! command -v "${BOWTIE2_BIN}" >/dev/null 2>&1; then
+    BOWTIE2_BIN="bowtie2"
+fi
+
+REFINEMENT_SCRIPT="{refinement_script_path}"
+
+PHASE="{phase}"
+PROJECT="{project}"
+SAMPLE="[SAMPLE]"
+
+# Directory paths
+if [ -z "${PROJECT}" ]; then
+    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${SAMPLE}"
+    REFINEMENT_DIR="{output_dir}/{refinement_out_dirname}/phase${PHASE}/${SAMPLE}"
+else
+    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
+    REFINEMENT_DIR="{output_dir}/{refinement_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
+fi
+
+mkdir -p "${REFINEMENT_DIR}"
+
+echo "VIRONATOR INPUT DIR: ${VIRONATOR_DIR}"
+echo "REFINEMENT OUT DIR: ${REFINEMENT_DIR}"
+echo "COMBINED REF: ${COMBINED_REF}"
+
+if [ ! -d "${VIRONATOR_DIR}" ]; then
+    echo "[WARNING] VIRONATOR INPUT DIR does not exist: ${VIRONATOR_DIR}"
+fi
+
+# Run consolidated Python refinement alignment & classification script
+PYTHONUNBUFFERED=1 "${PYTHON_BIN}" "${REFINEMENT_SCRIPT}" \
+    --sample-id "${SAMPLE}" \
+    --phase "${PHASE}" \
+    --project "${PROJECT}" \
+    --vironator-dir "${VIRONATOR_DIR}" \
+    --out-dir "${REFINEMENT_DIR}" \
+    --combined-ref "${COMBINED_REF}" \
+    --taxonomy-index "${TAXONOMY_INDEX}" \
+    --bowtie2-bin "${BOWTIE2_BIN}" \
+    --max-multimaps {bowtie2_max_multimaps} \
+    --strategy "{refinement_strategy}" 2>&1
+
+echo "Refinement Completed Successfully for ${SAMPLE}"
+echo "End: $(date)"
+
+# =========================================================================================================================

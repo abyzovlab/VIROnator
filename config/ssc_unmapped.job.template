@@ -80,30 +80,71 @@ REF_CRAM_DECODER="{ref_cram_decoder}"
 PHASE="{phase}"
 PROJECT="{project}"
 SAMPLE="[SAMPLE]"
+DATA_SUBDIR="{data_subdir}"
+INPUT_KEYWORD="{input_keyword}"
+INPUT_SUFFIX="{input_suffix}"
 
-if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ]; then
-    CRAM="{data_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${SAMPLE}.final.cram"
-    if [ ! -f "${CRAM}" ]; then
-        CRAM=$(find "{data_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}" -name "${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
-    fi
+# Strip leading/trailing dots if provided in variables
+INPUT_KEYWORD="${INPUT_KEYWORD#.}"
+INPUT_KEYWORD="${INPUT_KEYWORD%.}"
+INPUT_SUFFIX="${INPUT_SUFFIX#.}"
+if [ -z "${INPUT_SUFFIX}" ]; then
+    INPUT_SUFFIX="cram"
+fi
+
+# Dynamically construct target input filename pattern with mandatory dot after SAMPLE
+if [ -n "${INPUT_KEYWORD}" ]; then
+    TARGET_FILENAME="${SAMPLE}.${INPUT_KEYWORD}.${INPUT_SUFFIX}"
 else
-    # Try Phase 1/Phase 2 structure: .../CRAM/PROJECT/Sample_SAMPLE/analysis/SAMPLE.final.cram
-    CRAM="{data_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${SAMPLE}.final.cram"
-    
-    # Try Phase 3-2 structure: .../CRAM/PROJECT/SAMPLE.final.cram
-    if [ ! -f "${CRAM}" ]; then
-        CRAM="{data_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${PROJECT}/${SAMPLE}.final.cram"
-    fi
+    TARGET_FILENAME="${SAMPLE}.${INPUT_SUFFIX}"
+fi
 
-    # Fallback search across project directory
-    if [ ! -f "${CRAM}" ]; then
-        CRAM=$(find "{data_dir}/tertiary/SSC_hg38/WGS/phase${PHASE}/${PROJECT}" -name "${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
+# Determine base input directory from data_dir and data_subdir
+if [ -n "${DATA_SUBDIR}" ]; then
+    BASE_INPUT_DIR="{data_dir}/${DATA_SUBDIR}"
+else
+    BASE_INPUT_DIR="{data_dir}"
+fi
+
+if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ] || [ "${PROJECT}" = "none" ]; then
+    PROJECT_CLEAN=""
+else
+    PROJECT_CLEAN="${PROJECT}"
+fi
+
+if [ -z "${PHASE}" ] || [ "${PHASE}" = "none" ]; then
+    PHASE_CLEAN=""
+else
+    PHASE_CLEAN="${PHASE}"
+fi
+
+# Try structured lookup if PHASE is set
+if [ -n "${PHASE_CLEAN}" ]; then
+    if [ -z "${PROJECT_CLEAN}" ]; then
+        CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${TARGET_FILENAME}"
+    else
+        CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT_CLEAN}/Sample_${SAMPLE}/analysis/${TARGET_FILENAME}"
+        if [ ! -f "${CRAM}" ]; then
+            CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT_CLEAN}/${TARGET_FILENAME}"
+        fi
     fi
 fi
-if [ -z "${PROJECT}" ]; then
-    OUT_DIR="{output_dir}/{unmapped_out_dirname}/phase${PHASE}"
+
+# Direct lookup or recursive search inside BASE_INPUT_DIR
+if [ -z "${CRAM}" ] || [ ! -f "${CRAM}" ]; then
+    CRAM="${BASE_INPUT_DIR}/${TARGET_FILENAME}"
+    if [ ! -f "${CRAM}" ]; then
+        CRAM=$(find "${BASE_INPUT_DIR}" -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
+    fi
+fi
+
+# Determine output directory
+if [ -n "${PHASE_CLEAN}" ] && [ -n "${PROJECT_CLEAN}" ]; then
+    OUT_DIR="{output_dir}/{unmapped_out_dirname}/phase${PHASE_CLEAN}/${PROJECT_CLEAN}"
+elif [ -n "${PHASE_CLEAN}" ]; then
+    OUT_DIR="{output_dir}/{unmapped_out_dirname}/phase${PHASE_CLEAN}"
 else
-    OUT_DIR="{output_dir}/{unmapped_out_dirname}/phase${PHASE}/${PROJECT}"
+    OUT_DIR="{output_dir}/{unmapped_out_dirname}"
 fi
 OUT_CRAM="${OUT_DIR}/${SAMPLE}.unmapped.cram"
 

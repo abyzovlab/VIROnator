@@ -43,6 +43,9 @@ rule generate_job_file:
             .replace("{ref_cram_decoder}", os.path.join(config["ref_dir"], config.get("ref_cram_decoder", "GRCh38_full_analysis_set_plus_decoy_hla.fa")))
             .replace("{ref_genome}", str(config["ref_genome"]))
             .replace("{data_dir}", str(config["data_dir"]))
+            .replace("{data_subdir}", str(config.get("data_subdir", "tertiary/SSC_hg38/WGS")))
+            .replace("{input_keyword}", str(config.get("input_keyword", "final")))
+            .replace("{input_suffix}", str(config.get("input_suffix", "cram")))
             .replace("{output_dir}", str(config["output_dir"]))
             .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{unmapped_out_dirname}", str(config["unmapped_out_dirname"]))
@@ -65,7 +68,8 @@ rule generate_resources_config:
         vironator_config="config/batch_jobexec_vironator.config",
         reporting_config="config/batch_jobexec_reporting.config",
         coverage_config="config/batch_jobexec_coverage.config",
-        flag_comparison_config="config/batch_jobexec_flag_comparison.config"
+        flag_comparison_config="config/batch_jobexec_flag_comparison.config",
+        refinement_config="config/batch_jobexec_refinement.config"
     run:
         with open(input.template, "r") as f:
             template_content = f.read()
@@ -104,8 +108,15 @@ rule generate_resources_config:
         with open(output.flag_comparison_config, "w") as f:
             f.write(flag_comparison_content)
 
+        # 6. Refinement config
+        refinement_content = base_sub.replace("{jobexec_dirname}", str(config.get("refinement_jobexec_dirname", "jobexec_refinement")))
+        with open(output.refinement_config, "w") as f:
+            f.write(refinement_content)
+
         # Active default config based on active module switch
-        if config.get("flag_comparison_module", "off") == "on":
+        if config.get("refinement_module", "off") == "on":
+            active_content = refinement_content
+        elif config.get("flag_comparison_module", "off") == "on":
             active_content = flag_comparison_content
         elif config.get("coverage_module", "off") == "on":
             active_content = coverage_content
@@ -373,6 +384,140 @@ rule merge_flag_comparison_reports:
         cmd = f"python3 {input.script} --flag-dir \"{flag_dir}\" --out-file \"{output.master_report}\""
         subprocess.run(cmd, shell=True, check=True)
 
+rule make_taxonomy_index:
+    """
+    Stage 1: Builds 14-column viral taxonomy lookup index TSV from database FASTA.
+    """
+    input:
+        script="scripts/make_taxonomy_index.py",
+        config_file="config/ssc_config.yaml"
+    output:
+        tax_index=config.get("taxonomy_index_file", "config/db_metadata/viral_reference_taxonomy_index.tsv")
+    run:
+        import subprocess
+        db_fasta = os.path.join(config["ref_dir"], config.get("db_fasta_file", "HumanViral_Reference_02-07-2022.fa"))
+        taxdump_dir = config.get("ncbi_taxdump_dir", "/mnt/disks/staff/refs/ncbi_taxdump")
+        cmd = f"python3 {input.script} --db-fasta \"{db_fasta}\" --taxdump-dir \"{taxdump_dir}\" --output \"{output.tax_index}\""
+        subprocess.run(cmd, shell=True, check=True)
+
+rule download_ncbi_refseq:
+    """
+    Stage 2: Downloads complete RefSeq genomes from NCBI for detected viral species/genus groups.
+    """
+    input:
+        script="scripts/download_ncbi_refseq.py",
+        master_report=config.get("master_report_file", "master_all_cohorts_viral_report_final.tsv"),
+        tax_index=config.get("taxonomy_index_file", "config/db_metadata/viral_reference_taxonomy_index.tsv")
+    output:
+        token="config/ncbi_download.completed"
+    run:
+        import subprocess
+        dl_dir = config.get("ncbi_download_dir", "/mnt/disks/staff/refs/ncbi_download")
+        ref_out = os.path.join(config["output_dir"], config.get("refinement_out_dirname", "SSC_hg38_refinement"))
+        log_dir = os.path.join(ref_out, "logs")
+        rank = config.get("ncbi_download_rank", "species")
+        cmd = f"python3 {input.script} --master-report \"{input.master_report}\" --taxonomy-index \"{input.tax_index}\" --download-dir \"{dl_dir}\" --log-dir \"{log_dir}\" --download-rank \"{rank}\""
+        subprocess.run(cmd, shell=True, check=True)
+        with open(output.token, "w") as f:
+            f.write("NCBI RefSeq sequence download stage completed successfully.\n")
+
+rule build_refinement_ref:
+    """
+    Stage 3: Concatenates Human, Mouse, Plasmids, and downloaded viral FASTAs & builds Bowtie2 index.
+    """
+    input:
+        script="scripts/build_refinement_ref.py",
+        download_token="config/ncbi_download.completed"
+    output:
+        combined_ref=os.path.join(config["ref_dir"], config.get("refinement_combined_ref_file", "combined_human_mouse_plasmids_refinement_viral_2026-08-29.fa"))
+    run:
+        import subprocess
+        ref_human = os.path.join(config["ref_dir"], config["ref_human_full"])
+        ref_mouse = os.path.join(config["ref_dir"], config.get("ref_mouse", "mm39_ms_modified.fa"))
+        ref_plasmids = os.path.join(config["ref_dir"], config.get("ref_plasmids", "SnapGene_plasmids_modified.fa"))
+        dl_dir = config.get("ncbi_download_dir", "/mnt/disks/staff/refs/ncbi_download")
+        cmd = f"python3 {input.script} --ref-human \"{ref_human}\" --ref-mouse \"{ref_mouse}\" --ref-plasmids \"{ref_plasmids}\" --download-dir \"{dl_dir}\" --output-ref \"{output.combined_ref}\""
+        subprocess.run(cmd, shell=True, check=True)
+
+rule create_refinement_directory:
+    """
+    Initializes target refinement output directory on GCS using gsutil.
+    """
+    input:
+        placeholder=config["placeholder_file"],
+        config_file="config/ssc_config.yaml"
+    output:
+        token="config/refinement_dir.created"
+    shell:
+        """
+        TARGET_PATH="gs://{config[output_bucket]}/{config[refinement_out_dirname]}/phase{config[phase]}/{project_part}test.txt"
+        if ! gsutil -q stat "$TARGET_PATH"; then
+            gsutil cp {input.placeholder} "$TARGET_PATH"
+        fi
+        touch {output.token}
+        """
+
+rule generate_refinement_job_file:
+    """
+    Stage 4: Generates ssc_refinement.job from ssc_refinement.job.template.
+    """
+    input:
+        template="config/ssc_refinement.job.template",
+        config_file="config/ssc_config.yaml",
+        combined_ref=os.path.join(config["ref_dir"], config.get("refinement_combined_ref_file", "combined_human_mouse_plasmids_refinement_viral_2026-08-29.fa"))
+    output:
+        job="config/ssc_refinement.job"
+    run:
+        import shutil, subprocess
+        staff_scripts = os.path.join(config["output_dir"], "scripts")
+        try:
+            os.makedirs(staff_scripts, exist_ok=True)
+            if os.path.exists("scripts"):
+                shutil.copytree("scripts", staff_scripts, dirs_exist_ok=True)
+        except Exception:
+            bucket = config.get("output_bucket")
+            if bucket:
+                subprocess.run(f"gsutil -q cp -r scripts/* gs://{bucket}/scripts/ 2>/dev/null", shell=True)
+
+        with open(input.template, "r") as f:
+            content = f.read()
+        
+        formatted_content = (
+            content.replace("{phase}", str(config["phase"]))
+            .replace("{project}", str(config["project"]))
+            .replace("{output_bucket}", str(config["output_bucket"]))
+            .replace("{output_dir}", str(config["output_dir"]))
+            .replace("{refinement_combined_ref_path}", os.path.join(config["ref_dir"], config.get("refinement_combined_ref_file", "combined_human_mouse_plasmids_refinement_viral_2026-08-29.fa")))
+            .replace("{taxonomy_index_path}", os.path.join(config["ref_dir"], config.get("taxonomy_index_file", "config/db_metadata/viral_reference_taxonomy_index.tsv")))
+            .replace("{python_bin}", str(config.get("python_bin", "python3")))
+            .replace("{bowtie2_bin}", str(config.get("bowtie2_bin", "bowtie2")))
+            .replace("{refinement_script_path}", os.path.join(config["scripts_dir"], config.get("refinement_script", "run_refinement_alignment.py")))
+            .replace("{bowtie2_max_multimaps}", str(config.get("bowtie2_max_multimaps", 10)))
+            .replace("{refinement_strategy}", str(config.get("refinement_strategy", "clean")))
+            .replace("{vironator_out_dirname}", str(config["vironator_out_dirname"]))
+            .replace("{refinement_out_dirname}", str(config.get("refinement_out_dirname", "SSC_hg38_refinement")))
+            .replace("{vironator_jobexec_dirname}", str(config["vironator_jobexec_dirname"]))
+            .replace("{refinement_jobexec_dirname}", str(config.get("refinement_jobexec_dirname", "jobexec_refinement")))
+        )
+        
+        with open(output.job, "w") as f:
+            f.write(formatted_content)
+
+rule merge_refinement_reports:
+    """
+    Consolidates individual per-sample refined reports into master cohort report.
+    """
+    input:
+        script="scripts/merge_refinement_reports.py",
+        config_file="config/ssc_config.yaml"
+    output:
+        master_report="cohort_refinement_master.tsv"
+    run:
+        import subprocess
+        ref_dir = os.path.join(config["output_dir"], config.get("refinement_out_dirname", "SSC_hg38_refinement"))
+        cmd = f"python3 {input.script} --refinement-dir \"{ref_dir}\" --out-file \"{output.master_report}\""
+        subprocess.run(cmd, shell=True, check=True)
+
 rule generate_coverage_job_file:
     """
     Generates ssc_coverage.job from ssc_coverage.job.template.
@@ -392,6 +537,9 @@ rule generate_coverage_job_file:
             .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{output_dir}", str(config["output_dir"]))
             .replace("{data_dir}", str(config["data_dir"]))
+            .replace("{data_subdir}", str(config.get("data_subdir", "tertiary/SSC_hg38/WGS")))
+            .replace("{input_keyword}", str(config.get("input_keyword", "final")))
+            .replace("{input_suffix}", str(config.get("input_suffix", "cram")))
             .replace("{sample_metadata_path}", os.path.join(config["ref_dir"], config.get("sample_metadata_file", "SSC_sample_metadata.tsv")))
         )
         

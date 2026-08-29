@@ -55,7 +55,32 @@ SAMPLE="[SAMPLE]"
 SAMPLE_METADATA="{sample_metadata_path}"
 GCS_WGS_BASE="gs://ml-phi-abyzov-alexej-m124423-rsa-us-central1-p-d3c4/tertiary/SSC_hg38/WGS"
 DATA_DIR="{data_dir}"
+DATA_SUBDIR="{data_subdir}"
+INPUT_KEYWORD="{input_keyword}"
+INPUT_SUFFIX="{input_suffix}"
 GENOME_SIZE=3099734149
+
+# Strip leading/trailing dots if provided in variables
+INPUT_KEYWORD="${INPUT_KEYWORD#.}"
+INPUT_KEYWORD="${INPUT_KEYWORD%.}"
+INPUT_SUFFIX="${INPUT_SUFFIX#.}"
+if [ -z "${INPUT_SUFFIX}" ]; then
+    INPUT_SUFFIX="cram"
+fi
+
+# Dynamically construct target input filename pattern with mandatory dot after SAMPLE
+if [ -n "${INPUT_KEYWORD}" ]; then
+    TARGET_FILENAME="${SAMPLE}.${INPUT_KEYWORD}.${INPUT_SUFFIX}"
+else
+    TARGET_FILENAME="${SAMPLE}.${INPUT_SUFFIX}"
+fi
+
+# Determine base input directory from data_dir and data_subdir
+if [ -n "${DATA_SUBDIR}" ]; then
+    BASE_INPUT_DIR="${DATA_DIR}/${DATA_SUBDIR}"
+else
+    BASE_INPUT_DIR="${DATA_DIR}"
+fi
 
 # Directory paths
 if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ]; then
@@ -95,22 +120,22 @@ echo "[DIAGNOSTIC] SPECIMEN: ${SPECIMEN}"
 echo "[DIAGNOSTIC] Locating human CRAM file on mounted filesystem (${DATA_DIR})..."
 
 if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ]; then
-    CRAM="${DATA_DIR}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${SAMPLE}.final.cram"
+    CRAM="${BASE_INPUT_DIR}/phase${PHASE}/CRAM/${TARGET_FILENAME}"
     if [ ! -f "${CRAM}" ]; then
-        CRAM=$(find "${DATA_DIR}/tertiary/SSC_hg38/WGS/phase${PHASE}" -name "${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
+        CRAM=$(find "${BASE_INPUT_DIR}" -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
     fi
 else
-    # Try Phase 1/Phase 2 structure: .../CRAM/PROJECT/Sample_SAMPLE/analysis/SAMPLE.final.cram
-    CRAM="${DATA_DIR}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${SAMPLE}.final.cram"
+    # Try Phase 1/Phase 2 structure: .../CRAM/PROJECT/Sample_SAMPLE/analysis/TARGET_FILENAME
+    CRAM="${BASE_INPUT_DIR}/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${TARGET_FILENAME}"
     
-    # Try Phase 3-2 structure: .../CRAM/PROJECT/SAMPLE.final.cram
+    # Try Phase 3-2 structure: .../CRAM/PROJECT/TARGET_FILENAME
     if [ ! -f "${CRAM}" ]; then
-        CRAM="${DATA_DIR}/tertiary/SSC_hg38/WGS/phase${PHASE}/CRAM/${PROJECT}/${SAMPLE}.final.cram"
+        CRAM="${BASE_INPUT_DIR}/phase${PHASE}/CRAM/${PROJECT}/${TARGET_FILENAME}"
     fi
     
-    # Fallback search across project directory
+    # Strict fallback search with mandatory dot boundary
     if [ ! -f "${CRAM}" ]; then
-        CRAM=$(find "${DATA_DIR}/tertiary/SSC_hg38/WGS/phase${PHASE}/${PROJECT}" -name "${SAMPLE}.final.cram" 2>/dev/null | head -n 1)
+        CRAM=$(find "${BASE_INPUT_DIR}" -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
     fi
 fi
 

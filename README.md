@@ -239,3 +239,52 @@ Evaluates the clean strategy across 3 SAM flag filtering commands to isolate the
 5. `original_command_flags_reads` — Read pair count using original command WITH `-f 2`
 6. `original_command_flags_modified_reads` — Read pair count using original command WITHOUT `-f 2`
 7. `manual_flags_reads` — Read pair count using manual `gawk` bitwise flag verification
+
+### 6. NCBI RefSeq Refinement Module (`refinement_module`)
+Re-aligns candidate viral reads against complete RefSeq viral genomes for detected species groups using Bowtie2 multimapping (`-k 10`) and a Hierarchical Two-Tier Classification Cascade (`Reference_Unique` vs `Species_Supportive`):
+
+1. Configure Section 9 in `config/ssc_config.yaml`:
+   ```yaml
+   refinement_module: "on"
+   make_taxonomy_index_stage: "on"
+   ncbi_download_stage: "on"
+   build_combined_ref_stage: "on"
+   refinement_alignment_stage: "on"
+   ```
+2. Build 14-column taxonomy index TSV:
+   ```bash
+   snakemake config/db_metadata/viral_reference_taxonomy_index.tsv --cores 1
+   ```
+3. Download complete RefSeq genomes & build Bowtie2 combined index:
+   ```bash
+   snakemake config/ncbi_download.completed --cores 1
+   ```
+4. Compile jobexec refinement cluster files:
+   ```bash
+   snakemake config/ssc_refinement.job --cores 1
+   ```
+5. Submit parallel batch run across target refinement samples:
+   ```bash
+   batchRun -multibatch config/refinement_samples.tsv -config config/batch_jobexec_refinement.config -non-spot config/ssc_refinement.job -investigator MDJ -pau 0
+   ```
+
+> [!IMPORTANT]
+> **Post-Cluster Consolidation**: `batchRun` executes sample jobs in parallel across cluster nodes, writing per-sample TSVs under `/mnt/disks/staff/SSC_hg38_refinement/`. Once all parallel cluster jobs have finished, run Step 6 separately on the head node to aggregate all results into `cohort_refinement_master.tsv`:
+
+6. Consolidate cohort output into master report (run on head node after cluster jobs finish):
+   ```bash
+   snakemake cohort_refinement_master.tsv --cores 1
+   ```
+
+#### 11-Column Refinement Master TSV Schema (`cohort_refinement_master.tsv`):
+1. `Sample_ID` — Sample accession identifier
+2. `Phase` — Cohort phase tag (e.g. `phase1`)
+3. `Project` — Cohort project tag (or `base` if empty)
+4. `Virus_Accession` — Best-supported RefSeq Accession ID
+5. `Species_TaxID` — NCBI Species Taxonomy ID
+6. `Species_Name` — Taxonomic Species Scientific Name
+7. `Reference_Unique_Reads` — Read pairs uniquely supporting this specific reference
+8. `Species_Supportive_Reads` — Read pairs supporting this species group (group-collapsed)
+9. `Total_Refined_Reads` — Total read pairs (`Reference_Unique_Reads` + `Species_Supportive_Reads`)
+10. `Refined_Copy_Number` — Reference-discriminating copy-number lower bound
+11. `Classification_Status` — Call status (`CONFIRMED_UNIQUE` or `SPECIES_COLLAPSED`)
