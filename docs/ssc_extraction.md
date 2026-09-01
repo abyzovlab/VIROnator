@@ -175,6 +175,7 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
 * **`pau`**: Project Allocation Unit code for cluster job execution (e.g. `0`).
 * **`task_name`**: Task identifier tag prefix used in cluster execution log filenames.
 * **`dataset`**: Prefix/label for the dataset cohort (e.g. `"SSC"`).
+* **`genome_build`**: Human reference genome assembly build label (e.g. `"hg38"`).
 * **`phase`**: Dataset phase identifier (e.g. `"2"`, or `"none"` / `""` for flat datasets).
 * **`project`**: Sub-project identifier (e.g. `"base"`, or `"none"` / `""` for flat datasets).
 * **`samples_list`**: Name of the sample list text file (first line header must be `SAMPLE`).

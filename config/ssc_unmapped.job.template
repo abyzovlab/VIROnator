@@ -4,7 +4,7 @@
 #job_name=SSC_UNMAPPED
 #job_identifier=phase1_[ARRAY]
 
-job_name=SSC_UNMAPPED
+job_name={dataset}_UNMAPPED
 job_identifier=phase{phase}_[SAMPLE]
 
 

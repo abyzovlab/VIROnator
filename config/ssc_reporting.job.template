@@ -1,7 +1,7 @@
 # =========================================================================================================================
 # VIROnator Reporting Job Template
 
-job_name=SSC_REPORTING
+job_name={dataset}_REPORTING
 job_identifier=phase{phase}_[SAMPLE]
 
 

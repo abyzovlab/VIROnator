@@ -663,9 +663,11 @@ def main():
                 shutil.copy(os.path.join(plots_dir, f), os.path.join(actual_plots_dir, f))
             print("[SUCCESS] Successfully copied all output files to staff mount point.")
         except Exception:
-            bucket_name = "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"
-            subprocess.run(f"gsutil -q -m cp -r {stats_dir}/* gs://{bucket_name}/SSC_hg38_stats/ 2>/dev/null", shell=True)
-            subprocess.run(f"gsutil -q -m cp -r {plots_dir}/* gs://{bucket_name}/SSC_hg38_plots/ 2>/dev/null", shell=True)
+            bucket_name = os.environ.get("OUTPUT_BUCKET", "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4")
+            stats_name = os.path.basename(actual_stats_dir) if actual_stats_dir else "stats"
+            plots_name = os.path.basename(actual_plots_dir) if actual_plots_dir else "plots"
+            subprocess.run(f"gsutil -q -m cp -r {stats_dir}/* gs://{bucket_name}/{stats_name}/ 2>/dev/null", shell=True)
+            subprocess.run(f"gsutil -q -m cp -r {plots_dir}/* gs://{bucket_name}/{plots_name}/ 2>/dev/null", shell=True)
             print("[SUCCESS] Successfully synced all output files to GCS bucket via gsutil.")
 
 

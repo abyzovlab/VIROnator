@@ -15,7 +15,7 @@ import argparse
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Consolidate per-sample refined report TSVs into master cohort report.")
-    parser.add_argument("--refinement-dir", default="/mnt/disks/staff/SSC_hg38_refinement", help="Base directory containing per-sample refinement outputs")
+    parser.add_argument("--refinement-dir", default=os.environ.get("REFINEMENT_DIR", os.path.join(os.environ.get("OUTPUT_DIR", "/mnt/disks/staff"), "refinement")), help="Base directory containing per-sample refinement outputs")
     parser.add_argument("--out-file", default="cohort_refinement_master.tsv", help="Output path for master refinement report TSV")
     return parser.parse_args()
 

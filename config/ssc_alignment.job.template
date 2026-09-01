@@ -1,7 +1,7 @@
 # =========================================================================================================================
 # example job file
 
-job_name=SSC_ALIGN
+job_name={dataset}_ALIGN
 job_identifier=phase{phase}_[SAMPLE]
 
 

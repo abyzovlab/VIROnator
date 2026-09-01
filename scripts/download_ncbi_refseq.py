@@ -26,7 +26,7 @@ def parse_args():
     parser.add_argument("--master-report", required=True, help="Path to master_all_cohorts_viral_report_final.tsv")
     parser.add_argument("--taxonomy-index", required=True, help="Path to viral_reference_taxonomy_index.tsv")
     parser.add_argument("--download-dir", default="/mnt/disks/staff/refs/ncbi_download", help="Directory to store downloaded FASTAs")
-    parser.add_argument("--log-dir", default="/mnt/disks/staff/SSC_hg38_refinement/logs", help="Log output directory")
+    parser.add_argument("--log-dir", default=os.path.join(os.environ.get("OUTPUT_DIR", "/mnt/disks/staff"), "logs"), help="Log output directory")
     parser.add_argument("--download-rank", default="species", choices=["species", "genus"], help="Taxonomic rank for Entrez query")
     parser.add_argument("--rename-script", default="scripts/rename_fasta_contigs.sh", help="Path to rename_fasta_contigs.sh script")
     return parser.parse_args()

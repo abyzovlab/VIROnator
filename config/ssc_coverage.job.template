@@ -2,7 +2,7 @@
 # SSC Coverage Module Job Template
 # =========================================================================================================================
 
-job_name=SSC_COVERAGE
+job_name={dataset}_COVERAGE
 job_identifier=phase{phase}_[SAMPLE]
 
 
@@ -85,9 +85,9 @@ fi
 
 # Directory paths
 if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ]; then
-    COVERAGE_DIR="{output_dir}/SSC_hg38_coverage/phase${PHASE}"
+    COVERAGE_DIR="{output_dir}/{coverage_out_dirname}/phase${PHASE}"
 else
-    COVERAGE_DIR="{output_dir}/SSC_hg38_coverage/phase${PHASE}/${PROJECT}"
+    COVERAGE_DIR="{output_dir}/{coverage_out_dirname}/phase${PHASE}/${PROJECT}"
 fi
 OUT_FILE="${COVERAGE_DIR}/${SAMPLE}_coverage.tsv"
 

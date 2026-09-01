@@ -38,12 +38,13 @@ rule generate_job_file:
         
         # Safely replace placeholders without affecting bash variable references (e.g. ${PHASE})
         formatted_content = (
-            content.replace("{phase}", str(config["phase"]))
+            content.replace("{dataset}", str(config.get("dataset", "DATASET")))
+            .replace("{phase}", str(config["phase"]))
             .replace("{project}", str(config["project"]))
             .replace("{ref_cram_decoder}", os.path.join(config["ref_dir"], config.get("ref_cram_decoder", "GRCh38_full_analysis_set_plus_decoy_hla.fa")))
             .replace("{ref_genome}", str(config["ref_genome"]))
             .replace("{data_dir}", str(config["data_dir"]))
-            .replace("{data_subdir}", str(config.get("data_subdir", "tertiary/SSC_hg38/WGS")))
+            .replace("{data_subdir}", str(config.get("data_subdir", "")))
             .replace("{input_keyword}", str(config.get("input_keyword", "final")))
             .replace("{input_suffix}", str(config.get("input_suffix", "cram")))
             .replace("{output_dir}", str(config["output_dir"]))
@@ -182,7 +183,8 @@ rule generate_align_job_file:
         
         # Safely replace placeholders without affecting bash variable references (e.g. ${PHASE})
         formatted_content = (
-            content.replace("{phase}", str(config["phase"]))
+            content.replace("{dataset}", str(config.get("dataset", "DATASET")))
+            .replace("{phase}", str(config["phase"]))
             .replace("{project}", str(config["project"]))
             .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{output_dir}", str(config["output_dir"]))
@@ -287,7 +289,8 @@ rule generate_reporting_job_file:
             content = f.read()
         
         formatted_content = (
-            content.replace("{phase}", str(config["phase"]))
+            content.replace("{dataset}", str(config.get("dataset", "DATASET")))
+            .replace("{phase}", str(config["phase"]))
             .replace("{project}", str(config["project"]))
             .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{output_dir}", str(config["output_dir"]))
@@ -296,7 +299,7 @@ rule generate_reporting_job_file:
             .replace("{ref_vir_cont}", os.path.join(config["ref_dir"], config.get("ref_vir_cont", config.get("ref_viral", "HumanViral_Reference_02-07-2022_SnapGene_plasmids_modified_mm39_ms_modified.fa"))))
             .replace("{viral_rename_map_path}", os.path.join(config["ref_dir"], config.get("viral_rename_map_file", "HumanViral_Reference_02-07-2022_modified.rename_map.tsv")))
             .replace("{viral_bed_path}", os.path.join(config["ref_dir"], config["viral_bed_file"]))
-            .replace("{sample_metadata_path}", os.path.join(config["ref_dir"], config.get("sample_metadata_file", "SSC_sample_metadata.tsv")))
+            .replace("{sample_metadata_path}", os.path.join(config["ref_dir"], config["sample_metadata_file"]))
             .replace("{bwa_bin}", str(config["bwa_bin"]))
             .replace("{python_bin}", str(config.get("python_bin", "python3")))
             .replace("{report_script_path}", os.path.join(config["scripts_dir"], config.get("report_script", "generate_report.py")))
@@ -353,7 +356,8 @@ rule generate_flag_comparison_job_file:
             content = f.read()
         
         formatted_content = (
-            content.replace("{phase}", str(config["phase"]))
+            content.replace("{dataset}", str(config.get("dataset", "DATASET")))
+            .replace("{phase}", str(config["phase"]))
             .replace("{project}", str(config["project"]))
             .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{output_dir}", str(config["output_dir"]))
@@ -361,7 +365,7 @@ rule generate_flag_comparison_job_file:
             .replace("{python_bin}", str(config.get("python_bin", "python3")))
             .replace("{flag_script_path}", os.path.join(config["scripts_dir"], config.get("flag_comparison_script", "run_flag_comparison.py")))
             .replace("{vironator_out_dirname}", str(config["vironator_out_dirname"]))
-            .replace("{flag_comparison_out_dirname}", str(config.get("flag_comparison_out_dirname", "SSC_hg38_flag_comparison")))
+            .replace("{flag_comparison_out_dirname}", str(config["flag_comparison_out_dirname"]))
             .replace("{vironator_jobexec_dirname}", str(config["vironator_jobexec_dirname"]))
             .replace("{flag_comparison_jobexec_dirname}", str(config.get("flag_comparison_jobexec_dirname", "jobexec_flag_comparison")))
         )
@@ -380,7 +384,7 @@ rule merge_flag_comparison_reports:
         master_report="cohort_flag_comparison_master.tsv"
     run:
         import subprocess
-        flag_dir = os.path.join(config["output_dir"], config.get("flag_comparison_out_dirname", "SSC_hg38_flag_comparison"))
+        flag_dir = os.path.join(config["output_dir"], config["flag_comparison_out_dirname"])
         cmd = f"python3 {input.script} --flag-dir \"{flag_dir}\" --out-file \"{output.master_report}\""
         subprocess.run(cmd, shell=True, check=True)
 
@@ -413,7 +417,7 @@ rule download_ncbi_refseq:
     run:
         import subprocess
         dl_dir = config.get("ncbi_download_dir", "/mnt/disks/staff/refs/ncbi_download")
-        ref_out = os.path.join(config["output_dir"], config.get("refinement_out_dirname", "SSC_hg38_refinement"))
+        ref_out = os.path.join(config["output_dir"], config["refinement_out_dirname"])
         log_dir = os.path.join(ref_out, "logs")
         rank = config.get("ncbi_download_rank", "species")
         cmd = f"python3 {input.script} --master-report \"{input.master_report}\" --taxonomy-index \"{input.tax_index}\" --download-dir \"{dl_dir}\" --log-dir \"{log_dir}\" --download-rank \"{rank}\""
@@ -483,7 +487,8 @@ rule generate_refinement_job_file:
             content = f.read()
         
         formatted_content = (
-            content.replace("{phase}", str(config["phase"]))
+            content.replace("{dataset}", str(config.get("dataset", "DATASET")))
+            .replace("{phase}", str(config["phase"]))
             .replace("{project}", str(config["project"]))
             .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{output_dir}", str(config["output_dir"]))
@@ -495,7 +500,7 @@ rule generate_refinement_job_file:
             .replace("{bowtie2_max_multimaps}", str(config.get("bowtie2_max_multimaps", 10)))
             .replace("{refinement_strategy}", str(config.get("refinement_strategy", "clean")))
             .replace("{vironator_out_dirname}", str(config["vironator_out_dirname"]))
-            .replace("{refinement_out_dirname}", str(config.get("refinement_out_dirname", "SSC_hg38_refinement")))
+            .replace("{refinement_out_dirname}", str(config.get("refinement_out_dirname", "DATASET_refinement")))
             .replace("{vironator_jobexec_dirname}", str(config["vironator_jobexec_dirname"]))
             .replace("{refinement_jobexec_dirname}", str(config.get("refinement_jobexec_dirname", "jobexec_refinement")))
         )
@@ -514,7 +519,7 @@ rule merge_refinement_reports:
         master_report="cohort_refinement_master.tsv"
     run:
         import subprocess
-        ref_dir = os.path.join(config["output_dir"], config.get("refinement_out_dirname", "SSC_hg38_refinement"))
+        ref_dir = os.path.join(config["output_dir"], config.get("refinement_out_dirname", "DATASET_refinement"))
         cmd = f"python3 {input.script} --refinement-dir \"{ref_dir}\" --out-file \"{output.master_report}\""
         subprocess.run(cmd, shell=True, check=True)
 
@@ -532,16 +537,18 @@ rule generate_coverage_job_file:
             content = f.read()
         
         formatted_content = (
-            content.replace("{phase}", str(config["phase"]))
+            content.replace("{dataset}", str(config.get("dataset", "DATASET")))
+            .replace("{phase}", str(config["phase"]))
             .replace("{project}", str(config["project"]))
             .replace("{data_bucket}", str(config["data_bucket"]))
             .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{output_dir}", str(config["output_dir"]))
             .replace("{data_dir}", str(config["data_dir"]))
-            .replace("{data_subdir}", str(config.get("data_subdir", "tertiary/SSC_hg38/WGS")))
+            .replace("{data_subdir}", str(config.get("data_subdir", "")))
             .replace("{input_keyword}", str(config.get("input_keyword", "final")))
             .replace("{input_suffix}", str(config.get("input_suffix", "cram")))
-            .replace("{sample_metadata_path}", os.path.join(config["ref_dir"], config.get("sample_metadata_file", "SSC_sample_metadata.tsv")))
+            .replace("{coverage_out_dirname}", str(config.get("coverage_out_dirname", "DATASET_coverage")))
+            .replace("{sample_metadata_path}", os.path.join(config["ref_dir"], config["sample_metadata_file"]))
         )
         
         with open(output.job, "w") as f:
@@ -553,7 +560,7 @@ rule generate_stats:
     """
     input:
         script="scripts/generate_stats.py" if os.path.exists("scripts/generate_stats.py") else os.path.join(config["scripts_dir"], config.get("stats_script", "generate_stats.py")),
-        master_report=config.get("master_report_file", "cohort_master_viral_report_phase2_base.tsv"),
+        master_report=config.get("master_report_file", "master_all_cohorts_viral_report_final.tsv"),
         config_file="config/ssc_config.yaml"
     output:
         tsv="cohort_stats_summary.tsv",
@@ -597,11 +604,11 @@ rule generate_distributions:
         project=lambda wildcards: str(config.get("project", "")),
         plots_dir=lambda wildcards: os.path.join(
             config["output_dir"],
-            config.get("plots_out_dirname", "SSC_hg38_plots")
+            config.get("plots_out_dirname", "DATASET_plots")
         ),
         stats_dir=lambda wildcards: os.path.join(
             config["output_dir"],
-            config.get("stats_out_dirname", "SSC_hg38_stats")
+            config.get("stats_out_dirname", "DATASET_stats")
         ),
         strategies=lambda wildcards: " ".join(config.get("target_strategies", ["exogeneSR_viral_clean_filtered.sorted.flags.cram"])),
         cohort_scope=lambda wildcards: str(config.get("cohort_scope", "combined_all")),

@@ -33,6 +33,7 @@ reporting_jobexec_dirname: "jobexec_reporting"
 
 # Dataset-specific metadata (Project-level configuration)
 dataset: "SSC"
+genome_build: "hg38"
 phase: "2"
 project: ""
 
