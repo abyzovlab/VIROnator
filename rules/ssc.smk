@@ -10,7 +10,10 @@ for _k, _v in list(config.items()):
     if isinstance(_v, str) and ("{dataset}" in _v or "{build}" in _v or "{genome_build}" in _v):
         config[_k] = _v.format(dataset=_dataset_val, genome_build=_build_val, build=_build_val)
 
-project_part = f"{config['project']}/" if config["project"] else ""
+phase_val = str(config.get("phase", "")).strip()
+phase_part = f"phase{phase_val}/" if phase_val and phase_val.lower() not in ["none", "0", ""] else ""
+project_val = str(config.get("project", "")).strip()
+project_part = f"{project_val}/" if project_val and project_val.lower() not in ["none", "base", ""] else ""
 
 rule create_output_directory:
     """
@@ -23,7 +26,7 @@ rule create_output_directory:
         token="config/unmapped_dir.created"
     shell:
         """
-        TARGET_PATH="gs://{config[output_bucket]}/{config[unmapped_out_dirname]}/phase{config[phase]}/{project_part}test.txt"
+        TARGET_PATH="gs://{config[output_bucket]}/{config[unmapped_out_dirname]}/{phase_part}{project_part}test.txt"
         if ! gsutil -q stat "$TARGET_PATH"; then
             gsutil cp {input.placeholder} "$TARGET_PATH"
         fi
@@ -108,7 +111,7 @@ rule generate_resources_config:
             f.write(reporting_content)
 
         # 4. Coverage config
-        coverage_content = base_sub.replace("{jobexec_dirname}", "jobexec_coverage")
+        coverage_content = base_sub.replace("{jobexec_dirname}", str(config.get("coverage_jobexec_dirname", "jobexec_coverage")))
         with open(output.coverage_config, "w") as f:
             f.write(coverage_content)
 
@@ -150,7 +153,7 @@ rule create_vironator_directory:
         token="config/vironator_dir.created"
     shell:
         """
-        TARGET_PATH="gs://{config[output_bucket]}/{config[vironator_out_dirname]}/phase{config[phase]}/{project_part}test.txt"
+        TARGET_PATH="gs://{config[output_bucket]}/{config[vironator_out_dirname]}/{phase_part}{project_part}test.txt"
         if ! gsutil -q stat "$TARGET_PATH"; then
             gsutil cp {input.placeholder} "$TARGET_PATH"
         fi
@@ -258,7 +261,7 @@ rule create_coverage_directory:
         token="config/coverage_dir.created"
     shell:
         """
-        TARGET_PATH="gs://{config[output_bucket]}/{config[coverage_out_dirname]}/phase{config[phase]}/{project_part}test.txt"
+        TARGET_PATH="gs://{config[output_bucket]}/{config[coverage_out_dirname]}/{phase_part}{project_part}test.txt"
         if ! gsutil -q stat "$TARGET_PATH"; then
             gsutil cp {input.placeholder} "$TARGET_PATH"
         fi
@@ -332,7 +335,7 @@ rule create_flag_comparison_directory:
         token="config/flag_comparison_dir.created"
     shell:
         """
-        TARGET_PATH="gs://{config[output_bucket]}/{config[flag_comparison_out_dirname]}/phase{config[phase]}/{project_part}test.txt"
+        TARGET_PATH="gs://{config[output_bucket]}/{config[flag_comparison_out_dirname]}/{phase_part}{project_part}test.txt"
         if ! gsutil -q stat "$TARGET_PATH"; then
             gsutil cp {input.placeholder} "$TARGET_PATH"
         fi
@@ -462,7 +465,7 @@ rule create_refinement_directory:
         token="config/refinement_dir.created"
     shell:
         """
-        TARGET_PATH="gs://{config[output_bucket]}/{config[refinement_out_dirname]}/phase{config[phase]}/{project_part}test.txt"
+        TARGET_PATH="gs://{config[output_bucket]}/{config[refinement_out_dirname]}/{phase_part}{project_part}test.txt"
         if ! gsutil -q stat "$TARGET_PATH"; then
             gsutil cp {input.placeholder} "$TARGET_PATH"
         fi

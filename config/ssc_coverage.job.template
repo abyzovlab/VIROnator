@@ -84,10 +84,26 @@ else
 fi
 
 # Directory paths
-if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ]; then
-    COVERAGE_DIR="{output_dir}/{coverage_out_dirname}/phase${PHASE}"
+if [ -z "${PHASE}" ] || [ "${PHASE}" = "none" ] || [ "${PHASE}" = "0" ]; then
+    PHASE_SUBDIR=""
 else
-    COVERAGE_DIR="{output_dir}/{coverage_out_dirname}/phase${PHASE}/${PROJECT}"
+    PHASE_SUBDIR="phase${PHASE}"
+fi
+
+if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ] || [ "${PROJECT}" = "none" ]; then
+    PROJECT_SUBDIR=""
+else
+    PROJECT_SUBDIR="${PROJECT}"
+fi
+
+if [ -n "${PHASE_SUBDIR}" ] && [ -n "${PROJECT_SUBDIR}" ]; then
+    COVERAGE_DIR="{output_dir}/{coverage_out_dirname}/${PHASE_SUBDIR}/${PROJECT_SUBDIR}"
+elif [ -n "${PHASE_SUBDIR}" ]; then
+    COVERAGE_DIR="{output_dir}/{coverage_out_dirname}/${PHASE_SUBDIR}"
+elif [ -n "${PROJECT_SUBDIR}" ]; then
+    COVERAGE_DIR="{output_dir}/{coverage_out_dirname}/${PROJECT_SUBDIR}"
+else
+    COVERAGE_DIR="{output_dir}/{coverage_out_dirname}"
 fi
 OUT_FILE="${COVERAGE_DIR}/${SAMPLE}_coverage.tsv"
 

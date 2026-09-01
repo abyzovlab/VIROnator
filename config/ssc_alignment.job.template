@@ -128,12 +128,30 @@ PROJECT="{project}"
 SAMPLE="[SAMPLE]"
 
 # Directories
-if [ -z "${PROJECT}" ]; then
-    INPUT_CRAM="{output_dir}/{unmapped_out_dirname}/phase${PHASE}/${SAMPLE}.unmapped.cram"
-    OUT_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${SAMPLE}"
+if [ -z "${PHASE}" ] || [ "${PHASE}" = "none" ] || [ "${PHASE}" = "0" ]; then
+    PHASE_SUBDIR=""
 else
-    INPUT_CRAM="{output_dir}/{unmapped_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}.unmapped.cram"
-    OUT_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
+    PHASE_SUBDIR="phase${PHASE}"
+fi
+
+if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ] || [ "${PROJECT}" = "none" ]; then
+    PROJECT_SUBDIR=""
+else
+    PROJECT_SUBDIR="${PROJECT}"
+fi
+
+if [ -n "${PHASE_SUBDIR}" ] && [ -n "${PROJECT_SUBDIR}" ]; then
+    INPUT_CRAM="{output_dir}/{unmapped_out_dirname}/${PHASE_SUBDIR}/${PROJECT_SUBDIR}/${SAMPLE}.unmapped.cram"
+    OUT_DIR="{output_dir}/{vironator_out_dirname}/${PHASE_SUBDIR}/${PROJECT_SUBDIR}/${SAMPLE}"
+elif [ -n "${PHASE_SUBDIR}" ]; then
+    INPUT_CRAM="{output_dir}/{unmapped_out_dirname}/${PHASE_SUBDIR}/${SAMPLE}.unmapped.cram"
+    OUT_DIR="{output_dir}/{vironator_out_dirname}/${PHASE_SUBDIR}/${SAMPLE}"
+elif [ -n "${PROJECT_SUBDIR}" ]; then
+    INPUT_CRAM="{output_dir}/{unmapped_out_dirname}/${PROJECT_SUBDIR}/${SAMPLE}.unmapped.cram"
+    OUT_DIR="{output_dir}/{vironator_out_dirname}/${PROJECT_SUBDIR}/${SAMPLE}"
+else
+    INPUT_CRAM="{output_dir}/{unmapped_out_dirname}/${SAMPLE}.unmapped.cram"
+    OUT_DIR="{output_dir}/{vironator_out_dirname}/${SAMPLE}"
 fi
 
 # Configure REF_PATH so samtools can resolve CRAM references in ref_dir

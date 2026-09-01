@@ -69,12 +69,30 @@ PROJECT="{project}"
 SAMPLE="[SAMPLE]"
 
 # Directory paths
-if [ -z "${PROJECT}" ]; then
-    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${SAMPLE}"
-    REFINEMENT_DIR="{output_dir}/{refinement_out_dirname}/phase${PHASE}/${SAMPLE}"
+if [ -z "${PHASE}" ] || [ "${PHASE}" = "none" ] || [ "${PHASE}" = "0" ]; then
+    PHASE_SUBDIR=""
 else
-    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
-    REFINEMENT_DIR="{output_dir}/{refinement_out_dirname}/phase${PHASE}/${PROJECT}/${SAMPLE}"
+    PHASE_SUBDIR="phase${PHASE}"
+fi
+
+if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ] || [ "${PROJECT}" = "none" ]; then
+    PROJECT_SUBDIR=""
+else
+    PROJECT_SUBDIR="${PROJECT}"
+fi
+
+if [ -n "${PHASE_SUBDIR}" ] && [ -n "${PROJECT_SUBDIR}" ]; then
+    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/${PHASE_SUBDIR}/${PROJECT_SUBDIR}/${SAMPLE}"
+    REFINEMENT_DIR="{output_dir}/{refinement_out_dirname}/${PHASE_SUBDIR}/${PROJECT_SUBDIR}/${SAMPLE}"
+elif [ -n "${PHASE_SUBDIR}" ]; then
+    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/${PHASE_SUBDIR}/${SAMPLE}"
+    REFINEMENT_DIR="{output_dir}/{refinement_out_dirname}/${PHASE_SUBDIR}/${SAMPLE}"
+elif [ -n "${PROJECT_SUBDIR}" ]; then
+    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/${PROJECT_SUBDIR}/${SAMPLE}"
+    REFINEMENT_DIR="{output_dir}/{refinement_out_dirname}/${PROJECT_SUBDIR}/${SAMPLE}"
+else
+    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/${SAMPLE}"
+    REFINEMENT_DIR="{output_dir}/{refinement_out_dirname}/${SAMPLE}"
 fi
 
 mkdir -p "${REFINEMENT_DIR}"
