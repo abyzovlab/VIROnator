@@ -2,7 +2,7 @@
 # example job file
 
 job_name={dataset}_ALIGN
-job_identifier=phase{phase}_[SAMPLE]
+job_identifier={dataset}_[SAMPLE]
 
 
 ####

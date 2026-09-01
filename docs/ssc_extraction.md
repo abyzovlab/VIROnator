@@ -195,23 +195,23 @@ snakemake --cores 1
 
 #### Module 1: Coverage Calculation Module (`ssc_coverage.job`)
 ```bash
-batchRun -multibatch samples_list.txt -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator MDJ -pau 0
+batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
 Combine all cloud-calculated sample coverage outputs into a master file named as `${DATASET}_master_coverage.tsv` and place it directly into your reference metadata directory at `/mnt/disks/staff/refs/`. Specify this filename as `sample_metadata_file` in `config/ssc_config.yaml`. This file is required by **Module 4 (Consolidated Reporting Module)** to calculate sample mean read depth and normalized viral copy numbers, as well as downstream analysis in **Module 5 (Cohort Stats)** and **Module 6 (Distributions & Plots)**.
 
 #### Module 2: Unmapped Extraction Module (`ssc_unmapped.job`)
 ```bash
-batchRun -multibatch samples_list.txt -config config/batch_jobexec_unmapped.config -non-spot config/ssc_unmapped.job -investigator MDJ -pau 0
+batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_unmapped.config -non-spot config/ssc_unmapped.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
 
 #### Module 3: Viral DB Alignment Module (`ssc_alignment.job`)
 ```bash
-batchRun -multibatch samples_list.txt -config config/batch_jobexec_vironator.config -non-spot config/ssc_alignment.job -investigator MDJ -pau 0
+batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_vironator.config -non-spot config/ssc_alignment.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
 
 #### Module 4: Consolidated Reporting Module (`ssc_reporting.job`)
 ```bash
-batchRun -multibatch samples_list.txt -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator MDJ -pau 0
+batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
 - **Generated Per-Sample File**: `<sample_id>_viral_report.tsv`
 - **Combined Master Output File**: Once all parallel cloud batch jobs finish, combine all individual sample reports into one master file named with the phase and project: `master_all_cohorts_viral_report_final.tsv` (used as input for Module 5 Stats).
@@ -237,7 +237,7 @@ snakemake generate_distributions --cores 1
 
 #### Module 7: SAM Flag Comparison Module (`ssc_flag_comparison.job`)
 ```bash
-batchRun -multibatch samples_all_cohorts -config config/batch_jobexec_flag_comparison.config -non-spot config/ssc_flag_comparison.job -investigator MDJ -pau 0
+batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_flag_comparison.config -non-spot config/ssc_flag_comparison.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
 
 #### Module 8: NCBI RefSeq Refinement Module (`ssc_refinement.job`)
@@ -252,7 +252,8 @@ snakemake config/ncbi_download.completed --cores 1
 snakemake config/ssc_refinement.job --cores 1
 
 # 4. Submit parallel batch run across target refinement samples:
-batchRun -multibatch config/refinement_samples.tsv -config config/batch_jobexec_refinement.config -non-spot config/ssc_refinement.job -investigator MDJ -pau 0
+batchRun -multibatch config/refinement_samples.tsv -config config/batch_jobexec_refinement.config -non-spot config/ssc_refinement.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
+```
 
 # 5. Merge all cohort outputs into master report (run on head node after cluster jobs finish):
 snakemake cohort_refinement_master.tsv --cores 1
@@ -308,7 +309,7 @@ The Refinement Module re-aligns candidate viral reads (from the `clean` strategy
   - **Tier 2 (Species-Supportive Cascade Check)**: Evaluates remaining reads to test if target accessions share the same `species_taxid` $\rightarrow$ `SPECIES_SUPPORTIVE`.
 * **Batch Execution Command**:
   ```bash
-  batchRun -multibatch config/refinement_samples.tsv -config config/batch_jobexec_refinement.config -non-spot config/ssc_refinement.job -investigator MDJ -pau 0
+  batchRun -multibatch config/refinement_samples.tsv -config config/batch_jobexec_refinement.config -non-spot config/ssc_refinement.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
   ```
 
 > [!IMPORTANT]

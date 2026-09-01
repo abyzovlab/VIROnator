@@ -5,7 +5,7 @@
 #job_identifier=phase1_[ARRAY]
 
 job_name={dataset}_UNMAPPED
-job_identifier=phase{phase}_[SAMPLE]
+job_identifier={dataset}_[SAMPLE]
 
 
 ####

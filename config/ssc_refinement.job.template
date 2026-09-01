@@ -3,7 +3,7 @@
 # Executes Bowtie2 multimapping alignment, hierarchical classification and per-sample refined reporting
 
 job_name={dataset}_REFINEMENT
-job_identifier=phase{phase}_[SAMPLE]
+job_identifier={dataset}_[SAMPLE]
 
 
 ####

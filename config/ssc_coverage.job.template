@@ -3,7 +3,7 @@
 # =========================================================================================================================
 
 job_name={dataset}_COVERAGE
-job_identifier=phase{phase}_[SAMPLE]
+job_identifier={dataset}_[SAMPLE]
 
 
 ####

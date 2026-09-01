@@ -3,7 +3,7 @@
 # Evaluates SAM flag filtering methods for the clean strategy across cohort samples
 
 job_name={dataset}_FLAG_COMPARISON
-job_identifier=phase{phase}_[SAMPLE]
+job_identifier={dataset}_[SAMPLE]
 
 
 ####

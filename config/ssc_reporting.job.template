@@ -2,7 +2,7 @@
 # VIROnator Reporting Job Template
 
 job_name={dataset}_REPORTING
-job_identifier=phase{phase}_[SAMPLE]
+job_identifier={dataset}_[SAMPLE]
 
 
 ####
