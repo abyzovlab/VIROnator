@@ -207,13 +207,13 @@ To generate publication-quality 300 DPI **TIFF distribution figures** (`plots/`)
 12. `Phase`
 14. `Source_File` (CRAM source file name)
 
-### 8. Systematic SAM Flag Comparison Module (`flag_comparison_module`)
+### 7. Systematic SAM Flag Comparison Module (`flag_comparison_module`)
 Evaluates the clean strategy across 3 SAM flag filtering commands to isolate the impact of aligner `-f 2` flags vs manual bitwise flags:
 
 > [!NOTE]
 > This module is not estimating viral abundance. It is estimating high-confidence, reference-discriminating read-pair support. That is useful, however it will undercount viruses when related references share homologous sequence. This is for the reference-unique evidence. We report high-specificity reference-discriminating read support.
 
-1. Enable Module 8 in `config/ssc_config.yaml`:
+1. Enable Module 7 in `config/ssc_config.yaml`:
    ```yaml
    flag_comparison_module: "on"
    cohort_scope: "combined_all"
@@ -240,10 +240,10 @@ Evaluates the clean strategy across 3 SAM flag filtering commands to isolate the
 6. `original_command_flags_modified_reads` — Read pair count using original command WITHOUT `-f 2`
 7. `manual_flags_reads` — Read pair count using manual `gawk` bitwise flag verification
 
-### 9. NCBI RefSeq Refinement Module (`refinement_module`)
+### 8. NCBI RefSeq Refinement Module (`refinement_module`)
 Re-aligns candidate viral reads against complete RefSeq viral genomes for detected species groups using Bowtie2 multimapping (`-k 10`) and a Hierarchical Two-Tier Classification Cascade (`Reference_Unique` vs `Species_Supportive`):
 
-1. Configure Section 9 in `config/ssc_config.yaml`:
+1. Configure Module 8 in `config/ssc_config.yaml`:
    ```yaml
    refinement_module: "on"
    make_taxonomy_index_stage: "on"

@@ -1,5 +1,5 @@
 # ==============================================================================
-# 1. COMMON / JOINT VARIABLES (Global parameters used across modules)
+# COMMON / JOINT VARIABLES (Global parameters used across modules)
 # ==============================================================================
 data_dir: "/mnt/disks/lab"
 data_subdir: "tertiary/SSC_hg38/WGS"  # Middle subdirectory path inside data_dir (set to "" for flat datasets)
@@ -52,7 +52,7 @@ scripts_dir: "/mnt/disks/staff/scripts"
 
 
 # ==============================================================================
-# 2. COVERAGE CALCULATION MODULE (WGS Human Genome Read Depth)
+# MODULE 1: COVERAGE CALCULATION MODULE (WGS Human Genome Read Depth)
 # ==============================================================================
 coverage_module: "off"  # Switch: "on" or "off" to run coverage calculation job
 coverage_out_dirname: "SSC_hg38_coverage"
@@ -60,7 +60,7 @@ coverage_jobexec_dirname: "jobexec_coverage"
 
 
 # ==============================================================================
-# 3. UNMAPPED EXTRACTION MODULE (Phase 1 CRAM Candidate Extraction)
+# MODULE 2: UNMAPPED EXTRACTION MODULE (Phase 1 CRAM Candidate Extraction)
 # ==============================================================================
 unmapped_extraction: "off"  # Switch: "on" or "off" to run/skip Phase 1 extraction
 
@@ -70,7 +70,7 @@ ref_genome: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla_modif
 
 
 # ==============================================================================
-# 4. VIRAL DB ALIGNMENT MODULE (VIROnator)
+# MODULE 3: VIRAL DB ALIGNMENT MODULE (VIROnator)
 # ==============================================================================
 viral_db_alignment: "off"  # Switch: "on" or "off"
 contamination_quantification: "off"  # Switch: "on" to blacklist plasmid/mouse reads from viral BAM & output 3-column .count TSVs
@@ -109,7 +109,7 @@ dual_mode: "off"  # "on" to output BOTH clean (subtracted) and raw (unsubtracted
 
 
 # ==============================================================================
-# 5. REPORTING MODULE (Viral Quantification & Consolidated Multi-Source Report)
+# MODULE 4: REPORTING MODULE (Viral Quantification & Consolidated Multi-Source Report)
 # ==============================================================================
 reporting_module: "off"  # Switch: "on" or "off"
 
@@ -121,7 +121,7 @@ report_script: "generate_report.py"
 
 
 # ==============================================================================
-# 6. STATS MODULE (Cohort Statistical Summary Snapshot)
+# MODULE 5: STATS MODULE (Cohort Statistical Summary Snapshot)
 # ==============================================================================
 stats_module: "off"  # Switch: "on" or "off" to run cohort stats summary
 master_report_file: "master_all_cohorts_viral_report_final.tsv"  # Input master report file
@@ -129,7 +129,7 @@ stats_script: "generate_stats.py"
 
 
 # ==============================================================================
-# 7. DISTRIBUTIONS MODULE (Per-Virus Read Distribution TIFF Plots & Virus Stats)
+# MODULE 6: DISTRIBUTIONS MODULE (Per-Virus Read Distribution TIFF Plots & Virus Stats)
 # ==============================================================================
 distributions_module: "off"  # Switch: "on" or "off" to generate TIFF plots & virus stats
 master_report_file: "master_all_cohorts_viral_report_final.tsv"  # Input TSV report file used for distributions & stats
@@ -180,7 +180,7 @@ strategy_colors:
   overall: "#008fbf"
 
 # ==============================================================================
-# 8. FLAG COMPARISON MODULE (SAM Flag Comparison for Clean Strategy)
+# MODULE 7: FLAG COMPARISON MODULE (SAM Flag Comparison for Clean Strategy)
 # ==============================================================================
 flag_comparison_module: "off"  # Switch: "on" or "off" to enable SAM flag comparison module
 flag_comparison_out_dirname: "SSC_hg38_flag_comparison"
@@ -188,7 +188,7 @@ flag_comparison_jobexec_dirname: "jobexec_flag_comparison"
 flag_comparison_script: "run_flag_comparison.py"
 
 # ==============================================================================
-# 9. REFINEMENT MODULE (NCBI RefSeq Strain Resolution & Species Collapse)
+# MODULE 8: REFINEMENT MODULE (NCBI RefSeq Strain Resolution & Species Collapse)
 # ==============================================================================
 refinement_module: "off"                 # Master switch: "on" or "off"
 

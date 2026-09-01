@@ -184,38 +184,38 @@ Before submitting a job, run Snakemake on the head node to generate the compiled
 snakemake --cores 1
 ```
 
-#### Module 2: Coverage Calculation Module (`ssc_coverage.job`)
+#### Module 1: Coverage Calculation Module (`ssc_coverage.job`)
 ```bash
 batchRun -multibatch samples_list.txt -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator MDJ -pau 0
 ```
 
-#### Module 3: Unmapped Extraction Module (`ssc_unmapped.job`)
+#### Module 2: Unmapped Extraction Module (`ssc_unmapped.job`)
 ```bash
 batchRun -multibatch samples_list.txt -config config/batch_jobexec_unmapped.config -non-spot config/ssc_unmapped.job -investigator MDJ -pau 0
 ```
 
-#### Module 4: Viral DB Alignment Module (`ssc_alignment.job`)
+#### Module 3: Viral DB Alignment Module (`ssc_alignment.job`)
 ```bash
 batchRun -multibatch samples_list.txt -config config/batch_jobexec_vironator.config -non-spot config/ssc_alignment.job -investigator MDJ -pau 0
 ```
 
-#### Module 5: Reporting Module (`ssc_reporting.job`)
+#### Module 4: Consolidated Reporting Module (`ssc_reporting.job`)
 ```bash
 batchRun -multibatch samples_list.txt -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator MDJ -pau 0
 ```
 
-#### Module 6 & 7: Stats & Distributions Modules (Local Execution)
+#### Module 5 & 6: Cohort Stats & Distributions Modules (Local Execution)
 ```bash
 snakemake cohort_stats_summary.tsv --cores 1
 snakemake generate_distributions --cores 1
 ```
 
-#### Module 8: SAM Flag Comparison Module (`ssc_flag_comparison.job`)
+#### Module 7: SAM Flag Comparison Module (`ssc_flag_comparison.job`)
 ```bash
 batchRun -multibatch samples_all_cohorts -config config/batch_jobexec_flag_comparison.config -non-spot config/ssc_flag_comparison.job -investigator MDJ -pau 0
 ```
 
-#### Module 9: NCBI RefSeq Refinement Module (`ssc_refinement.job`)
+#### Module 8: NCBI RefSeq Refinement Module (`ssc_refinement.job`)
 ```bash
 # 1. Build taxonomy index TSV:
 snakemake config/db_metadata/viral_reference_taxonomy_index.tsv --cores 1
