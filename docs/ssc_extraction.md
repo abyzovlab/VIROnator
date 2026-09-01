@@ -198,13 +198,25 @@ batchRun -multibatch samples_list.txt -config config/batch_jobexec_vironator.con
 ```bash
 batchRun -multibatch samples_list.txt -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator MDJ -pau 0
 ```
-Once all parallel cloud batch jobs finish, combine all individual sample reports into one master file named with the phase and project and name it `master_all_cohorts_viral_report_final.tsv`. Note that this master report file is used in Module 5 (stats).
+- **Generated Per-Sample File**: `<sample_id>_viral_report.tsv`
+- **Combined Master Output File**: Once all parallel cloud batch jobs finish, combine all individual sample reports into one master file named with the phase and project: `master_all_cohorts_viral_report_final.tsv` (used as input for Module 5 Stats).
 
-#### Module 5 & 6: Cohort Stats & Distributions Modules (Local Execution)
+#### Module 5: Cohort Stats Summary Module (`stats_module`)
 ```bash
 snakemake cohort_stats_summary.tsv --cores 1
+```
+- **Generated Summary Files**:
+  - `cohort_stats_summary.tsv` (Tab-delimited cohort statistics snapshot)
+  - `cohort_stats_summary.md` (Markdown-formatted summary report)
+
+#### Module 6: Distributions & Plots Module (`distributions_module`)
+```bash
 snakemake generate_distributions --cores 1
 ```
+- **Generated Summary Files & Figures**:
+  - `virus_stats_summary_<PHASE>_<PROJECT>.tsv` (13-column per-virus summary table)
+  - `virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv` (11-column cohort overview table)
+  - `SSC_hg38_plots/<VIRUS_NAME>.tif` (2-panel 300 DPI publication TIFF figures)
 
 #### Module 7: SAM Flag Comparison Module (`ssc_flag_comparison.job`)
 ```bash
