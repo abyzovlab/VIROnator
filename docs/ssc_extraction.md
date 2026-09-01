@@ -208,15 +208,17 @@ snakemake cohort_stats_summary.tsv --cores 1
 - **Generated Summary Files**:
   - `cohort_stats_summary.tsv` (Tab-delimited cohort statistics snapshot)
   - `cohort_stats_summary.md` (Markdown-formatted summary report)
+  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>.tsv` (Detailed per-virus summary table containing prevalence, sample counts, read counts, mean mapped reads, and preliminary classifications: `sporadic_noise`, `systematic_noise`, `virome`, `infection`).
+  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv` (High-level executive dataset summary table reporting total positive samples, cohort size, overall positivity rate, total mapped reads, unique viruses detected, top prevalent virus, mean reads per positive sample, and overall classification).
 
 #### Module 6: Distributions & Plots Module (`distributions_module`)
 ```bash
 snakemake generate_distributions --cores 1
 ```
 - **Generated Summary Files & Figures**:
-  - `virus_stats_summary_<PHASE>_<PROJECT>.tsv` (13-column per-virus summary table)
-  - `virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv` (11-column cohort overview table)
-  - `SSC_hg38_plots/<VIRUS_NAME>.tif` (2-panel 300 DPI publication TIFF figures)
+  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>.tsv` (13-column per-virus summary table)
+  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv` (11-column cohort overview table)
+  - `<plots_out_dirname>/<VIRUS_NAME>.tif` (2-panel 300 DPI publication TIFF figures)
 
 #### Module 7: SAM Flag Comparison Module (`ssc_flag_comparison.job`)
 ```bash
@@ -345,19 +347,3 @@ Once all batch jobs complete, merge all per-sample TSV files across all phases a
 ```bash
 snakemake cohort_flag_comparison_master.tsv --cores 1
 ```
-
-#### 14-Column Master Report Schema:
-1. `Sample_ID`
-2. `Virus_Accession` (`None` if zero reads detected)
-3. `Virus_Length` (`0` if zero reads detected)
-4. `Virus_Mapped_Reads` (`0` if zero reads detected)
-5. `Normalized_Coverage` (Rounded to 6 decimals: `0.000000`)
-6. `Physical_Coverage` (Percentage formatted without `%` sign: `00.00`)
-7. `Human_Genome_Size`
-8. `Sample_Read_Depth`
-9. `Viral_Copy_Number` (Reference-discriminating copy-number lower bound, rounded to 6 decimals: `0.000000`)
-10. `Virus_Name_Sanitized` (`None` if zero reads detected)
-11. `Specimen`
-12. `Phase`
-13. `Project` (or `base` if project is empty)
-14. `Source_File` (CRAM source file name)

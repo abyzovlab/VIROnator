@@ -120,15 +120,17 @@ snakemake cohort_stats_summary.tsv --cores 1
 - **Generated Summary Files**:
   - `cohort_stats_summary.tsv` (Tab-delimited cohort statistics snapshot)
   - `cohort_stats_summary.md` (Markdown-formatted summary report)
+  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>.tsv` (Detailed per-virus summary table containing prevalence, sample counts, read counts, mean mapped reads, and preliminary classifications: `sporadic_noise`, `systematic_noise`, `virome`, `infection`).
+  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv` (High-level executive dataset summary table reporting total positive samples, cohort size, overall positivity rate, total mapped reads, unique viruses detected, top prevalent virus, mean reads per positive sample, and overall classification).
 
 #### Module 6: Distributions & Plots Module (`distributions_module`)
 ```bash
 snakemake generate_distributions --cores 1
 ```
 - **Generated Summary Files & Figures**:
-  - `virus_stats_summary_<PHASE>_<PROJECT>.tsv` (13-column per-virus summary table)
-  - `virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv` (11-column cohort overview table)
-  - `SSC_hg38_plots/<VIRUS_NAME>.tif` (2-panel 300 DPI publication TIFF figures)
+  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>.tsv` (13-column per-virus summary table)
+  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv` (11-column cohort overview table)
+  - `<plots_out_dirname>/<VIRUS_NAME>.tif` (2-panel 300 DPI publication TIFF figures)
 
 #### Module 7: SAM Flag Comparison Module (`ssc_flag_comparison.job`)
 ```bash
@@ -152,115 +154,6 @@ batchRun -multibatch config/refinement_samples.tsv -config config/batch_jobexec_
 # 5. Merge all cohort outputs into master report (run on head node after cluster jobs finish):
 snakemake cohort_refinement_master.tsv --cores 1
 ```
-
----
-
-## Merging Cloud Outputs into Master Reports
-
-### 1. Merging All Sample Viral Reports
-Once all parallel cloud batch jobs finish, combine all individual sample reports into one master file named with the phase and project:
-
-```bash
-PHASE="phase2"
-PROJECT="base"  # Or sub-project name e.g. Project_CCDG_...
-
-(
-  echo -e "Sample_ID\tVirus_Accession\tVirus_Length\tVirus_Mapped_Reads\tNormalized_Coverage\tPhysical_Coverage\tHuman_Genome_Size\tSample_Read_Depth\tViral_Copy_Number\tVirus_Name_Sanitized\tSpecimen\tPhase\tProject\tSource_File";
-  gsutil -m cat "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/SSC_hg38_reports/${PHASE}/${PROJECT}/**/*.tsv" | awk 'FNR==1 && NR!=1{next} {print}'
-) > "/mnt/disks/staff/SSC_hg38_reports/${PHASE}/cohort_master_viral_report_${PHASE}_${PROJECT}.tsv"
-```
-
-### 2. Merging All Cloud Sample Coverages into Master Coverage File
-To combine all cloud-calculated sample coverage outputs into a master file named with the phase and project:
-
-```bash
-PHASE="phase2"
-PROJECT="base"  # Or sub-project name e.g. Project_CCDG_...
-
-(
-  echo -e "sample\tcoverage\tspecimen\tphase\tproject\tcram_url";
-  gsutil -m cat "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/SSC_hg38_coverage/${PHASE}/${PROJECT}/**/*.tsv" | awk 'FNR==1 && NR!=1{next} {print}'
-) > "/mnt/disks/staff/SSC_hg38_coverage/${PHASE}/cohort_master_coverage_${PHASE}_${PROJECT}.tsv"
-```
-
-### 3. Generating Cohort Statistical Summaries (`stats_module`)
-To generate a 9-column cohort summary snapshot (`cohort_stats_summary.tsv` & `cohort_stats_summary.md`) directly in your `VIROnator` root directory:
-
-1. Set `stats_module: "on"` and specify `master_report_file` in `config/ssc_config.yaml`:
-   ```yaml
-   stats_module: "on"
-   master_report_file: "master_all_cohorts_viral_report_final.tsv"
-   ```
-2. Execute Snakemake:
-   ```bash
-   snakemake --cores 1
-   ```
-
-### 4. Generating Distribution TIFF Plots & Virus Statistics (`distributions_module`)
-To generate publication-quality 300 DPI **TIFF distribution figures** (`plots/`) and the consolidated **`virus_stats_summary.tsv`** (`stats/`):
-
-1. Configure Section 7 in `config/ssc_config.yaml`:
-   ```yaml
-   distributions_module: "on"
-   master_report_file: "master_all_cohorts_viral_report_final.tsv"
-   distributions_script: "generate_distributions.py"
-   target_strategies:
-     - "exogeneSR_viral_clean_filtered.sorted.flags.cram"
-     - "exogeneSR_viral_raw_filtered.sorted.flags.cram"
-   ```
-2. Execute Snakemake:
-   ```bash
-   snakemake --cores 1
-   ```
-3. Outputs:
-   - **`stats/virus_stats_summary_<PHASE>_<PROJECT>.tsv`**: Detailed per-virus summary table containing prevalence, sample counts, read counts, mean mapped reads, and preliminary classifications (`sporadic_noise`, `systematic_noise`, `virome`, `infection`).
-   - **`stats/virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv`**: High-level executive dataset summary table reporting total positive samples, cohort size, overall positivity rate, total mapped reads, unique viruses detected, top prevalent virus, mean reads per positive sample, and overall classification.
-   - **`plots/`**: 300 DPI publication-grade TIFF figures (`.tif`) with 2-panel layout and horizontal viral prevalence bar plots.
-
-#### Distributions Module TSV Output Schemas:
-
-##### A. Per-Virus Summary Table (`virus_stats_summary_<PHASE>_<PROJECT>.tsv`) — 13 Columns:
-1. `Phase` — Cohort phase (e.g. `all_cohorts` or `phase1`)
-2. `Project` — Cohort project identifier (e.g. `combined` or `base`)
-3. `Strategy` — Alignment strategy label (e.g. `clean_flags`)
-4. `Virus_Accession` — RefSeq accession ID of the viral species (e.g. `NC_001829`)
-5. `Virus_Name_Sanitized` — Full viral species name
-6. `Positive_Samples_Count` — Number of positive samples containing this virus
-7. `Total_Viral_Positive_Samples` — Total number of positive samples in the cohort (with $\ge 1$ viral hit)
-8. `Total_Cohort_Samples` — Total number of samples in the entire cohort ($N = 9,040$)
-9. `Pct_Of_Viral_Positive_Samples` — % of virus-positive samples containing this species
-10. `Pct_Of_Total_Cohort_Samples` — % of total cohort samples containing this species (Prevalence)
-11. `Total_Reads_Assigned` — Total mapped reads assigned to this virus across the cohort
-12. `Mean_Mapped_Reads_Per_Positive_Sample` — Average mapped reads per positive sample ($\frac{\text{Total Reads}}{\text{Positive Samples}}$)
-13. `Preliminary_Classification` — Automated classification (`sporadic_noise`, `systematic_noise`, `virome`, `infection`)
-
-##### B. Executive Dataset Overview Table (`virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv`) — 11 Columns:
-1. `Phase` — Cohort phase (e.g. `all_cohorts`)
-2. `Project` — Cohort project identifier (e.g. `combined`)
-3. `Strategy` — Alignment strategy label (e.g. `clean_flags`)
-4. `Total_Viral_Positive_Samples` — Total samples testing positive for any virus
-5. `Total_Cohort_Samples` — Total sample count in the dataset ($N = 9,040$)
-6. `Cohort_Positivity_Pct` — Overall viral positivity rate (% of total cohort)
-7. `Total_Mapped_Viral_Reads` — Total mapped viral reads across all detected viruses
-8. `Unique_Viruses_Detected` — Total number of distinct viral species identified
-9. `Top_Prevalent_Virus` — Most prevalent viral species in the dataset
-10. `Mean_Mapped_Reads_Per_Positive_Sample` — Cohort-wide average mapped reads per positive sample
-11. `Preliminary_Classification` — Overall dataset-wide classification
-
-#### 14-Column Master Report Schema:
-1. `Sample_ID`
-2. `Virus_Accession` (`None` if zero reads detected)
-3. `Virus_Length` (`0` if zero reads detected)
-4. `Virus_Mapped_Reads` (`0` if zero reads detected)
-5. `Normalized_Coverage` (Rounded to 6 decimals: `0.000000`)
-6. `Physical_Coverage` (Percentage formatted without `%` sign: `00.00`)
-7. `Human_Genome_Size`
-8. `Sample_Read_Depth`
-9. `Viral_Copy_Number` (Reference-discriminating copy-number lower bound, rounded to 6 decimals: `0.000000`)
-10. `Virus_Name_Sanitized` (`None` if zero reads detected)
-11. `Specimen`
-12. `Phase`
-14. `Source_File` (CRAM source file name)
 
 ### 7. Systematic SAM Flag Comparison Module (`flag_comparison_module`)
 Evaluates the clean strategy across 3 SAM flag filtering commands to isolate the impact of aligner `-f 2` flags vs manual bitwise flags:
