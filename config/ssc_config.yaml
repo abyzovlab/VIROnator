@@ -205,6 +205,9 @@ taxonomy_index_file: "config/db_metadata/viral_reference_taxonomy_index.tsv"
 refinement_samples_list: "config/refinement_samples.tsv" # Sample list TSV (sample, phase, project)
 
 # Reference & Output Storage Paths (under /mnt/disks/staff/refs/):
+ref_human_full: "GRCh38_full_analysis_set_plus_decoy_hla_modified.renamed.fa" # Sanitized Human Genome
+ref_mouse: "mm39_ms_modified.fa"                             # Sanitized Mouse Genome
+ref_plasmids: "SnapGene_plasmids_modified.fa"                 # Sanitized Plasmid / Vector Set
 ncbi_taxdump_dir: "/mnt/disks/staff/refs/ncbi_taxdump"   # Storage for nodes.dmp, names.dmp, accession2taxid
 ncbi_download_dir: "/mnt/disks/staff/refs/ncbi_download" # Storage for downloaded RefSeq FASTA genomes
 refinement_combined_ref_file: "combined_human_mouse_plasmids_refinement_viral_2026-08-29.fa"
