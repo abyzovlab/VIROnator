@@ -182,7 +182,7 @@ snakemake --cores 1
 ```bash
 batchRun -multibatch samples_list.txt -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator MDJ -pau 0
 ```
-Combine all cloud-calculated sample coverage outputs into a master file named with the phase and project: `cohort_master_coverage.tsv`.
+Combine all cloud-calculated sample coverage outputs into a master file named as `${DATASET}_master_coverage.tsv`. This file will be used for `sample_metadata_file` in Module 4 - Reporting Module.
 
 #### Module 2: Unmapped Extraction Module (`ssc_unmapped.job`)
 ```bash
