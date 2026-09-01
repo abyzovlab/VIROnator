@@ -80,11 +80,8 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
 * **`ref_dir`**: Directory path where reference genomes and database files are stored (`/mnt/disks/staff/refs`).
 * **`scripts_dir`**: Repository folder path containing helper scripts (`/mnt/disks/staff/scripts`).
 
-##### 2. Reporting Module Variables
-* **`reporting_module`**: Switch (`"on"` or `"off"`) to enable/disable consolidated reporting.
-* **`sample_metadata_file`**: Sample metadata TSV file (`SSC_sample_metadata.tsv`).
-* **`viral_rename_map_file`**: Name mapping TSV (`HumanViral_Reference_02-07-2022_modified.rename_map.tsv`).
-* **`viral_bed_file`**: Target BED regions file (`HumanViral_Reference_02-07-2022_modified.bed`).
+##### 2. Module Execution Switches
+To execute specific pipeline stages, turn `"on"` or `"off"` the switches for the features and modules you want to execute in `config/ssc_config.yaml` (e.g. `coverage_module: "on"`, `unmapped_extraction: "on"`, `viral_db_alignment: "on"`, `reporting_module: "on"`, `stats_module: "on"`, `distributions_module: "on"`, `flag_comparison_module: "on"`, or `refinement_module: "on"`).
 
 ### Phase 3: Execute the Workflow
 
@@ -93,29 +90,58 @@ First, run Snakemake on the head node to compile job and resource configuration 
 snakemake --cores 1
 ```
 
-#### Module 1: Unmapped Extraction Module (`ssc_unmapped.job`)
+#### Module 1: Coverage Calculation Module (`ssc_coverage.job`)
 ```bash
-batchRun -multibatch samples_p2_base -config config/batch_jobexec_unmapped.config -non-spot config/ssc_unmapped.job -investigator MDJ -pau 0
+batchRun -multibatch samples_list.txt -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator MDJ -pau 0
 ```
 
-#### Module 2: Viral DB Alignment Module (`ssc_alignment.job`)
+#### Module 2: Unmapped Extraction Module (`ssc_unmapped.job`)
 ```bash
-batchRun -multibatch samples_p2_base -config config/batch_jobexec_vironator.config -non-spot config/ssc_alignment.job -investigator MDJ -pau 0
+batchRun -multibatch samples_list.txt -config config/batch_jobexec_unmapped.config -non-spot config/ssc_unmapped.job -investigator MDJ -pau 0
 ```
 
-#### Module 3: Reporting Module (`ssc_reporting.job`)
-* **Output Path:** `/mnt/disks/staff/SSC_hg38_reports/phase2/[project]/<sample_id>/<sample_id>_viral_report.tsv`
-* **Batch Command:**
-  ```bash
-  batchRun -multibatch samples_p2_base -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator MDJ -pau 0
-  ```
+#### Module 3: Viral DB Alignment Module (`ssc_alignment.job`)
+```bash
+batchRun -multibatch samples_list.txt -config config/batch_jobexec_vironator.config -non-spot config/ssc_alignment.job -investigator MDJ -pau 0
+```
 
-#### Module 4: Coverage Calculation Module (`ssc_coverage.job`)
-* **Output Path:** `/mnt/disks/staff/SSC_hg38_coverage/phase2/[project]/<sample_id>_coverage.tsv`
-* **Batch Command:**
-  ```bash
-  batchRun -multibatch samples_p2_base -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator MDJ -pau 0
-  ```
+#### Module 4: Consolidated Reporting Module (`ssc_reporting.job`)
+```bash
+batchRun -multibatch samples_list.txt -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator MDJ -pau 0
+```
+
+#### Module 5: Cohort Stats Summary Module
+```bash
+snakemake cohort_stats_summary.tsv --cores 1
+```
+
+#### Module 6: Distributions & Plots Module
+```bash
+snakemake generate_distributions --cores 1
+```
+
+#### Module 7: SAM Flag Comparison Module (`ssc_flag_comparison.job`)
+```bash
+batchRun -multibatch samples_all_cohorts -config config/batch_jobexec_flag_comparison.config -non-spot config/ssc_flag_comparison.job -investigator MDJ -pau 0
+```
+
+#### Module 8: NCBI RefSeq Refinement Module (`ssc_refinement.job`)
+```bash
+# 1. Build taxonomy index TSV:
+snakemake config/db_metadata/viral_reference_taxonomy_index.tsv --cores 1
+
+# 2. Download RefSeq complete genomes & build date-stamped Bowtie2 combined reference:
+snakemake config/ncbi_download.completed --cores 1
+
+# 3. Compile refinement jobexec cluster files:
+snakemake config/ssc_refinement.job --cores 1
+
+# 4. Submit parallel batch run across target refinement samples:
+batchRun -multibatch config/refinement_samples.tsv -config config/batch_jobexec_refinement.config -non-spot config/ssc_refinement.job -investigator MDJ -pau 0
+
+# 5. Merge all cohort outputs into master report (run on head node after cluster jobs finish):
+snakemake cohort_refinement_master.tsv --cores 1
+```
 
 ---
 
