@@ -120,17 +120,17 @@ snakemake cohort_stats_summary.tsv --cores 1
 - **Generated Summary Files**:
   - `cohort_stats_summary.tsv` (Tab-delimited cohort statistics snapshot)
   - `cohort_stats_summary.md` (Markdown-formatted summary report)
-  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>.tsv` (Detailed per-virus summary table containing prevalence, sample counts, read counts, mean mapped reads, and preliminary classifications: `sporadic_noise`, `systematic_noise`, `virome`, `infection`).
-  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv` (High-level executive dataset summary table reporting total positive samples, cohort size, overall positivity rate, total mapped reads, unique viruses detected, top prevalent virus, mean reads per positive sample, and overall classification).
 
 #### Module 6: Distributions & Plots Module (`distributions_module`)
 ```bash
 snakemake generate_distributions --cores 1
 ```
 - **Generated Summary Files & Figures**:
-  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>.tsv` (13-column per-virus summary table)
-  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv` (11-column cohort overview table)
-  - `<plots_out_dirname>/<VIRUS_NAME>.tif` (2-panel 300 DPI publication TIFF figures)
+  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>.tsv` (Detailed per-virus summary table containing prevalence, sample counts, read counts, mean mapped reads, and preliminary classifications: `sporadic_noise`, `systematic_noise`, `virome`, `infection`).
+  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv` (High-level executive dataset summary table reporting total positive samples, cohort size, overall positivity rate, total mapped reads, unique viruses detected, top prevalent virus, mean reads per positive sample, and overall classification).
+  - `<plots_out_dirname>/dist_<PHASE>_<PROJECT>_<STRATEGY>_<VIRUS_ACC>_<VIRUS_NAME>.tiff` (2-panel 300 DPI publication TIFF figure per detected virus species).
+  - `<plots_out_dirname>/dist_<PHASE>_<PROJECT>_<STRATEGY>_VIRAL_POSITIVITY_RATES.tiff` (Cohort-wide horizontal bar plot showing viral prevalence % across all detected viruses for the entire phase/project).
+  - `<plots_out_dirname>/dist_<PHASE>_<PROJECT>_<STRATEGY>_OVERALL_SUMMARY.tiff` (Executive 2-panel overall dataset summary figure for the entire phase/project).
 
 #### Module 7: SAM Flag Comparison Module (`ssc_flag_comparison.job`)
 ```bash

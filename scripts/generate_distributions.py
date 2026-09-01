@@ -451,7 +451,9 @@ def main():
         cur_phase_tag = f"phase{cur_phase}" if cur_phase and not str(cur_phase).startswith("phase") and not str(cur_phase).startswith("all") else (str(cur_phase) if cur_phase else "all")
         cur_proj_tag = str(cur_proj) if cur_proj else "base"
 
-        positivity_plot_name = f"dist_{cur_phase_tag}_{cur_proj_tag}_VIRAL_POSITIVITY_RATES.tiff"
+        cur_strat = group_v_keys[0][2] if group_v_keys else "clean_flags"
+        cur_strat_clean = cur_strat.replace(".sorted.flags.cram", "").replace("exogeneSR_viral_", "")
+        positivity_plot_name = f"dist_{cur_phase_tag}_{cur_proj_tag}_{cur_strat_clean}_VIRAL_POSITIVITY_RATES.tiff"
         positivity_plot_path = os.path.join(plots_dir, positivity_plot_name)
 
         # Sort ascending for horizontal barh plot so highest positivity is at the TOP
@@ -521,7 +523,7 @@ def main():
         # --------------------------------------------------------------------------
         overall_stats_tsv_name = f"virus_stats_summary_{cur_phase_tag}_{cur_proj_tag}_OVERALL.tsv"
         overall_stats_tsv_path = os.path.join(stats_dir, overall_stats_tsv_name)
-        overall_plot_name = f"dist_{cur_phase_tag}_{cur_proj_tag}_OVERALL_SUMMARY.tiff"
+        overall_plot_name = f"dist_{cur_phase_tag}_{cur_proj_tag}_{cur_strat_clean}_OVERALL_SUMMARY.tiff"
         overall_plot_path = os.path.join(plots_dir, overall_plot_name)
 
         overall_rows = []
