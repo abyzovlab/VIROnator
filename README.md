@@ -7,8 +7,8 @@ This workflow works modularly to process and align sequencing datasets. It consi
 1. **Standalone Utility:** Reference Sanitization & BED Generation (`rename_fasta_contigs.sh`)
 2. **Module 1:** Coverage Calculation Module (`ssc_coverage.job`)
 3. **Module 2:** Unmapped Extraction Module (`ssc_unmapped.job`)
-4. **Module 3:** Viral DB Alignment Module (`ssc_alignment.job`)
-5. **Module 4:** Consolidated Reporting Module (`ssc_reporting.job`)
+4. **Module 3:** Alignment Module (`ssc_alignment.job`)
+5. **Module 4:** Reporting Module (`ssc_reporting.job`)
 6. **Module 5:** Cohort Stats Summary Module (`generate_stats.py`)
 7. **Module 6:** Distributions & Plots Module (`generate_distributions.py`)
 8. **Module 7:** SAM Flag Comparison Module (`ssc_flag_comparison.job`)
@@ -102,11 +102,14 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
 * **`ref_dir`**: Directory path where reference genomes and database files are stored (`/mnt/disks/staff/refs`).
 * **`scripts_dir`**: Repository folder path containing helper scripts (`/mnt/disks/staff/scripts`).
 
-#### 2. Module Execution Switches
+#### 2. Module Execution Switches & Module-Specific Settings
 To execute specific pipeline stages, turn `"on"` or `"off"` the switches for the features and modules you want to execute in `config/ssc_config.yaml` (e.g. `coverage_module: "on"`, `unmapped_extraction: "on"`, `viral_db_alignment: "on"`, `reporting_module: "on"`, `stats_module: "on"`, `distributions_module: "on"`, `flag_comparison_module: "on"`, or `refinement_module: "on"`).
 
+> [!NOTE]
+> **Module Parameters**: In addition to the Common / Joint Variables defined above, each active module relies on module-specific parameters configured in `config/ssc_config.yaml` (such as dedicated output directory names, reference genome paths, tool binary locations, and metadata files). All parameters under an enabled module are mandatory for that stage to execute and complete successfully.
+
 #### 3. Compile Job and Resource Configuration Files
-Whenever you modify configuration variables or switch any pipeline module on or off in `config/ssc_config.yaml`, you must run Snakemake on the head node to compile your changes into active job execution scripts. This command reads your current configuration settings and dynamically generates all required cluster `.job` scripts and `.config` resource definitions.
+Whenever you modify configuration variables or switch any pipeline module on or off in `config/ssc_config.yaml`, you must run Snakemake on the head node while located inside the root `VIROnator` directory in order to compile properly into active job execution scripts. This command reads your current configuration settings and dynamically generates all required cluster `.job` scripts and `.config` resource definitions.
 
 ```bash
 snakemake --cores 1
@@ -119,19 +122,19 @@ snakemake --cores 1
 ```bash
 batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
-Combine all cloud-calculated sample coverage outputs into a master file named as `{dataset}_{genome_build}_master_coverage.tsv` and place it directly into your reference metadata directory at `/mnt/disks/staff/refs/`. Later specify this filename as `sample_metadata_file` in `config/ssc_config.yaml` to run **Module 4 (Consolidated Reporting Module)** to calculate sample mean read depth and normalized viral copy numbers.
+Combine all cloud-calculated sample coverage outputs into a master file named as `{dataset}_{genome_build}_master_coverage.tsv` and place it directly into your reference metadata directory at `/mnt/disks/staff/refs/`. Later specify this filename as `sample_metadata_file` in `config/ssc_config.yaml` to run **Module 4 (Reporting Module)** to calculate sample mean read depth and normalized viral copy numbers.
 
 #### Module 2: Unmapped Extraction Module (`ssc_unmapped.job`)
 ```bash
 batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_unmapped.config -non-spot config/ssc_unmapped.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
 
-#### Module 3: Viral DB Alignment Module (`ssc_alignment.job`)
+#### Module 3: Alignment Module (`ssc_alignment.job`)
 ```bash
 batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_vironator.config -non-spot config/ssc_alignment.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
 
-#### Module 4: Consolidated Reporting Module (`ssc_reporting.job`)
+#### Module 4: Reporting Module (`ssc_reporting.job`)
 ```bash
 batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```

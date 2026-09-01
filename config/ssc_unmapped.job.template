@@ -119,6 +119,7 @@ else
 fi
 
 # Try structured lookup if PHASE is set
+CRAM=""
 if [ -n "${PHASE_CLEAN}" ]; then
     if [ -z "${PROJECT_CLEAN}" ]; then
         CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${TARGET_FILENAME}"
