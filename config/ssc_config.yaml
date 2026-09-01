@@ -2,6 +2,7 @@
 # DATASET & GENOME BUILD METADATA (Project-level configuration)
 # ==============================================================================
 dataset: "SSC"
+# dataset: "MCBiobank"
 genome_build: "hg38"
 phase: "2"
 project: ""
@@ -11,6 +12,7 @@ project: ""
 # ==============================================================================
 data_dir: "/mnt/disks/lab"
 data_subdir: "tertiary/SSC_hg38/WGS"  # Middle subdirectory path inside data_dir (set to "" for flat datasets)
+# data_subdir: "whole_genome/bb1000_2013/raw/bam"
 input_keyword: "final"                 # Optional middle keyword after sample dot (e.g. "final", "sorted", or "" for none)
 input_suffix: "cram"                   # File extension after keyword (e.g. "cram", "bam")
 output_dir: "/mnt/disks/staff"
@@ -21,6 +23,7 @@ placeholder_file: "test.txt"
 # - data_bucket: Source GCS bucket where raw CRAM files are stored (mounts to /mnt/disks/lab)
 # - output_bucket: Destination GCS bucket where outputs are deposited (mounts to /mnt/disks/staff)
 data_bucket: "ml-phi-abyzov-alexej-m124423-rsa-us-central1-p-d3c4"
+# data_bucket: "ml-phi-mcbiobank-rsa-us-central1-p-88af"
 output_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"
 
 # GCP Service Account & Billing Parameters
@@ -45,7 +48,8 @@ reporting_jobexec_dirname: "jobexec_reporting_{dataset}_{genome_build}"
 # - If your samples file is stored elsewhere, you MUST provide an ABSOLUTE path 
 #   starting with a "/" (e.g. "/home/user/working/samples_p2_base") to bypass 
 #   automatic appending.
-samples_list: "samples_p2_base_test"
+samples_list: "samples_mayo_biobank_test.txt"
+# samples_list: "samples_p2_base_test"
 
 # Base directory for all external reference genomes (GCS mount)
 ref_dir: "/mnt/disks/staff/refs"
