@@ -94,6 +94,7 @@ snakemake --cores 1
 ```bash
 batchRun -multibatch samples_list.txt -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator MDJ -pau 0
 ```
+Combine all cloud-calculated sample coverage outputs into a master file named with the phase and project: `cohort_master_coverage.tsv`.
 
 #### Module 2: Unmapped Extraction Module (`ssc_unmapped.job`)
 ```bash
@@ -109,6 +110,7 @@ batchRun -multibatch samples_list.txt -config config/batch_jobexec_vironator.con
 ```bash
 batchRun -multibatch samples_list.txt -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator MDJ -pau 0
 ```
+Once all parallel cloud batch jobs finish, combine all individual sample reports into one master file named with the phase and project and name it `master_all_cohorts_viral_report_final.tsv`. Note that this master report file is used in Module 5 (stats).
 
 #### Module 5: Cohort Stats Summary Module
 ```bash
