@@ -2,6 +2,14 @@
 
 import os
 
+# Dynamically format string parameters in config using dataset and genome_build/build
+_dataset_val = config.get("dataset", "DATASET")
+_build_val = config.get("genome_build", config.get("build", "hg38"))
+
+for _k, _v in list(config.items()):
+    if isinstance(_v, str) and ("{dataset}" in _v or "{build}" in _v or "{genome_build}" in _v):
+        config[_k] = _v.format(dataset=_dataset_val, genome_build=_build_val, build=_build_val)
+
 project_part = f"{config['project']}/" if config["project"] else ""
 
 rule create_output_directory:
