@@ -148,19 +148,25 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
 > This pipeline is designed to run on Google Cloud Platform. Ensure that your GCS parameters (such as `data_bucket`, `output_bucket`, and project details) are properly configured to point to your GCP cloud buckets.
 
 ##### 1. Common / Joint Variables
-* **`data_bucket`**: The name of the GCS source bucket where your raw CRAM files are stored.
-* **`data_dir`**: The local folder mount path on the server for `data_bucket` (where raw inputs are read).
-* **`output_bucket`**: The name of the GCS destination bucket where outputs/logs are deposited. (Note: this is the name of the cloud bucket itself, whereas `output_dir` is the local directory path on the server where this bucket is mounted).
-* **`output_dir`**: The local folder mount path on the server for `output_bucket` (where outputs will be written).
-* **`work_dir`**: The path to your cloned repository folder on the server (which acts as your active working directory).
-* **`scripts_dir`**: The folder inside the repository containing custom Python helper scripts.
-* **`db_metadata_dir`**: The folder inside the repository containing BED and contig database files.
-* **`samples_list`**: The name of the sample ID list file copied into the repository folder (must have its first line/header written as `SAMPLE`).
-* **`dataset` / `phase` / `project`**: Dataset run metadata:
-  - **`dataset`**: The prefix/label of the dataset cohort (e.g., `"SSC"`).
-  - **`phase`**: The dataset phase number (e.g., `"2"`).
-  - **`project`**: An optional sub-project folder identifier.
-* **`placeholder_file`**: An empty text file (e.g. `test.txt`) used for creating the file structure/hierarchy on Google Cloud Storage (GCS). Because GCS is an object store, directories do not exist on the cloud unless they contain at least one file.
+* **`data_dir`**: Shared local mount path on the server for `data_bucket` (where raw inputs are read, e.g. `/mnt/disks/lab`).
+* **`data_subdir`**: Middle subdirectory path inside `data_dir` (e.g. `"tertiary/SSC_hg38/WGS"`, or `""` for flat datasets).
+* **`input_keyword`**: Optional middle keyword following the sample ID dot (e.g. `"final"`, `"sorted"`, or `""` for none).
+* **`input_suffix`**: Target file extension following the keyword (e.g. `"cram"`, `"bam"`).
+* **`output_dir`**: Shared local mount path on the server for `output_bucket` (where output files are written, e.g. `/mnt/disks/staff`).
+* **`work_dir`**: Path to your active repository folder on the server (default `"."`).
+* **`data_bucket`**: Name of the GCS source bucket where raw CRAM/BAM files are stored.
+* **`output_bucket`**: Name of the GCS destination bucket where output data and cluster logs are deposited.
+* **`gcp_account`**: GCP Service Account email used for cluster job execution.
+* **`pi`**: Principal Investigator tag/initials for cluster resource billing (e.g. `"MDJ"`).
+* **`pau`**: Project Allocation Unit code for cluster job execution (e.g. `0`).
+* **`task_name`**: Task identifier tag prefix used in cluster execution log filenames.
+* **`dataset`**: Prefix/label for the dataset cohort (e.g. `"SSC"`).
+* **`phase`**: Dataset phase identifier (e.g. `"2"`, or `"none"` / `""` for flat datasets).
+* **`project`**: Sub-project identifier (e.g. `"base"`, or `"none"` / `""` for flat datasets).
+* **`samples_list`**: Name of the sample list text file (first line header must be `SAMPLE`).
+* **`ref_dir`**: Directory path where reference genomes and database files are stored (`/mnt/disks/staff/refs`).
+* **`scripts_dir`**: Repository folder path containing helper scripts (`/mnt/disks/staff/scripts`).
+* **`placeholder_file`**: An empty text file (`test.txt`) used for creating directory structures on GCS object storage.
 
 ##### Module 1 Variables (Coverage Calculation Module)
 * **`coverage_module`**: Switch (`"on"` or `"off"`) to enable/disable coverage calculation.

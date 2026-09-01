@@ -61,10 +61,24 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
 > This pipeline is designed to run on Google Cloud Platform. Ensure that your GCS parameters (such as `data_bucket`, `output_bucket`, and project details) are properly configured to point to your GCP cloud buckets.
 
 ##### 1. Common / Joint Variables
-* **`data_bucket`**: GCS source bucket containing raw CRAM files.
-* **`output_bucket`**: GCS destination bucket for outputs.
-* **`work_dir`**: Path to repository folder on server.
-* **`samples_list`**: Name of sample ID list file.
+* **`data_dir`**: Shared local mount directory for reading raw input files (`/mnt/disks/lab`).
+* **`data_subdir`**: Middle subdirectory path inside `data_dir` (e.g. `"tertiary/SSC_hg38/WGS"`, or `""` for flat datasets).
+* **`input_keyword`**: Optional middle keyword following sample ID dot (e.g. `"final"`, `"sorted"`, or `""` for none).
+* **`input_suffix`**: Target file extension following keyword (e.g. `"cram"`, `"bam"`).
+* **`output_dir`**: Shared local mount directory for output files (`/mnt/disks/staff`).
+* **`work_dir`**: Active repository root directory on head node (default `"."`).
+* **`data_bucket`**: Source GCS bucket containing raw sequence files.
+* **`output_bucket`**: Destination GCS bucket for output data and cluster execution logs.
+* **`gcp_account`**: GCP Service Account email address for cluster execution.
+* **`pi`**: Principal Investigator initials/tag (e.g. `"MDJ"`).
+* **`pau`**: Project Allocation Unit code (e.g. `0`).
+* **`task_name`**: Cluster job log identifier prefix tag.
+* **`dataset`**: Dataset cohort prefix label (e.g. `"SSC"`).
+* **`phase`**: Dataset phase identifier (e.g. `"2"`, or `"none"` / `""` for flat datasets).
+* **`project`**: Sub-project folder identifier (e.g. `"base"`, or `"none"` / `""` for flat datasets).
+* **`samples_list`**: Name of text file listing target sample IDs (header must be `SAMPLE`).
+* **`ref_dir`**: Directory path where reference genomes and database files are stored (`/mnt/disks/staff/refs`).
+* **`scripts_dir`**: Repository folder path containing helper scripts (`/mnt/disks/staff/scripts`).
 
 ##### 2. Reporting Module Variables
 * **`reporting_module`**: Switch (`"on"` or `"off"`) to enable/disable consolidated reporting.
