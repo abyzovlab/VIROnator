@@ -81,7 +81,7 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
 > [!IMPORTANT]
 > This pipeline is designed to run on Google Cloud Platform. Ensure that your GCS parameters (such as `data_bucket`, `output_bucket`, and project details) are properly configured to point to your GCP cloud buckets.
 
-##### 1. Common / Joint Variables
+#### 1. Common / Joint Variables
 * **`data_dir`**: Shared local mount directory for reading raw input files (`/mnt/disks/lab`).
 * **`data_subdir`**: Middle subdirectory path inside `data_dir` (e.g. `"tertiary/SSC_hg38/WGS"`, or `""` for flat datasets).
 * **`input_keyword`**: Optional middle keyword following sample ID dot (e.g. `"final"`, `"sorted"`, or `""` for none).
@@ -102,19 +102,20 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
 * **`ref_dir`**: Directory path where reference genomes and database files are stored (`/mnt/disks/staff/refs`).
 * **`scripts_dir`**: Repository folder path containing helper scripts (`/mnt/disks/staff/scripts`).
 
-##### 2. Module Execution Switches
+#### 2. Module Execution Switches
 To execute specific pipeline stages, turn `"on"` or `"off"` the switches for the features and modules you want to execute in `config/ssc_config.yaml` (e.g. `coverage_module: "on"`, `unmapped_extraction: "on"`, `viral_db_alignment: "on"`, `reporting_module: "on"`, `stats_module: "on"`, `distributions_module: "on"`, `flag_comparison_module: "on"`, or `refinement_module: "on"`).
+
+#### 3. Compile Job and Resource Configuration Files
+Whenever you modify configuration variables or switch any pipeline module on or off in `config/ssc_config.yaml`, you must run Snakemake on the head node to compile your changes into active job execution scripts. This command reads your current configuration settings and dynamically generates all required cluster `.job` scripts and `.config` resource definitions.
+
+```bash
+snakemake --cores 1
+```
 
 ### Phase 3: Execute the Workflow
 
 #### Module 1: Coverage Calculation Module (`ssc_coverage.job`)
 
-1. Compile job and resource configuration files on the head node:
-```bash
-snakemake --cores 1
-```
-
-2. Submit parallel cluster batch jobs across all samples:
 ```bash
 batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```

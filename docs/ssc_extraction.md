@@ -161,20 +161,20 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
 > [!IMPORTANT]
 > This pipeline is designed to run on Google Cloud Platform. Ensure that your GCS parameters (such as `data_bucket`, `output_bucket`, and project details) are properly configured to point to your GCP cloud buckets.
 
-##### 1. Common / Joint Variables
-* **`data_dir`**: Shared local mount path on the server for `data_bucket` (where raw inputs are read, e.g. `/mnt/disks/lab`).
+#### 1. Common / Joint Variables
+* **`data_dir`**: Shared local mount directory for reading raw input files (`/mnt/disks/lab`).
 * **`data_subdir`**: Middle subdirectory path inside `data_dir` (e.g. `"tertiary/SSC_hg38/WGS"`, or `""` for flat datasets).
-* **`input_keyword`**: Optional middle keyword following the sample ID dot (e.g. `"final"`, `"sorted"`, or `""` for none).
-* **`input_suffix`**: Target file extension following the keyword (e.g. `"cram"`, `"bam"`).
-* **`output_dir`**: Shared local mount path on the server for `output_bucket` (where output files are written, e.g. `/mnt/disks/staff`).
-* **`work_dir`**: Path to your active repository folder on the server (default `"."`).
-* **`data_bucket`**: Name of the GCS source bucket where raw CRAM/BAM files are stored.
-* **`output_bucket`**: Name of the GCS destination bucket where output data and cluster logs are deposited.
-* **`gcp_account`**: GCP Service Account email used for cluster job execution.
-* **`pi`**: Principal Investigator tag/initials for cluster resource billing (e.g. `"MDJ"`).
-* **`pau`**: Project Allocation Unit code for cluster job execution (e.g. `0`).
-* **`task_name`**: Task identifier tag prefix used in cluster execution log filenames.
-* **`dataset`**: Prefix/label for the dataset cohort (e.g. `"SSC"`).
+* **`input_keyword`**: Optional middle keyword following sample ID dot (e.g. `"final"`, `"sorted"`, or `""` for none).
+* **`input_suffix`**: Target file extension following keyword (e.g. `"cram"`, `"bam"`).
+* **`output_dir`**: Shared local mount directory for output files (`/mnt/disks/staff`).
+* **`work_dir`**: Active repository root directory on head node (default `"."`).
+* **`data_bucket`**: Source GCS bucket containing raw sequence files.
+* **`output_bucket`**: Destination GCS bucket for output data and cluster execution logs.
+* **`gcp_account`**: GCP Service Account email address for cluster execution.
+* **`pi`**: Principal Investigator initials/tag (e.g. `"MDJ"`).
+* **`pau`**: Project Allocation Unit code (e.g. `0`).
+* **`task_name`**: Cluster job log identifier prefix tag.
+* **`dataset`**: Dataset cohort prefix label (e.g. `"SSC"`).
 * **`genome_build`**: Human reference genome assembly build label (e.g. `"hg38"`).
 * **`phase`**: Dataset phase identifier (e.g. `"2"`, or `"none"` / `""` for flat datasets).
 * **`project`**: Sub-project identifier (e.g. `"base"`, or `"none"` / `""` for flat datasets).
@@ -183,19 +183,20 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
 * **`scripts_dir`**: Repository folder path containing helper scripts (`/mnt/disks/staff/scripts`).
 * **`placeholder_file`**: An empty text file (`test.txt`) used for creating directory structures on GCS object storage.
 
-##### 2. Module Execution Switches
+#### 2. Module Execution Switches
 To execute specific pipeline features and modules, simply turn `"on"` or `"off"` the corresponding master switches in `config/ssc_config.yaml` (e.g. `coverage_module: "on"`, `unmapped_extraction: "on"`, `viral_db_alignment: "on"`, `reporting_module: "on"`, `stats_module: "on"`, `distributions_module: "on"`, `flag_comparison_module: "on"`, or `refinement_module: "on"`).
+
+#### 3. Compile Job and Resource Configuration Files
+Whenever you modify configuration variables or switch any pipeline module on or off in `config/ssc_config.yaml`, you must run Snakemake on the head node to compile your changes into active job execution scripts. This command reads your current configuration settings and dynamically generates all required cluster `.job` scripts and `.config` resource definitions.
+
+```bash
+snakemake --cores 1
+```
 
 ### Phase 3: Execute the Workflow
 
 #### Module 1: Coverage Calculation Module (`ssc_coverage.job`)
 
-1. Compile job and resource configuration files on the head node:
-```bash
-snakemake --cores 1
-```
-
-2. Submit parallel cluster batch jobs across all samples:
 ```bash
 batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
