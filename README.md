@@ -5,9 +5,14 @@ A tool for sensitive detection and quantitative reporting of viral presence in h
 This workflow works modularly to process and align sequencing datasets. It consists of sequential modules whose parameters and execution are fully controlled by the user via the configuration file (`config/ssc_config.yaml`):
 
 1. **Standalone Utility:** Reference Sanitization & BED Generation (`rename_fasta_contigs.sh`)
-2. **Module 1:** Unmapped Extraction Module (`ssc_unmapped.job`)
-3. **Module 2:** Viral DB Alignment Module (`ssc_alignment.job`)
-4. **Module 3:** Reporting Module (`ssc_reporting.job`)
+2. **Module 1:** Coverage Calculation Module (`ssc_coverage.job`)
+3. **Module 2:** Unmapped Extraction Module (`ssc_unmapped.job`)
+4. **Module 3:** Viral DB Alignment Module (`ssc_alignment.job`)
+5. **Module 4:** Consolidated Reporting Module (`ssc_reporting.job`)
+6. **Module 5:** Cohort Stats Summary Module (`generate_stats.py`)
+7. **Module 6:** Distributions & Plots Module (`generate_distributions.py`)
+8. **Module 7:** SAM Flag Comparison Module (`ssc_flag_comparison.job`)
+9. **Module 8:** NCBI RefSeq Refinement Module (`ssc_refinement.job`)
 
 ---
 
