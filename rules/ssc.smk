@@ -559,6 +559,7 @@ rule generate_coverage_job_file:
             .replace("{input_keyword}", str(config.get("input_keyword", "final")))
             .replace("{input_suffix}", str(config.get("input_suffix", "cram")))
             .replace("{coverage_out_dirname}", str(config.get("coverage_out_dirname", "DATASET_coverage")))
+            .replace("{coverage_jobexec_dirname}", str(config.get("coverage_jobexec_dirname", "jobexec_coverage")))
             .replace("{sample_metadata_path}", os.path.join(config["ref_dir"], config["sample_metadata_file"]))
         )
         

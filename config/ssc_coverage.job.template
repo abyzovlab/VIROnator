@@ -11,12 +11,12 @@ job_identifier={dataset}_[SAMPLE]
 ####
 
 # bucket location to read inputs 
-input_bucket=gs://{output_bucket}/jobexec_coverage/output
+input_bucket=gs://{output_bucket}/{coverage_jobexec_dirname}/output
 # bucket location to write outputs 
-output_bucket=gs://{output_bucket}/jobexec_coverage/output
+output_bucket=gs://{output_bucket}/{coverage_jobexec_dirname}/output
 
 # bucket location to write log outputs 
-log_bucket=gs://{output_bucket}/jobexec_coverage/logs
+log_bucket=gs://{output_bucket}/{coverage_jobexec_dirname}/logs
 
 
 ####
@@ -162,8 +162,12 @@ if [ -z "${CRAM}" ] || [ ! -f "${CRAM}" ]; then
     echo "[WARNING] CRAM file not found for ${SAMPLE}! Assigning default coverage 30.00"
     COVERAGE="30.00"
 else
-    echo "[DIAGNOSTIC] Querying mapped reads via samtools view -c -F 4..."
-    MAPPED_READS=$(samtools view -c -F 4 "${CRAM}" 2>/dev/null || echo "0")
+    echo "[DIAGNOSTIC] Querying mapped reads via samtools idxstats (fast index query)..."
+    MAPPED_READS=$(samtools idxstats "${CRAM}" 2>/dev/null | awk '{sum+=$3} END {print sum}')
+    if [ -z "${MAPPED_READS}" ] || [ "${MAPPED_READS}" -eq 0 ]; then
+        echo "[DIAGNOSTIC] Fast index query empty/unavailable. Falling back to samtools view -c -F 4..."
+        MAPPED_READS=$(samtools view -c -F 4 "${CRAM}" 2>/dev/null || echo "0")
+    fi
     echo "[DIAGNOSTIC] TOTAL MAPPED READS: ${MAPPED_READS}"
 
     if [ "${MAPPED_READS}" -gt 0 ]; then
