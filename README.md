@@ -107,14 +107,18 @@ To execute specific pipeline stages, turn `"on"` or `"off"` the switches for the
 
 ### Phase 3: Execute the Workflow
 
-First, run Snakemake on the head node to compile job and resource configuration files:
+#### Module 1: Coverage Calculation Module (`ssc_coverage.job`)
+
+1. Compile job and resource configuration files on the head node:
 ```bash
 snakemake --cores 1
-#### Module 1: Coverage Calculation Module (`ssc_coverage.job`)
+```
+
+2. Submit parallel cluster batch jobs across all samples:
 ```bash
 batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
-Combine all cloud-calculated sample coverage outputs into a master file named as `${DATASET}_master_coverage.tsv` and place it directly into your reference metadata directory at `/mnt/disks/staff/refs/`. Specify this filename as `sample_metadata_file` in `config/ssc_config.yaml`. This file is required by **Module 4 (Consolidated Reporting Module)** to calculate sample mean read depth and normalized viral copy numbers, as well as downstream analysis in **Module 5 (Cohort Stats)** and **Module 6 (Distributions & Plots)**.
+Combine all cloud-calculated sample coverage outputs into a master file named as `{dataset}_{genome_build}_master_coverage.tsv` and place it directly into your reference metadata directory at `/mnt/disks/staff/refs/`. Later specify this filename as `sample_metadata_file` in `config/ssc_config.yaml` to run **Module 4 (Consolidated Reporting Module)** to calculate sample mean read depth and normalized viral copy numbers.
 
 #### Module 2: Unmapped Extraction Module (`ssc_unmapped.job`)
 ```bash
