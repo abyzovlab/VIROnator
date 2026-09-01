@@ -207,7 +207,7 @@ To generate publication-quality 300 DPI **TIFF distribution figures** (`plots/`)
 12. `Phase`
 14. `Source_File` (CRAM source file name)
 
-### 5. Systematic SAM Flag Comparison Module (`flag_comparison_module`)
+### 8. Systematic SAM Flag Comparison Module (`flag_comparison_module`)
 Evaluates the clean strategy across 3 SAM flag filtering commands to isolate the impact of aligner `-f 2` flags vs manual bitwise flags:
 
 > [!NOTE]
@@ -240,7 +240,7 @@ Evaluates the clean strategy across 3 SAM flag filtering commands to isolate the
 6. `original_command_flags_modified_reads` — Read pair count using original command WITHOUT `-f 2`
 7. `manual_flags_reads` — Read pair count using manual `gawk` bitwise flag verification
 
-### 6. NCBI RefSeq Refinement Module (`refinement_module`)
+### 9. NCBI RefSeq Refinement Module (`refinement_module`)
 Re-aligns candidate viral reads against complete RefSeq viral genomes for detected species groups using Bowtie2 multimapping (`-k 10`) and a Hierarchical Two-Tier Classification Cascade (`Reference_Unique` vs `Species_Supportive`):
 
 1. Configure Section 9 in `config/ssc_config.yaml`:

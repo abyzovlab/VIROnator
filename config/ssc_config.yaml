@@ -131,7 +131,7 @@ stats_script: "generate_stats.py"
 # ==============================================================================
 # 7. DISTRIBUTIONS MODULE (Per-Virus Read Distribution TIFF Plots & Virus Stats)
 # ==============================================================================
-distributions_module: "on"  # Switch: "on" or "off" to generate TIFF plots & virus stats
+distributions_module: "off"  # Switch: "on" or "off" to generate TIFF plots & virus stats
 master_report_file: "master_all_cohorts_viral_report_final.tsv"  # Input TSV report file used for distributions & stats
 plots_out_dirname: "SSC_hg38_plots"
 stats_out_dirname: "SSC_hg38_stats"
@@ -182,7 +182,7 @@ strategy_colors:
 # ==============================================================================
 # 8. FLAG COMPARISON MODULE (SAM Flag Comparison for Clean Strategy)
 # ==============================================================================
-flag_comparison_module: "on"  # Switch: "on" or "off" to enable SAM flag comparison module
+flag_comparison_module: "off"  # Switch: "on" or "off" to enable SAM flag comparison module
 flag_comparison_out_dirname: "SSC_hg38_flag_comparison"
 flag_comparison_jobexec_dirname: "jobexec_flag_comparison"
 flag_comparison_script: "run_flag_comparison.py"
@@ -190,13 +190,13 @@ flag_comparison_script: "run_flag_comparison.py"
 # ==============================================================================
 # 9. REFINEMENT MODULE (NCBI RefSeq Strain Resolution & Species Collapse)
 # ==============================================================================
-refinement_module: "on"                 # Master switch: "on" or "off"
+refinement_module: "off"                 # Master switch: "on" or "off"
 
 # Stage-by-Stage Sub-Switches:
-make_taxonomy_index_stage: "on"         # Stage 1: Build 14-column taxonomy index TSV
-ncbi_download_stage: "on"               # Stage 2: Download complete RefSeq genomes from NCBI
-build_combined_ref_stage: "on"          # Stage 3: Merge references & run bowtie2-build
-refinement_alignment_stage: "on"        # Stage 4: Run Bowtie2 alignment, filter & report
+make_taxonomy_index_stage: "off"         # Stage 1: Build 14-column taxonomy index TSV
+ncbi_download_stage: "off"               # Stage 2: Download complete RefSeq genomes from NCBI
+build_combined_ref_stage: "off"          # Stage 3: Merge references & run bowtie2-build
+refinement_alignment_stage: "off"        # Stage 4: Run Bowtie2 alignment, filter & report
 
 # Input Files & Output Locations:
 db_fasta_file: "HumanViral_Reference_02-07-2022.fa"   # Source viral database FASTA for taxonomy index
