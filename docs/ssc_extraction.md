@@ -50,31 +50,45 @@ Command options (`-p` / `--prefix` and `-n` / `--ncbi`) **must be placed before 
 * `-p <PREFIX>` / `--prefix <PREFIX>`: Prepends a prefix string to all contig IDs (e.g., `-p "mm39_"` for mouse contigs to prevent collisions with human contigs).
 * `-n` / `--ncbi`: Activates NCBI mode, stripping descriptions after the first whitespace to leave accession IDs (e.g., `NC_001829`), while recording full raw headers in `<OUTPUT_PREFIX>.rename_map.tsv`.
 
-#### Usage Examples
+#### Usage Commands & Examples
 
-```bash
-# 1. Standard plasmid / vector sanitization:
-./scripts/rename_fasta_contigs.sh SnapGene.fa SnapGene_plasmids_modified
+> [!IMPORTANT]
+> All sanitized output files (FASTA `.renamed.fa`, rename map `.rename_map.tsv`, contigs list `.renamed.contigs.txt`, and BED file `.renamed.bed`) **must be stored directly in `/mnt/disks/staff/refs/`** so that all downstream pipeline modules can access them properly.
 
-# 2. Mouse reference sanitization (prepends "mm39_" prefix):
-./scripts/rename_fasta_contigs.sh -p "mm39_" mm39_raw.fa mm39_ms_modified
+> [!NOTE]
+> The `.renamed` extension tag is automatically appended to generated files by default (e.g. `.renamed.fa`, `.renamed.contigs.txt`, `.renamed.bed`). Therefore, the `OUTPUT_PREFIX` command argument should **not** contain the word `"renamed"`, but simply the base reference name (e.g. `HumanViral_Reference_02-07-2022_modified` or `mm39_modified`).
 
-# 3. NCBI viral reference sanitization (strips descriptions after accession ID):
-./scripts/rename_fasta_contigs.sh --ncbi HumanViral_Reference_02-07-2022.fa HumanViral_Reference_02-07-2022_modified
+1. **NCBI Viral Reference Database Sanitization**:
+   Use `--ncbi` to extract clean accession IDs and avoid overly long contig names coming from full record descriptions:
+   ```bash
+   scripts/rename_fasta_contigs.sh --ncbi HumanViral_Reference_02-07-2022.fa HumanViral_Reference_02-07-2022_modified
+   ```
+   **Output Files Generated**:
+   - `HumanViral_Reference_02-07-2022_modified.renamed.fa` (Sanitized reference FASTA)
+   - `HumanViral_Reference_02-07-2022_modified.rename_map.tsv` (Accession header mapping TSV)
+   - `HumanViral_Reference_02-07-2022_modified.renamed.contigs.txt` (Contigs ID list)
+   - `HumanViral_Reference_02-07-2022_modified.renamed.bed` (Target BED regions file)
 
-# 4. Combining prefix and NCBI options together:
-./scripts/rename_fasta_contigs.sh -p "mm39_" --ncbi input_ncbi_raw.fa output_modified
-```
+2. **Mouse Genome Reference Sanitization**:
+   Use `-p "mm39_"` to prefix contig names and differentiate mouse contigs from human/viral contigs:
+   ```bash
+   scripts/rename_fasta_contigs.sh -p "mm39_" mm39.fa mm39_modified
+   ```
 
-### Generated Output Files & Storage Location
+3. **Plasmid Reference Database Sanitization**:
+   ```bash
+   scripts/rename_fasta_contigs.sh SnapGene.fa SnapGene_modified
+   ```
 
-Executing the sanitizer script creates five output files in the **exact directory specified by the `OUTPUT_PREFIX` argument** (typically your shared references directory `/mnt/disks/staff/refs/`):
+### Generated Output File Formats
 
-1. **`<OUTPUT_PREFIX>.renamed.fa`** $\rightarrow$ Cleaned FASTA file with sanitized, BWA-compatible headers (used for reference building and indexing).
+Executing the sanitizer script creates five output files in `/mnt/disks/staff/refs/`:
+
+1. **`<OUTPUT_PREFIX>.renamed.fa`** $\rightarrow$ Cleaned FASTA file with sanitized, BWA-compatible headers.
 2. **`<OUTPUT_PREFIX>.rename_map.tsv`** $\rightarrow$ Lookup map table containing 2 columns: `final_clean_id` and `original_header`.
 3. **`<OUTPUT_PREFIX>.name_collisions.tsv`** $\rightarrow$ Log of name collisions and suffix resolution.
-4. **`<OUTPUT_PREFIX>.contigs.txt`** $\rightarrow$ Clean 1-column list of sanitized contig IDs, stored directly alongside the FASTA file in `/mnt/disks/staff/refs/`.
-5. **`<OUTPUT_PREFIX>.bed`** $\rightarrow$ Clean 3-column BED file (`contig_id\t0\tlength`) covering the full span of each contig in the reference, stored directly in `/mnt/disks/staff/refs/`.
+4. **`<OUTPUT_PREFIX>.renamed.contigs.txt`** $\rightarrow$ Clean 1-column list of sanitized contig IDs, stored directly in `/mnt/disks/staff/refs/`.
+5. **`<OUTPUT_PREFIX>.renamed.bed`** $\rightarrow$ Clean 3-column BED file (`contig_id\t0\tlength`) covering the full span of each contig in the reference, stored directly in `/mnt/disks/staff/refs/`.
 
 ---
 
@@ -182,7 +196,7 @@ snakemake --cores 1
 ```bash
 batchRun -multibatch samples_list.txt -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator MDJ -pau 0
 ```
-Combine all cloud-calculated sample coverage outputs into a master file named as `${DATASET}_master_coverage.tsv`. This file will be used for `sample_metadata_file` in Module 4 - Reporting Module.
+Combine all cloud-calculated sample coverage outputs into a master file named as `${DATASET}_master_coverage.tsv` and place it directly into your reference metadata directory at `/mnt/disks/staff/refs/`. Specify this filename as `sample_metadata_file` in `config/ssc_config.yaml`. This file is required by **Module 4 (Consolidated Reporting Module)** to calculate sample mean read depth and normalized viral copy numbers, as well as downstream analysis in **Module 5 (Cohort Stats)** and **Module 6 (Distributions & Plots)**.
 
 #### Module 2: Unmapped Extraction Module (`ssc_unmapped.job`)
 ```bash

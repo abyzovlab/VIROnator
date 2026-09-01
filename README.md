@@ -20,16 +20,37 @@ This workflow works modularly to process and align sequencing datasets. It consi
 
 When adopting a new vector or plasmid reference dataset, raw FASTA header names often contain special characters (Greek letters like `α`, `β`, `γ`, trademarks `™`, `®`, symbols `+`, `%`, `#`, commas, slashes, and spaces). These special characters cause parsing failures or silent truncation in alignment tools like `bwa mem` and `samtools`.
 
-`scripts/rename_fasta_contigs.sh` is an optional **standalone utility script** to preprocess and sanitize FASTA contig header names. **It is not integrated into the automated Snakemake workflow and should be run manually prior to reference indexing when adding new reference files.**
+`scripts/rename_fasta_contigs.sh` is a **standalone utility script** to preprocess and sanitize FASTA contig header names. **It is run manually prior to reference indexing when preparing reference databases.**
 
-#### Usage Command
-```bash
-# 1. Standard plasmid / vector sanitization:
-./scripts/rename_fasta_contigs.sh SnapGene.fa SnapGene_plasmids_modified
+> [!IMPORTANT]
+> All sanitized output files (FASTA `.renamed.fa`, rename map `.rename_map.tsv`, contigs list `.renamed.contigs.txt`, and BED file `.renamed.bed`) **must be stored directly in `/mnt/disks/staff/refs/`** so that all downstream pipeline modules can access them properly.
 
-# 2. NCBI viral reference sanitization (using -ncbi flag to keep clean accession IDs):
-./scripts/rename_fasta_contigs.sh --ncbi HumanViral_Reference_02-07-2022.fa HumanViral_Reference_02-07-2022_modified
-```
+> [!NOTE]
+> The `.renamed` extension tag is automatically appended to generated files by default (e.g. `.renamed.fa`, `.renamed.contigs.txt`, `.renamed.bed`). Therefore, the `OUTPUT_PREFIX` command argument should **not** contain the word `"renamed"`, but simply the base reference name (e.g. `HumanViral_Reference_02-07-2022_modified` or `mm39_modified`).
+
+#### Sanitization Commands & Examples:
+
+1. **NCBI Viral Reference Database Sanitization**:
+   Use `--ncbi` to extract clean accession IDs and avoid overly long contig names coming from full record descriptions:
+   ```bash
+   scripts/rename_fasta_contigs.sh --ncbi HumanViral_Reference_02-07-2022.fa HumanViral_Reference_02-07-2022_modified
+   ```
+   **Output Files Generated**:
+   - `HumanViral_Reference_02-07-2022_modified.renamed.fa` (Sanitized reference FASTA)
+   - `HumanViral_Reference_02-07-2022_modified.rename_map.tsv` (Accession header mapping TSV)
+   - `HumanViral_Reference_02-07-2022_modified.renamed.contigs.txt` (Contigs ID list)
+   - `HumanViral_Reference_02-07-2022_modified.renamed.bed` (Target BED regions file)
+
+2. **Mouse Genome Reference Sanitization**:
+   Use `-p "mm39_"` to prefix contig names and differentiate mouse contigs from human/viral contigs:
+   ```bash
+   scripts/rename_fasta_contigs.sh -p "mm39_" mm39.fa mm39_modified
+   ```
+
+3. **Plasmid Reference Database Sanitization**:
+   ```bash
+   scripts/rename_fasta_contigs.sh SnapGene.fa SnapGene_modified
+   ```
 
 ---
 
@@ -94,7 +115,7 @@ snakemake --cores 1
 ```bash
 batchRun -multibatch samples_list.txt -config config/batch_jobexec_coverage.config -non-spot config/ssc_coverage.job -investigator MDJ -pau 0
 ```
-Combine all cloud-calculated sample coverage outputs into a master file named as `${DATASET}_master_coverage.tsv`. This file will be used for `sample_metadata_file` in Module 4 - Reporting Module.
+Combine all cloud-calculated sample coverage outputs into a master file named as `${DATASET}_master_coverage.tsv` and place it directly into your reference metadata directory at `/mnt/disks/staff/refs/`. Specify this filename as `sample_metadata_file` in `config/ssc_config.yaml`. This file is required by **Module 4 (Consolidated Reporting Module)** to calculate sample mean read depth and normalized viral copy numbers, as well as downstream analysis in **Module 5 (Cohort Stats)** and **Module 6 (Distributions & Plots)**.
 
 #### Module 2: Unmapped Extraction Module (`ssc_unmapped.job`)
 ```bash

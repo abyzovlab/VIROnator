@@ -72,8 +72,8 @@ record_index = 0
 out_fasta = Path(f"{prefix}.renamed.fa")
 out_map = Path(f"{prefix}.rename_map.tsv")
 out_collisions = Path(f"{prefix}.name_collisions.tsv")
-out_contigs = Path(f"{prefix}.contigs.txt")
-out_bed = Path(f"{prefix}.bed")
+out_contigs = Path(f"{prefix}.renamed.contigs.txt")
+out_bed = Path(f"{prefix}.renamed.bed")
 
 contig_lengths = defaultdict(int)
 current_contig = None

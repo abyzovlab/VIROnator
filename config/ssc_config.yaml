@@ -88,10 +88,10 @@ ref_decoy: "GRCh38_Decoy_Reference_4-30-2019_modified.renamed.fa"
 ref_rna: "GRCh38_RNA_Reference_4-30-2019_modified.renamed.fa"
 
 # Reference metadata filenames (stored directly in ref_dir /mnt/disks/staff/refs/)
-viral_contigs_file: "HumanViral_Reference_02-07-2022_modified.contigs.txt"
-viral_bed_file: "HumanViral_Reference_02-07-2022_modified.bed"
-plasmid_contigs_file: "SnapGene_modified.contigs.txt"
-mouse_contigs_file: "mm39_modified.contigs.txt"
+viral_contigs_file: "HumanViral_Reference_02-07-2022_modified.renamed.contigs.txt"
+viral_bed_file: "HumanViral_Reference_02-07-2022_modified.renamed.bed"
+plasmid_contigs_file: "SnapGene_modified.renamed.contigs.txt"
+mouse_contigs_file: "mm39_modified.renamed.contigs.txt"
 
 # Tool paths and script names (scripts are stored in scripts_dir)
 bwa_bin: "/mnt/disks/staff/bin/bwa"
