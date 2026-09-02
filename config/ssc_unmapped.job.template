@@ -71,6 +71,7 @@ clear_input=true
 # commands and scripts (executed in sequence). Executing in $JOBEXEC_PROCESS. 
 commands_start
 
+export PATH="/mnt/disks/staff/bin:${PATH}"
 set -ex
 
 echo "Start: $(date)"

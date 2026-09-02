@@ -31,6 +31,7 @@ log_bucket=gs://{output_bucket}/{vironator_jobexec_dirname}/logs
 
 repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
 tool=samtools
+tool=bwa
 #repo=gs://ml-phi-staff-m199584-p-rsa-us-central1-p-d707/repositories/rocky8.repo
 #tool=cnvpytor
 
@@ -68,6 +69,9 @@ clear_input=true
 # commands and scripts (executed in sequence). Executing in $JOBEXEC_PROCESS. 
 commands_start
 
+# Set PATH to include shared /mnt/disks/staff/bin mount
+export PATH="/mnt/disks/staff/bin:${PATH}"
+
 # Automatically load environment modules if Lmod/Modules are available on node
 if command -v module >/dev/null 2>&1 || [ -f /usr/share/modules/init/bash ]; then
     [ -f /usr/share/modules/init/bash ] && . /usr/share/modules/init/bash 2>/dev/null || true
@@ -96,6 +100,14 @@ PLASMID_CONTIGS="{plasmid_contigs_path}"
 MOUSE_CONTIGS="{mouse_contigs_path}"
 
 BWA_BIN="{bwa_bin}"
+if [ ! -x "${BWA_BIN}" ] && ! command -v "${BWA_BIN}" >/dev/null 2>&1; then
+    if [ -x "/mnt/disks/staff/bin/bwa" ]; then
+        BWA_BIN="/mnt/disks/staff/bin/bwa"
+    elif command -v bwa >/dev/null 2>&1; then
+        BWA_BIN="bwa"
+    fi
+fi
+
 PYTHON_BIN="{python_bin}"
 if [ ! -x "${PYTHON_BIN}" ] && ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
     if command -v python3 >/dev/null 2>&1; then

@@ -20,6 +20,7 @@ log_bucket=gs://{output_bucket}/{refinement_jobexec_dirname}/logs
 
 repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
 tool=samtools
+tool=bowtie2
 
 ####
 #### Post-Job Configuration
@@ -34,6 +35,8 @@ clear_input=true
 ####
 
 commands_start
+
+export PATH="/mnt/disks/staff/bin:${PATH}"
 
 # Automatically load environment modules if Lmod/Modules are available on node
 if command -v module >/dev/null 2>&1 || [ -f /usr/share/modules/init/bash ]; then
@@ -59,7 +62,11 @@ fi
 
 BOWTIE2_BIN="{bowtie2_bin}"
 if [ ! -x "${BOWTIE2_BIN}" ] && ! command -v "${BOWTIE2_BIN}" >/dev/null 2>&1; then
-    BOWTIE2_BIN="bowtie2"
+    if [ -x "/mnt/disks/staff/bin/bowtie2" ]; then
+        BOWTIE2_BIN="/mnt/disks/staff/bin/bowtie2"
+    elif command -v bowtie2 >/dev/null 2>&1; then
+        BOWTIE2_BIN="bowtie2"
+    fi
 fi
 
 REFINEMENT_SCRIPT="{refinement_script_path}"
