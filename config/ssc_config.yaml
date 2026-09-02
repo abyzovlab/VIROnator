@@ -100,10 +100,8 @@ plasmid_contigs_file: "SnapGene_modified.renamed.contigs.txt"
 mouse_contigs_file: "mm39_modified.renamed.contigs.txt"
 
 # Tool paths and script names (scripts are stored in scripts_dir)
-bwa_bin: "/usr/local/biotools/bwa/0.7.17/bwa"
-bowtie2_bin: "/usr/local/biotools/bowtie2/2.3.3.1/bowtie2"
-bowtie2_build_bin: "/usr/local/biotools/bowtie2/2.3.3.1/bowtie2-build"
-python_bin: "/usr/local/biotools/python/3.10.11/bin/python"
+bwa_bin: "bwa"
+python_bin: "python3"
 init_ref_script: "init_ref.sh"
 combined_refs_dir: ""  # Output folder for combined reference (resolves directly to ref_dir)
 
@@ -217,6 +215,10 @@ ref_plasmids: "SnapGene_plasmids_modified.fa"                 # Sanitized Plasmi
 ncbi_taxdump_dir: "/mnt/disks/staff/refs/ncbi_taxdump"   # Storage for nodes.dmp, names.dmp, accession2taxid
 ncbi_download_dir: "/mnt/disks/staff/refs/ncbi_download" # Storage for downloaded RefSeq FASTA genomes
 refinement_combined_ref_file: "combined_human_mouse_plasmids_refinement_viral_2026-08-29.fa"
+
+# Tool Binary Paths:
+bowtie2_bin: "bowtie2"
+bowtie2_build_bin: "bowtie2-build"
 
 # Algorithmic & Output Settings:
 ncbi_download_rank: "species"           # Taxonomic rank for NCBI query: "species" or "genus"

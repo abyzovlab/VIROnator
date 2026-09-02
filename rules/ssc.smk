@@ -451,7 +451,8 @@ rule build_refinement_ref:
         ref_mouse = os.path.join(config["ref_dir"], config.get("ref_mouse", "mm39_ms_modified.fa"))
         ref_plasmids = os.path.join(config["ref_dir"], config.get("ref_plasmids", "SnapGene_plasmids_modified.fa"))
         dl_dir = config.get("ncbi_download_dir", "/mnt/disks/staff/refs/ncbi_download")
-        cmd = f"python3 {input.script} --ref-human \"{ref_human}\" --ref-mouse \"{ref_mouse}\" --ref-plasmids \"{ref_plasmids}\" --download-dir \"{dl_dir}\" --output-ref \"{output.combined_ref}\""
+        bt2_build = config.get("bowtie2_build_bin", "bowtie2-build")
+        cmd = f"python3 {input.script} --ref-human \"{ref_human}\" --ref-mouse \"{ref_mouse}\" --ref-plasmids \"{ref_plasmids}\" --download-dir \"{dl_dir}\" --output-ref \"{output.combined_ref}\" --bowtie2-build-bin \"{bt2_build}\""
         subprocess.run(cmd, shell=True, check=True)
 
 rule create_refinement_directory:
