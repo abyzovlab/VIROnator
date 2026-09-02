@@ -236,20 +236,26 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     [ ! -f "${REF_DECOY}.ann" ] && "${BWA_BIN}" index "${REF_DECOY}"
     [ ! -f "${REF_RNA}.ann" ] && "${BWA_BIN}" index "${REF_RNA}"
 
+    # Create local temporary working directory on native node disk (/tmp) to prevent GCS FUSE stale file handle errors
+    TMP_DIR="/tmp/vironator_${SAMPLE}"
+    mkdir -p "${TMP_DIR}"
+
     # 3. Step 1: Alignment to foreign reference database (REF_VIR_CONT)
     echo "STEP 1) ALIGNMENT TO FOREIGN REFERENCE DATABASE"
     samtools fastq -@ 4 -F 2048 --reference "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
         | "${BWA_BIN}" mem -k 30 -t 20 "${REF_VIR_CONT}" - \
         | egrep -v '^@' \
         | awk '$3 != "*"' \
-        > "${OUT_DIR}/viral_reads_se.reads_temp"
+        > "${TMP_DIR}/viral_reads_se.reads_temp"
+
+    cp "${TMP_DIR}/viral_reads_se.reads_temp" "${OUT_DIR}/viral_reads_se.reads_temp" 2>/dev/null || true
 
     # Filter temp mapping against viral contig names
-    awk 'NR==FNR{a[$1]; next} $3 in a' "${VIRAL_CONTIGS}" "${OUT_DIR}/viral_reads_se.reads_temp" \
+    awk 'NR==FNR{a[$1]; next} $3 in a' "${VIRAL_CONTIGS}" "${TMP_DIR}/viral_reads_se.reads_temp" \
         | gzip -c \
         > "${OUT_DIR}/viral_reads_se.reads.gz"
 
-    echo "[DIAGNOSTIC] Step 1 viral_reads_se.reads_temp size: $(ls -lh "${OUT_DIR}/viral_reads_se.reads_temp" 2>/dev/null | awk '{print $5}') | lines: $(wc -l < "${OUT_DIR}/viral_reads_se.reads_temp" 2>/dev/null || echo 0)"
+    echo "[DIAGNOSTIC] Step 1 viral_reads_se.reads_temp size: $(ls -lh "${TMP_DIR}/viral_reads_se.reads_temp" 2>/dev/null | awk '{print $5}') | lines: $(wc -l < "${TMP_DIR}/viral_reads_se.reads_temp" 2>/dev/null || echo 0)"
     echo "[DIAGNOSTIC] Step 1 viral_reads_se.reads.gz size: $(ls -lh "${OUT_DIR}/viral_reads_se.reads.gz" 2>/dev/null | awk '{print $5}') | lines: $(zcat "${OUT_DIR}/viral_reads_se.reads.gz" 2>/dev/null | wc -l || echo 0)"
 
     echo "STEP 1 DONE"
@@ -267,7 +273,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
         
         # High-confidence Plasmid candidate IDs (MAPQ >= 20, Primary alignments only)
         if [ -f "${PLASMID_CONTIGS}" ]; then
-            awk 'NR==FNR{a[$1]; next} ($3 in a) && ($5 >= 20)' "${PLASMID_CONTIGS}" "${OUT_DIR}/viral_reads_se.reads_temp" \
+            awk 'NR==FNR{a[$1]; next} ($3 in a) && ($5 >= 20)' "${PLASMID_CONTIGS}" "${TMP_DIR}/viral_reads_se.reads_temp" \
                 | awk '{print $1}' | sed 's|/[12]$||' | sort -u > "${OUT_DIR}/plasmid_reads_se.ids"
         else
             touch "${OUT_DIR}/plasmid_reads_se.ids"
@@ -275,7 +281,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
 
         # High-confidence Mouse candidate IDs (MAPQ >= 20, Primary alignments only)
         if [ -f "${MOUSE_CONTIGS}" ]; then
-            awk 'NR==FNR{a[$1]; next} ($3 in a) && ($5 >= 20)' "${MOUSE_CONTIGS}" "${OUT_DIR}/viral_reads_se.reads_temp" \
+            awk 'NR==FNR{a[$1]; next} ($3 in a) && ($5 >= 20)' "${MOUSE_CONTIGS}" "${TMP_DIR}/viral_reads_se.reads_temp" \
                 | awk '{print $1}' | sed 's|/[12]$||' | sort -u > "${OUT_DIR}/mouse_reads_se.ids"
         else
             touch "${OUT_DIR}/mouse_reads_se.ids"
