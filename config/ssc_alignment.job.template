@@ -427,17 +427,26 @@ echo "STEP 6) FILTERING READS"
 filter_mode() {
     local MODE_PREFIX="$1"
     local IN_BAM="${OUT_DIR}/exogeneSR_${MODE_PREFIX}.bam"
+    local IN_CRAM="${OUT_DIR}/exogeneSR_${MODE_PREFIX}.cram"
 
-    if [ -f "${IN_BAM}" ]; then
+    if [ -f "${IN_CRAM}" ]; then
+        INPUT_ALIGNMENT="${IN_CRAM}"
+    elif [ -f "${IN_BAM}" ]; then
+        INPUT_ALIGNMENT="${IN_BAM}"
+    else
+        INPUT_ALIGNMENT=""
+    fi
+
+    if [ -n "${INPUT_ALIGNMENT}" ]; then
         # Extract read IDs matching length/orientation constraints under BED file regions
-        samtools view -F 2048 -F 12 -f 2 -q 20 "${IN_BAM}" --region-file "${VIRAL_BED}" \
+        samtools view -T "${COMBINED_REF}" -F 2048 -F 12 -f 2 -q 20 "${INPUT_ALIGNMENT}" --region-file "${VIRAL_BED}" \
             | awk '($9 >= 150 && $9 <= 1500) || ($9 <= -150 && $9 >= -1500)' \
             | awk '$6=="151M" || $6=="150M"' \
             | awk '$7=="="' \
             | cut -f1 | sort | uniq -c | awk '$1=="2"' | awk '{print $2}' \
             > "${OUT_DIR}/reads_${MODE_PREFIX}.ids"
 
-        samtools view -F 2048 -F 12 -q 20 "${IN_BAM}" --region-file "${VIRAL_BED}" \
+        samtools view -T "${COMBINED_REF}" -F 2048 -F 12 -q 20 "${INPUT_ALIGNMENT}" --region-file "${VIRAL_BED}" \
             | gawk 'function abs(v){return v<0?-v:v} ((and($2,97)==97 && !and($2,16)) || (and($2,81)==81 && !and($2,32)) || (and($2,145)==145 && !and($2,32)) || (and($2,161)==161 && !and($2,16))) && (abs($9) >= 150 && abs($9) <= 1500)' \
             | awk '$6=="151M" || $6=="150M"' \
             | awk '$7=="="' \
@@ -447,21 +456,23 @@ filter_mode() {
         echo "[DIAGNOSTIC] ${MODE_PREFIX} reads.ids count: $(wc -l < "${OUT_DIR}/reads_${MODE_PREFIX}.ids" 2>/dev/null || echo 0)"
         echo "[DIAGNOSTIC] ${MODE_PREFIX} reads.flags.ids count: $(wc -l < "${OUT_DIR}/reads_${MODE_PREFIX}.flags.ids" 2>/dev/null || echo 0)"
 
-        # Extract and sort filtered alignments using streaming pipes
-        samtools view -h -F 2048 "${IN_BAM}" \
+        # Extract and sort filtered alignments directly to CRAM
+        samtools view -h -T "${COMBINED_REF}" -F 2048 "${INPUT_ALIGNMENT}" \
             | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads_${MODE_PREFIX}.ids" \
-            | samtools sort -o "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.bam" -
+            | samtools view -T "${COMBINED_REF}" -C - \
+            | samtools sort -o "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.cram" -
 
-        samtools view -h -F 2048 "${IN_BAM}" \
+        samtools view -h -T "${COMBINED_REF}" -F 2048 "${INPUT_ALIGNMENT}" \
             | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/filter_reads.py" "${OUT_DIR}/reads_${MODE_PREFIX}.flags.ids" \
-            | samtools sort -o "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.flags.bam" -
+            | samtools view -T "${COMBINED_REF}" -C - \
+            | samtools sort -o "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.flags.cram" -
 
-        # Convert to CRAM format
-        samtools view -T "${COMBINED_REF}" -C -o "${OUT_DIR}/exogeneSR_${MODE_PREFIX}.cram" "${IN_BAM}"
-        samtools index "${OUT_DIR}/exogeneSR_${MODE_PREFIX}.cram"
-
-        samtools view -T "${COMBINED_REF}" -C -o "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.cram" "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.bam" 
-        samtools view -T "${COMBINED_REF}" -C -o "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.flags.cram" "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.flags.bam"
+        # Ensure primary CRAM exists and is indexed
+        if [ ! -f "${OUT_DIR}/exogeneSR_${MODE_PREFIX}.cram" ] && [ -f "${IN_BAM}" ]; then
+            samtools view -T "${COMBINED_REF}" -C -o "${OUT_DIR}/exogeneSR_${MODE_PREFIX}.cram" "${IN_BAM}"
+            rm -f "${IN_BAM}" "${IN_BAM}.bai"
+        fi
+        [ -f "${OUT_DIR}/exogeneSR_${MODE_PREFIX}.cram" ] && samtools index "${OUT_DIR}/exogeneSR_${MODE_PREFIX}.cram"
 
         # Index final CRAM outputs
         samtools index "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.cram"
@@ -471,6 +482,7 @@ filter_mode() {
         echo "[DIAGNOSTIC] ${MODE_PREFIX}_filtered.sorted.flags.cram size: $(ls -lh "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.flags.cram" 2>/dev/null | awk '{print $5}')"
 
         rm -f "${OUT_DIR}/reads_${MODE_PREFIX}.ids" "${OUT_DIR}/reads_${MODE_PREFIX}.flags.ids"
+        rm -f "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.bam" "${OUT_DIR}/exogeneSR_${MODE_PREFIX}_filtered.sorted.flags.bam"
     fi
 }
 
