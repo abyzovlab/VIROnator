@@ -108,6 +108,12 @@ OUT_REPORT="${REPORT_DIR}/${SAMPLE}_viral_report.tsv"
 
 mkdir -p "${REPORT_DIR}"
 
+# Delete existing report TSV file if present to prevent duplicate findings upon re-running
+if [ -f "${OUT_REPORT}" ]; then
+    echo "[CLEANUP] Existing TSV report found: ${OUT_REPORT}. Removing file before generating fresh report..."
+    rm -f "${OUT_REPORT}"
+fi
+
 echo "VIRONATOR INPUT DIR: ${VIRONATOR_DIR}"
 echo "OUTPUT REPORT: ${OUT_REPORT}"
 echo "COMBINED REF: ${COMBINED_REF}"

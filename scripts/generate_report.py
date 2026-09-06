@@ -413,6 +413,13 @@ def main():
                 ]
                 rows.append(row)
 
+    if os.path.exists(args.out_file):
+        try:
+            os.remove(args.out_file)
+            print(f"[CLEANUP] Deleted existing report file before writing: {args.out_file}")
+        except Exception as e:
+            print(f"[WARNING] Could not delete existing file {args.out_file}: {e}")
+
     with open(args.out_file, "w") as out:
         out.write("\t".join(header) + "\n")
         for r in rows:
