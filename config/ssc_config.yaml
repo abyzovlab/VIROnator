@@ -1,27 +1,18 @@
 # ==============================================================================
 # DATASET & GENOME BUILD METADATA (Project-level configuration)
 # ==============================================================================
-dataset: "SSC"
-# dataset: "BSMN"
-# dataset: "MCBiobank"
+dataset: "MCBiobank"
 genome_build: "hg38"
-# phase: "2"
-phase: "WGS.TS.Vaccarino"
-# phase: "WGS.SCZ.Weinberger"
-# phase: "WGS.SCZ.Chess"
-# phase: "WGS.NC.Gleeson"
-# phase: "WGS.ASD.Walsh"
+phase: ""
 project: ""
 
 # ==============================================================================
 # COMMON / JOINT VARIABLES (Global parameters used across modules)
 # ==============================================================================
 data_dir: "/mnt/disks/lab"
-data_subdir: "tertiary/SSC_hg38/WGS"  # Middle subdirectory path inside data_dir (set to "" for flat datasets)
-# data_subdir: "whole_genome/bb1000_2013/raw/bam"
-# data_subdir: "tertiary/s203958.TS_mosaicism/integrated/raw_data/BSMN_download"
-input_keyword: "final"                 # Optional middle keyword after sample dot (e.g. "final", "sorted", or "" for none)
-input_suffix: "cram"                   # File extension after keyword (e.g. "cram", "bam")
+data_subdir: "whole_genome/bb1000_2013/raw/bam"
+input_keyword: ""                      # Optional middle keyword after sample dot (e.g. "final", "sorted", or "" for none)
+input_suffix: "bam"                    # File extension after keyword (e.g. "cram", "bam")
 output_dir: "/mnt/disks/staff"
 work_dir: "."  # Current VIROnator execution directory
 placeholder_file: "test.txt"

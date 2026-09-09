@@ -419,14 +419,43 @@ def get_master_report_path(config):
     ds = config.get("dataset", "DATASET")
     gb = config.get("genome_build", "hg38")
     report_name = config.get("master_report_file", "{dataset}_{genome_build}_master_report.tsv").format(dataset=ds, genome_build=gb)
-    stats_dir = os.path.join(config["output_dir"], config.get("stats_out_dirname", f"{ds}_{gb}_stats"))
-    stats_path = os.path.join(stats_dir, report_name)
-    ref_path = os.path.join(config["ref_dir"], report_name)
-    if os.path.exists(stats_path):
-        return stats_path
-    elif os.path.exists(ref_path):
-        return ref_path
-    return stats_path
+    stats_dir_name = config.get("stats_out_dirname", f"{ds}_{gb}_stats")
+    
+    # Candidate paths to check in priority order:
+    # 1. Output dir stats folder (/mnt/disks/staff/{ds}_{gb}_stats/{report_name})
+    # 2. Local execution work_dir stats folder (./{ds}_{gb}_stats/{report_name})
+    # 3. Output dir refs folder (/mnt/disks/staff/refs/{report_name})
+    # 4. Local execution refs folder (./refs/{report_name})
+    candidate_paths = [
+        os.path.join(config["output_dir"], stats_dir_name, report_name),
+        os.path.join(config.get("work_dir", "."), stats_dir_name, report_name),
+        os.path.join(config.get("ref_dir", "/mnt/disks/staff/refs"), report_name),
+        os.path.join(config.get("work_dir", "."), "refs", report_name)
+    ]
+    
+    for p in candidate_paths:
+        if os.path.exists(p):
+            return p
+            
+    # Auto-sync/download from GCS if stored in GCS bucket but not yet on local disk
+    bucket = config.get("output_bucket")
+    target_stats_dir = os.path.join(config["output_dir"], stats_dir_name)
+    target_stats_path = os.path.join(target_stats_dir, report_name)
+    
+    if bucket:
+        import subprocess
+        os.makedirs(target_stats_dir, exist_ok=True)
+        gcs_stats_uri = f"gs://{bucket}/{stats_dir_name}/{report_name}"
+        gcs_refs_uri = f"gs://{bucket}/refs/{report_name}"
+        
+        res = subprocess.run(f"gsutil -q cp '{gcs_stats_uri}' '{target_stats_path}' 2>/dev/null", shell=True)
+        if res.returncode != 0:
+            subprocess.run(f"gsutil -q cp '{gcs_refs_uri}' '{target_stats_path}' 2>/dev/null", shell=True)
+        
+        if os.path.exists(target_stats_path):
+            return target_stats_path
+
+    return target_stats_path
 
 rule download_ncbi_refseq:
     """
