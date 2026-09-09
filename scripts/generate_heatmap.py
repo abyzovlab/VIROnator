@@ -144,11 +144,11 @@ def main():
     num_samples = log_df.shape[0]
     num_viruses = log_df.shape[1]
 
-    # Dynamic figure height based on sample count (min 15 in, max 250 in)
-    calc_height = max(15.0, min(250.0, num_samples * 0.25))
-    calc_width = max(20.0, min(80.0, num_viruses * 0.8))
+    # Proportional figure dimensions capped for high performance & clean rendering
+    calc_height = max(8.0, min(35.0, num_samples * 0.15 + 4.0))
+    calc_width = max(10.0, min(30.0, num_viruses * 0.4 + 4.0))
 
-    plt.figure(figsize=(calc_width, calc_height))
+    plt.figure(figsize=(calc_width, calc_height), dpi=300)
 
     if num_viruses > 1:
         linkage_matrix = linkage(log_df.T, method='average')
@@ -159,21 +159,24 @@ def main():
     else:
         sorted_log_df = log_df
 
-    # 7. Render Heatmap using exact seaborn/matplotlib parameters from OLD/06_heatmap.py
+    # 7. Render Heatmap
     ax = sns.heatmap(sorted_log_df, cmap='viridis', linewidths=0.5)
 
     title_text = 'Virus Read Counts Heatmap' if args.value_type == "read_counts" else 'Virus Copy Number Heatmap'
-    plt.title(title_text, fontsize=70, pad=20)
-    plt.xlabel('Virus', fontsize=120, labelpad=20)
-    plt.ylabel('Sample', fontsize=120, labelpad=20)
+    plt.title(title_text, fontsize=20, pad=15)
+    plt.xlabel('Virus', fontsize=16, labelpad=10)
+    plt.ylabel('Sample', fontsize=16, labelpad=10)
 
-    plt.xticks(fontsize=100, rotation=90)
-    plt.yticks(fontsize=100, rotation=(-360))
+    xtick_size = max(6, min(12, int(200 / max(1, num_viruses))))
+    ytick_size = max(4, min(10, int(200 / max(1, num_samples))))
+
+    plt.xticks(fontsize=xtick_size, rotation=90)
+    plt.yticks(fontsize=ytick_size, rotation=0)
 
     colorbar = ax.collections[0].colorbar
-    colorbar.ax.tick_params(labelsize=120)
+    colorbar.ax.tick_params(labelsize=12)
     for label in colorbar.ax.get_yticklabels():
-        label.set_rotation(90)
+        label.set_rotation(0)
 
     plt.tight_layout()
 

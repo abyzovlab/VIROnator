@@ -595,27 +595,21 @@ rule generate_coverage_job_file:
 
 rule generate_stats:
     """
-    Generates {dataset}_{genome_build}_stats_summary.tsv and {dataset}_{genome_build}_stats_summary.md in {dataset}_{genome_build}_stats.
+    Generates {dataset}_{genome_build}_stats_summary.tsv and {dataset}_{genome_build}_stats_summary.md locally and copies to GCS bucket via gsutil.
     """
     input:
         script="scripts/generate_stats.py" if os.path.exists("scripts/generate_stats.py") else os.path.join(config["scripts_dir"], config.get("stats_script", "generate_stats.py")),
         master_report=lambda wildcards: get_master_report_path(config),
         config_file="config/ssc_config.yaml"
     output:
-        tsv=os.path.join(config["output_dir"], config.get("stats_out_dirname", f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_stats"), f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_stats_summary.tsv"),
-        md=os.path.join(config["output_dir"], config.get("stats_out_dirname", f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_stats"), f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_stats_summary.md")
+        tsv=f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_stats_summary.tsv",
+        md=f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_stats_summary.md"
     run:
         import subprocess
         ds = config.get("dataset", "DATASET")
         gb = config.get("genome_build", "hg38")
-        out_dir = os.path.join(config["output_dir"], config.get("stats_out_dirname", f"{ds}_{gb}_stats"))
-        os.makedirs(out_dir, exist_ok=True)
-        if os.path.exists(output.tsv):
-            try: os.remove(output.tsv)
-            except Exception: pass
-        if os.path.exists(output.md):
-            try: os.remove(output.md)
-            except Exception: pass
+        out_dir = "."
+        
         phase = str(config.get("phase", ""))
         project = str(config.get("project", ""))
         strategies = " ".join(config.get("target_strategies", ["exogeneSR_viral_clean_filtered.sorted.flags.cram"]))
@@ -631,6 +625,15 @@ rule generate_stats:
         
         cmd = f"python3 {input.script} --input-report \"{input.master_report}\" --out-dir \"{out_dir}\" --dataset \"{ds}\" --genome-build \"{gb}\" --target-phase \"{phase}\" --target-project \"{project}\" --strategies {strategies} --cohort-scope \"{cohort_scope}\" --panel-a-loglog \"{panel_a}\" --panel-b-log-y \"{panel_b}\" --log-scale-read-cutoff {cutoff} --prelim-prevalence-cutoff-pct {prev_cutoff} --prelim-mean-read-cutoff {mean_cutoff} --heatmap-read-counts \"{rc_switch}\" --heatmap-copy-number \"{cn_switch}\" --target-heatmap-strategy \"{hm_strategy}\""
         subprocess.run(cmd, shell=True, check=True)
+
+        # Copy local outputs to GCS bucket if output_bucket is configured
+        output_bucket = config.get("output_bucket", "")
+        stats_out_dirname = config.get("stats_out_dirname", f"{ds}_{gb}_stats")
+        if output_bucket:
+            gcs_dest = f"gs://{output_bucket}/{stats_out_dirname}/"
+            subprocess.run(f"gsutil -q cp {ds}_{gb}_* {gcs_dest} 2>/dev/null || true", shell=True)
+            if os.path.exists("/mnt/disks/staff"):
+                subprocess.run(f"cp {ds}_{gb}_* /mnt/disks/staff/{stats_out_dirname}/ 2>/dev/null || true", shell=True)
 
 rule create_stats_and_plots_directory:
     """

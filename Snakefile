@@ -64,9 +64,8 @@ if config.get("reporting_module", "off") == "on":
 if config.get("stats_module", "off") == "on":
     _ds = config.get("dataset", "DATASET")
     _gb = config.get("genome_build", config.get("build", "hg38"))
-    _stats_dir = config.get("stats_out_dirname", f"{_ds}_{_gb}_stats")
-    targets.append(os.path.join(config["output_dir"], _stats_dir, f"{_ds}_{_gb}_stats_summary.tsv"))
-    targets.append(os.path.join(config["output_dir"], _stats_dir, f"{_ds}_{_gb}_stats_summary.md"))
+    targets.append(f"{_ds}_{_gb}_stats_summary.tsv")
+    targets.append(f"{_ds}_{_gb}_stats_summary.md")
 
 # Module 5: Distributions Plots & Virus Stats
 if config.get("distributions_module", "off") == "on":
