@@ -141,9 +141,16 @@ def main():
     log_df = np.log10(pivot_df + 1e-7)
 
     # 6. Hierarchical Clustering (average linkage)
-    plt.figure(figsize=(50, 250))
+    num_samples = log_df.shape[0]
+    num_viruses = log_df.shape[1]
 
-    if log_df.shape[1] > 1:
+    # Dynamic figure height based on sample count (min 15 in, max 250 in)
+    calc_height = max(15.0, min(250.0, num_samples * 0.25))
+    calc_width = max(20.0, min(80.0, num_viruses * 0.8))
+
+    plt.figure(figsize=(calc_width, calc_height))
+
+    if num_viruses > 1:
         linkage_matrix = linkage(log_df.T, method='average')
         ordered_columns = leaves_list(linkage_matrix)
         sorted_column_names = sorted(log_df.columns[ordered_columns])
