@@ -2,9 +2,15 @@
 # DATASET & GENOME BUILD METADATA (Project-level configuration)
 # ==============================================================================
 dataset: "SSC"
+# dataset: "BSMN"
 # dataset: "MCBiobank"
 genome_build: "hg38"
-phase: "2"
+# phase: "2"
+phase: "WGS.TS.Vaccarino"
+# phase: "WGS.SCZ.Weinberger"
+# phase: "WGS.SCZ.Chess"
+# phase: "WGS.NC.Gleeson"
+# phase: "WGS.ASD.Walsh"
 project: ""
 
 # ==============================================================================
@@ -13,6 +19,7 @@ project: ""
 data_dir: "/mnt/disks/lab"
 data_subdir: "tertiary/SSC_hg38/WGS"  # Middle subdirectory path inside data_dir (set to "" for flat datasets)
 # data_subdir: "whole_genome/bb1000_2013/raw/bam"
+# data_subdir: "tertiary/s203958.TS_mosaicism/integrated/raw_data/BSMN_download"
 input_keyword: "final"                 # Optional middle keyword after sample dot (e.g. "final", "sorted", or "" for none)
 input_suffix: "cram"                   # File extension after keyword (e.g. "cram", "bam")
 output_dir: "/mnt/disks/staff"
@@ -48,8 +55,13 @@ reporting_jobexec_dirname: "jobexec_reporting_{dataset}_{genome_build}"
 # - If your samples file is stored elsewhere, you MUST provide an ABSOLUTE path 
 #   starting with a "/" (e.g. "/home/user/working/samples_p2_base") to bypass 
 #   automatic appending.
-samples_list: "samples_mayo_biobank_test.txt"
-# samples_list: "samples_p2_base_test"
+# samples_list: "samples_mayo_biobank.txt"
+samples_list: "samples_p4_clean_base"
+# samples_list: "samples_WGS.TS.Vaccarino"
+# samples_list: "samples_WGS.SCZ.Weinberger"
+# samples_list: "samples_WGS.SCZ.Chess"
+# samples_list: "samples_WGS.NC.Gleeson"
+# samples_list: "samples_WGS.ASD.Walsh"
 
 # Base directory for all external reference genomes (GCS mount)
 ref_dir: "/mnt/disks/staff/refs"
@@ -128,7 +140,7 @@ report_script: "generate_report.py"
 # MODULE 5: STATS MODULE (Cohort Statistical Summary Snapshot)
 # ==============================================================================
 stats_module: "off"  # Switch: "on" or "off" to run cohort stats summary
-master_report_file: "master_all_cohorts_viral_report_final.tsv"  # Input master report file
+master_report_file: "{dataset}_{genome_build}_master_report.tsv"  # Input master report file
 stats_script: "generate_stats.py"
 
 
@@ -136,7 +148,7 @@ stats_script: "generate_stats.py"
 # MODULE 6: DISTRIBUTIONS MODULE (Per-Virus Read Distribution TIFF Plots & Virus Stats)
 # ==============================================================================
 distributions_module: "off"  # Switch: "on" or "off" to generate TIFF plots & virus stats
-master_report_file: "master_all_cohorts_viral_report_final.tsv"  # Input TSV report file used for distributions & stats
+master_report_file: "{dataset}_{genome_build}_master_report.tsv"  # Input TSV report file used for distributions & stats
 plots_out_dirname: "{dataset}_{genome_build}_plots"
 stats_out_dirname: "{dataset}_{genome_build}_stats"
 distributions_script: "generate_distributions.py"
@@ -204,7 +216,7 @@ refinement_alignment_stage: "off"        # Stage 4: Run Bowtie2 alignment, filte
 
 # Input Files & Output Locations:
 db_fasta_file: "HumanViral_Reference_02-07-2022.fa"   # Source viral database FASTA for taxonomy index
-master_report_file: "master_all_cohorts_viral_report_final.tsv"
+master_report_file: "{dataset}_{genome_build}_master_report.tsv"
 taxonomy_index_file: "config/db_metadata/viral_reference_taxonomy_index.tsv"
 refinement_samples_list: "config/refinement_samples.tsv" # Sample list TSV (sample, phase, project)
 

@@ -421,7 +421,7 @@ rule download_ncbi_refseq:
     """
     input:
         script="scripts/download_ncbi_refseq.py",
-        master_report=config.get("master_report_file", "master_all_cohorts_viral_report_final.tsv"),
+        master_report=config.get("master_report_file", "{dataset}_{genome_build}_master_report.tsv").format(dataset=config.get("dataset", "DATASET"), genome_build=config.get("genome_build", "hg38")),
         tax_index=config.get("taxonomy_index_file", "config/db_metadata/viral_reference_taxonomy_index.tsv")
     output:
         token="config/ncbi_download.completed"

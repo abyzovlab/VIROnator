@@ -165,21 +165,47 @@ def load_metadata(filepath, sample_id, phase, project):
                 continue
             
             row = dict(zip(header, parts))
-            row_sample = row.get("sample", "").replace(".sorted", "").replace("Sample_", "").strip().lower()
+            
+            # Sample ID column aliases
+            row_sample = ""
+            for k in ["sample", "sample_id", "specimen_id", "id"]:
+                if k in row and row[k]:
+                    row_sample = row[k].replace(".sorted", "").replace("Sample_", "").strip().lower()
+                    break
+
+            if not row_sample:
+                continue
+
             row_phase = str(row.get("phase", "")).strip().lower()
             row_project = str(row.get("project", "")).strip().lower()
             if not row_project:
                 row_project = "base"
             
-            # Exact 3-way match requirement
-            if row_sample == clean_sample and (row_phase == target_phase or row_phase == target_phase_alt) and row_project == project_key:
+            # Coverage column aliases
+            cov_val = None
+            for k in ["coverage", "mean_coverage", "depth", "read_depth", "mean_depth", "mean_read_depth", "wgs_coverage"]:
+                if k in row and row[k]:
+                    cov_val = row[k]
+                    break
+            
+            # Specimen column aliases
+            spec_val = "Unknown"
+            for k in ["specimen", "sample_type", "tissue", "material"]:
+                if k in row and row[k]:
+                    spec_val = row[k]
+                    break
+
+            # Flexible phase and project matching (supports literal "phase", empty, none, base defaults)
+            phase_match = (row_phase == target_phase or row_phase == target_phase_alt or not row_phase or row_phase in ["phase", "none", "base", "0", "", "all"])
+            project_match = (row_project == project_key or not row_project or row_project in ["phase", "none", "base", "0", "", "all"])
+
+            # Match sample ID (unambiguous sample match)
+            if row_sample == clean_sample and phase_match and project_match:
                 try:
-                    depth = float(row.get("coverage", 30.0))
-                except ValueError:
+                    depth = float(cov_val) if cov_val is not None else 30.0
+                except (ValueError, TypeError):
                     depth = 30.0
-                specimen = row.get("specimen", "Unknown")
-                if not specimen:
-                    specimen = "Unknown"
+                specimen = spec_val if spec_val else "Unknown"
                 return depth, specimen
 
     return default_depth, default_specimen
