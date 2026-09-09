@@ -26,6 +26,8 @@ def parse_args():
     parser.add_argument("--out-dir", default=".", help="Base VIROnator directory (default: .)")
     parser.add_argument("--plots-dir", default=None, help="Specific output directory for TIFF plots")
     parser.add_argument("--stats-dir", default=None, help="Specific output directory for virus stats TSV")
+    parser.add_argument("--dataset", default="DATASET", help="Dataset name for output file naming")
+    parser.add_argument("--genome-build", default="hg38", help="Genome build for output file naming")
     parser.add_argument("--target-phase", default=None, help="Target phase to filter (e.g. phase1 or 1)")
     parser.add_argument("--target-project", default=None, help="Target project to filter (e.g. base)")
     parser.add_argument("--strategies", nargs="*", default=[
@@ -246,10 +248,27 @@ def main():
         dataset_groups[(v_key[0], v_key[1])].append(v_key)
 
     for (cur_phase, cur_proj), group_v_keys in dataset_groups.items():
-        cur_phase_tag = f"phase{cur_phase}" if cur_phase and not str(cur_phase).startswith("phase") and not str(cur_phase).startswith("all") else (str(cur_phase) if cur_phase else "all")
-        cur_proj_tag = str(cur_proj) if cur_proj else "base"
-        
-        stats_tsv_name = f"virus_stats_summary_{cur_phase_tag}_{cur_proj_tag}.tsv"
+        # Ensure dataset and genome_build are set for output filename
+        ds = getattr(args, "dataset", None) or "DATASET"
+        gb = getattr(args, "genome_build", None) or "hg38"
+
+        # Format phase tag for filename
+        if not cur_phase or str(cur_phase).lower() in ["none", "0", "", "all_cohorts"]:
+            p_file_tag = "all" if str(cur_phase).lower() == "all_cohorts" else "phase"
+        elif str(cur_phase).startswith("phase"):
+            p_file_tag = str(cur_phase)
+        else:
+            p_file_tag = f"phase{cur_phase}"
+
+        # Format project tag for filename
+        if not cur_proj or str(cur_proj).lower() in ["none", "0", ""]:
+            prj_file_tag = "base"
+        elif str(cur_proj).lower() == "combined":
+            prj_file_tag = "combined"
+        else:
+            prj_file_tag = str(cur_proj)
+
+        stats_tsv_name = f"{ds}_{gb}_virus_stats_{p_file_tag}_{prj_file_tag}_VIRUSES.tsv"
         stats_tsv_path = os.path.join(stats_dir, stats_tsv_name)
 
         stats_rows = []
@@ -346,7 +365,7 @@ def main():
         short_strat = get_short_strategy(strategy)
         v_name_sanitized = sanitize_filename(v_info["name"])
 
-        out_tif = os.path.join(plots_dir, f"dist_{phase}_{project}_{short_strat}_{virus_acc}_{v_name_sanitized}.tiff")
+        out_tif = os.path.join(plots_dir, f"VIRUS_{phase}_{project}_{short_strat}_{virus_acc}_{v_name_sanitized}.tiff")
         print(f"  [{idx}/{total_plot_keys}] Generating plot: {os.path.basename(out_tif)} ...", flush=True)
 
         main_color = color_map.get(short_strat, "#ff98ff")
@@ -453,7 +472,7 @@ def main():
 
         cur_strat = group_v_keys[0][2] if group_v_keys else "clean_flags"
         cur_strat_clean = cur_strat.replace(".sorted.flags.cram", "").replace("exogeneSR_viral_", "")
-        positivity_plot_name = f"dist_{cur_phase_tag}_{cur_proj_tag}_{cur_strat_clean}_VIRAL_POSITIVITY_RATES.tiff"
+        positivity_plot_name = f"{cur_phase_tag}_{cur_proj_tag}_{cur_strat_clean}_VIRAL_POSITIVITY_RATES.tiff"
         positivity_plot_path = os.path.join(plots_dir, positivity_plot_name)
 
         # Sort ascending for horizontal barh plot so highest positivity is at the TOP
@@ -521,9 +540,9 @@ def main():
         # --------------------------------------------------------------------------
         # 4. Generate Overall Summary TIFF Plot and Executive Overall TSV
         # --------------------------------------------------------------------------
-        overall_stats_tsv_name = f"virus_stats_summary_{cur_phase_tag}_{cur_proj_tag}_OVERALL.tsv"
+        overall_stats_tsv_name = f"{ds}_{gb}_virus_stats_{p_file_tag}_{prj_file_tag}_OVERALL.tsv"
         overall_stats_tsv_path = os.path.join(stats_dir, overall_stats_tsv_name)
-        overall_plot_name = f"dist_{cur_phase_tag}_{cur_proj_tag}_{cur_strat_clean}_OVERALL_SUMMARY.tiff"
+        overall_plot_name = f"{cur_phase_tag}_{cur_proj_tag}_{cur_strat_clean}_OVERALL_SUMMARY.tiff"
         overall_plot_path = os.path.join(plots_dir, overall_plot_name)
 
         overall_rows = []

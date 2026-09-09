@@ -13,6 +13,7 @@ This workflow works modularly to process and align sequencing datasets. It consi
 7. **Module 6:** Distributions & Plots Module (`generate_distributions.py`)
 8. **Module 7:** SAM Flag Comparison Module (`ssc_flag_comparison.job`)
 9. **Module 8:** NCBI RefSeq Refinement Module (`ssc_refinement.job`)
+10. **Module 9:** Heatmaps Module (`generate_heatmap.py`)
 
 ---
 
@@ -139,26 +140,34 @@ batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_vironator.config
 batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
 - **Generated Per-Sample File**: `<sample_id>_viral_report.tsv`
-- **Combined Master Output File**: Once all parallel cloud batch jobs finish, combine all individual sample reports into one master file named with the phase and project: `master_all_cohorts_viral_report_final.tsv` (used as input for Module 5 Stats).
+- **Combined Master Output File**: Once all parallel cloud batch jobs finish, combine all individual sample reports into one master file named `{dataset}_{genome_build}_master_report.tsv` and place it in `/mnt/disks/staff/refs/` (used as input for Module 5 Stats, Module 6 Distributions, and Module 8 Refinement).
 
 #### Module 5: Cohort Stats Summary Module (`stats_module`)
 ```bash
-snakemake cohort_stats_summary.tsv --cores 1
+snakemake generate_stats --cores 1
 ```
-- **Generated Summary Files**:
-  - `cohort_stats_summary.tsv` (Tab-delimited cohort statistics snapshot)
-  - `cohort_stats_summary.md` (Markdown-formatted summary report)
+Module 5 generates basic tabular statistics on the viruses that are found and summary statistics plots. Run this command on the head node after compiling your configuration. Snakemake reads your master report at `/mnt/disks/staff/refs/{dataset}_{genome_build}_master_report.tsv` and deposits summary files directly into `/mnt/disks/staff/{dataset}_{genome_build}_stats/`.
+- **Generated Summary Files & Figures**:
+  - `/mnt/disks/staff/<stats_out_dirname>/{dataset}_{genome_build}_stats_summary.tsv` (Tab-delimited 9-column cohort statistics snapshot)
+  - `/mnt/disks/staff/<stats_out_dirname>/{dataset}_{genome_build}_stats_summary.md` (Markdown-formatted executive summary report)
+  - `/mnt/disks/staff/<stats_out_dirname>/{dataset}_{genome_build}_virus_stats_{phase}_{project}_VIRUSES_percentages.tiff` (Horizontal bar plot showing positive sample percentages per virus)
+  - `/mnt/disks/staff/<stats_out_dirname>/{dataset}_{genome_build}_virus_stats_{phase}_{project}_VIRUSES_reads.tiff` (Horizontal bar plot showing total assigned reads per virus)
+  - `/mnt/disks/staff/<stats_out_dirname>/{dataset}_{genome_build}_virus_stats_{phase}_{project}_VIRUSES_classes.tiff` (Vertical bar plot showing occurrence counts across 4 preliminary classification categories, ordered highest to lowest)
+  - `/mnt/disks/staff/<stats_out_dirname>/{dataset}_{genome_build}_virus_stats_{phase}_{project}_reads.tiff` (2-panel dataset-wide overall read count distribution figure)
+  - `/mnt/disks/staff/<stats_out_dirname>/{dataset}_{genome_build}_virus_stats_{phase}_{project}_copy_number.tiff` (2-panel dataset-wide overall copy number distribution figure)
+  - `/mnt/disks/staff/<stats_out_dirname>/{dataset}_{genome_build}_heatmap_read_counts.tiff` (Publication-quality 300 DPI hierarchical clustering heatmap for viral read counts)
+  - `/mnt/disks/staff/<stats_out_dirname>/{dataset}_{genome_build}_heatmap_copy_number.tiff` (Publication-quality 300 DPI hierarchical clustering heatmap for viral copy number values)
 
 #### Module 6: Distributions & Plots Module (`distributions_module`)
 ```bash
 snakemake generate_distributions --cores 1
 ```
 - **Generated Summary Files & Figures**:
-  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>.tsv` (Detailed per-virus summary table containing prevalence, sample counts, read counts, mean mapped reads, and preliminary classifications: `sporadic_noise`, `systematic_noise`, `virome`, `infection`).
-  - `<stats_out_dirname>/virus_stats_summary_<PHASE>_<PROJECT>_OVERALL.tsv` (High-level executive dataset summary table reporting total positive samples, cohort size, overall positivity rate, total mapped reads, unique viruses detected, top prevalent virus, mean reads per positive sample, and overall classification).
-  - `<plots_out_dirname>/dist_<PHASE>_<PROJECT>_<STRATEGY>_<VIRUS_ACC>_<VIRUS_NAME>.tiff` (2-panel 300 DPI publication TIFF figure per detected virus species).
-  - `<plots_out_dirname>/dist_<PHASE>_<PROJECT>_<STRATEGY>_VIRAL_POSITIVITY_RATES.tiff` (Cohort-wide horizontal bar plot showing viral prevalence % across all detected viruses for the entire phase/project).
-  - `<plots_out_dirname>/dist_<PHASE>_<PROJECT>_<STRATEGY>_OVERALL_SUMMARY.tiff` (Executive 2-panel overall dataset summary figure for the entire phase/project).
+  - `<stats_out_dirname>/{dataset}_{genome_build}_virus_stats_{phase}_{project}_VIRUSES.tsv` (Detailed per-virus summary table containing prevalence, sample counts, read counts, mean mapped reads, and preliminary classifications: `sporadic_noise`, `systematic_noise`, `virome`, `infection`).
+  - `<stats_out_dirname>/{dataset}_{genome_build}_virus_stats_{phase}_{project}_OVERALL.tsv` (High-level executive dataset summary table reporting total positive samples, cohort size, overall positivity rate, total mapped reads, unique viruses detected, top prevalent virus, mean reads per positive sample, and overall classification).
+  - `<plots_out_dirname>/VIRUS_<PHASE>_<PROJECT>_<STRATEGY>_<VIRUS_ACC>_<VIRUS_NAME>.tiff` (2-panel 300 DPI publication TIFF figure per detected virus species).
+  - `<plots_out_dirname>/<PHASE>_<PROJECT>_<STRATEGY>_VIRAL_POSITIVITY_RATES.tiff` (Cohort-wide horizontal bar plot showing viral prevalence % across all detected viruses for the entire phase/project).
+  - `<plots_out_dirname>/<PHASE>_<PROJECT>_<STRATEGY>_OVERALL_SUMMARY.tiff` (Executive 2-panel overall dataset summary figure for the entire phase/project).
 
 #### Module 7: SAM Flag Comparison Module (`ssc_flag_comparison.job`)
 ```bash

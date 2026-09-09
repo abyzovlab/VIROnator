@@ -135,13 +135,24 @@ viral_rename_map_file: "HumanViral_Reference_02-07-2022_modified.rename_map.tsv"
 viral_bed_file: "HumanViral_Reference_02-07-2022_modified.bed"  # Generated automatically during the reference sanitization script
 report_script: "generate_report.py"
 
+# Note: Combine all individual sample TSV reports into a final master report named as
+# {dataset}_{genome_build}_master_report.tsv and place it in /mnt/disks/staff/refs/.
+# This file is required by Module 5 (Stats), Module 6 (Distributions), and Module 8 (Refinement).
+
 
 # ==============================================================================
-# MODULE 5: STATS MODULE (Cohort Statistical Summary Snapshot)
+# MODULE 5: STATS MODULE (Cohort Statistical Summary Snapshot & Heatmaps)
 # ==============================================================================
-stats_module: "off"  # Switch: "on" or "off" to run cohort stats summary
+stats_module: "off"  # Switch: "on" or "off" to run cohort stats summary & plots
 master_report_file: "{dataset}_{genome_build}_master_report.tsv"  # Input master report file
+stats_out_dirname: "{dataset}_{genome_build}_stats"
 stats_script: "generate_stats.py"
+
+# Heatmap Sub-Switches (Outputs 300 DPI publication TIFF heatmaps directly in stats_out_dirname):
+heatmap_read_counts: "off"              # Switch: "on" or "off" for read counts heatmap
+heatmap_copy_number: "off"              # Switch: "on" or "off" for copy number heatmap
+target_heatmap_strategy: "clean_flags"  # Candidate CRAM strategy: e.g. "clean_flags" or "clean_filtered"
+
 
 
 # ==============================================================================
@@ -238,6 +249,10 @@ refinement_out_dirname: "{dataset}_{genome_build}_refinement"
 refinement_jobexec_dirname: "jobexec_refinement_{dataset}_{genome_build}"
 refinement_strategy: "clean"            # Candidate read source strategy: "clean" or "raw"
 bowtie2_max_multimaps: 10               # -k flag for Bowtie2 multimapping alignment
+
+
+
+
 
 
 

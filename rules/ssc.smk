@@ -415,13 +415,26 @@ rule make_taxonomy_index:
         cmd = f"python3 {input.script} --db-fasta \"{db_fasta}\" --taxdump-dir \"{taxdump_dir}\" --output \"{output.tax_index}\""
         subprocess.run(cmd, shell=True, check=True)
 
+def get_master_report_path(config):
+    ds = config.get("dataset", "DATASET")
+    gb = config.get("genome_build", "hg38")
+    report_name = config.get("master_report_file", "{dataset}_{genome_build}_master_report.tsv").format(dataset=ds, genome_build=gb)
+    stats_dir = os.path.join(config["output_dir"], config.get("stats_out_dirname", f"{ds}_{gb}_stats"))
+    stats_path = os.path.join(stats_dir, report_name)
+    ref_path = os.path.join(config["ref_dir"], report_name)
+    if os.path.exists(stats_path):
+        return stats_path
+    elif os.path.exists(ref_path):
+        return ref_path
+    return stats_path
+
 rule download_ncbi_refseq:
     """
     Stage 2: Downloads complete RefSeq genomes from NCBI for detected viral species/genus groups.
     """
     input:
         script="scripts/download_ncbi_refseq.py",
-        master_report=config.get("master_report_file", "{dataset}_{genome_build}_master_report.tsv").format(dataset=config.get("dataset", "DATASET"), genome_build=config.get("genome_build", "hg38")),
+        master_report=lambda wildcards: get_master_report_path(config),
         tax_index=config.get("taxonomy_index_file", "config/db_metadata/viral_reference_taxonomy_index.tsv")
     output:
         token="config/ncbi_download.completed"
@@ -569,19 +582,42 @@ rule generate_coverage_job_file:
 
 rule generate_stats:
     """
-    Generates cohort_stats_summary.tsv and cohort_stats_summary.md from master report.
+    Generates {dataset}_{genome_build}_stats_summary.tsv and {dataset}_{genome_build}_stats_summary.md in {dataset}_{genome_build}_stats.
     """
     input:
         script="scripts/generate_stats.py" if os.path.exists("scripts/generate_stats.py") else os.path.join(config["scripts_dir"], config.get("stats_script", "generate_stats.py")),
-        master_report=config.get("master_report_file", "master_all_cohorts_viral_report_final.tsv"),
+        master_report=lambda wildcards: get_master_report_path(config),
         config_file="config/ssc_config.yaml"
     output:
-        tsv="cohort_stats_summary.tsv",
-        md="cohort_stats_summary.md"
-    shell:
-        """
-        python3 {input.script} --input-report {input.master_report} --out-dir .
-        """
+        tsv=os.path.join(config["output_dir"], config.get("stats_out_dirname", f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_stats"), f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_stats_summary.tsv"),
+        md=os.path.join(config["output_dir"], config.get("stats_out_dirname", f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_stats"), f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_stats_summary.md")
+    run:
+        import subprocess
+        ds = config.get("dataset", "DATASET")
+        gb = config.get("genome_build", "hg38")
+        out_dir = os.path.join(config["output_dir"], config.get("stats_out_dirname", f"{ds}_{gb}_stats"))
+        os.makedirs(out_dir, exist_ok=True)
+        if os.path.exists(output.tsv):
+            try: os.remove(output.tsv)
+            except Exception: pass
+        if os.path.exists(output.md):
+            try: os.remove(output.md)
+            except Exception: pass
+        phase = str(config.get("phase", ""))
+        project = str(config.get("project", ""))
+        strategies = " ".join(config.get("target_strategies", ["exogeneSR_viral_clean_filtered.sorted.flags.cram"]))
+        cohort_scope = str(config.get("cohort_scope", "combined_all"))
+        panel_a = str(config.get("panel_a_loglog", "on"))
+        panel_b = str(config.get("panel_b_log_y", "on"))
+        cutoff = int(config.get("log_scale_read_cutoff", 30))
+        prev_cutoff = float(config.get("prelim_prevalence_cutoff_pct", 5.0))
+        mean_cutoff = float(config.get("prelim_mean_read_cutoff", 6.0))
+        rc_switch = str(config.get("heatmap_read_counts", "off")).lower()
+        cn_switch = str(config.get("heatmap_copy_number", "off")).lower()
+        hm_strategy = str(config.get("target_heatmap_strategy", "clean_flags"))
+        
+        cmd = f"python3 {input.script} --input-report \"{input.master_report}\" --out-dir \"{out_dir}\" --dataset \"{ds}\" --genome-build \"{gb}\" --target-phase \"{phase}\" --target-project \"{project}\" --strategies {strategies} --cohort-scope \"{cohort_scope}\" --panel-a-loglog \"{panel_a}\" --panel-b-log-y \"{panel_b}\" --log-scale-read-cutoff {cutoff} --prelim-prevalence-cutoff-pct {prev_cutoff} --prelim-mean-read-cutoff {mean_cutoff} --heatmap-read-counts \"{rc_switch}\" --heatmap-copy-number \"{cn_switch}\" --target-heatmap-strategy \"{hm_strategy}\""
+        subprocess.run(cmd, shell=True, check=True)
 
 rule create_stats_and_plots_directory:
     """
@@ -608,11 +644,13 @@ rule generate_distributions:
     input:
         dir_created="config/stats_dir.created",
         script="scripts/generate_distributions.py" if os.path.exists("scripts/generate_distributions.py") else os.path.join(config["scripts_dir"], config.get("distributions_script", "generate_distributions.py")),
-        master_report=config.get("master_report_file", "master_all_cohorts_viral_report_final.tsv"),
+        master_report=lambda wildcards: get_master_report_path(config),
         config_file="config/ssc_config.yaml"
     output:
         token="config/distributions.done"
     params:
+        ds=lambda wildcards: str(config.get("dataset", "DATASET")),
+        gb=lambda wildcards: str(config.get("genome_build", config.get("build", "hg38"))),
         phase=lambda wildcards: str(config.get("phase", "")),
         project=lambda wildcards: str(config.get("project", "")),
         plots_dir=lambda wildcards: os.path.join(
@@ -638,6 +676,9 @@ rule generate_distributions:
         STATS_GCS="gs://{config[output_bucket]}/{config[stats_out_dirname]}/test.txt"
         gsutil cp config/ssc_config.yaml "$PLOTS_GCS" 2>/dev/null || true
         gsutil cp config/ssc_config.yaml "$STATS_GCS" 2>/dev/null || true
-        python3 {input.script} --input-report {input.master_report} --plots-dir "{params.plots_dir}" --stats-dir "{params.stats_dir}" --target-phase "{params.phase}" --target-project "{params.project}" --strategies {params.strategies} --cohort-scope "{params.cohort_scope}" --panel-a-loglog "{params.panel_a_loglog}" --panel-b-log-y "{params.panel_b_log_y}" --min-total-reads-to-plot {params.min_total_reads} --min-max-reads-to-plot {params.min_max_reads} --log-scale-read-cutoff {params.log_scale_cutoff} --prelim-prevalence-cutoff-pct {params.prelim_prev_cutoff} --prelim-mean-read-cutoff {params.prelim_mean_cutoff}
+        python3 {input.script} --input-report {input.master_report} --plots-dir "{params.plots_dir}" --stats-dir "{params.stats_dir}" --dataset "{params.ds}" --genome-build "{params.gb}" --target-phase "{params.phase}" --target-project "{params.project}" --strategies {params.strategies} --cohort-scope "{params.cohort_scope}" --panel-a-loglog "{params.panel_a_loglog}" --panel-b-log-y "{params.panel_b_log_y}" --min-total-reads-to-plot {params.min_total_reads} --min-max-reads-to-plot {params.min_max_reads} --log-scale-read-cutoff {params.log_scale_cutoff} --prelim-prevalence-cutoff-pct {params.prelim_prev_cutoff} --prelim-mean-read-cutoff {params.prelim_mean_cutoff}
         touch {output.token}
         """
+
+
+

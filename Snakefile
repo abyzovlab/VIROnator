@@ -72,3 +72,4 @@ if config.get("distributions_module", "off") == "on":
 rule all:
     input:
         targets
+
