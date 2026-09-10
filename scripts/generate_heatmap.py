@@ -159,8 +159,8 @@ def main():
     else:
         sorted_log_df = log_df
 
-    # 7. Render Heatmap
-    ax = sns.heatmap(sorted_log_df, cmap='viridis', linewidths=0.5)
+    # 7. Render Heatmap (linewidths=0 prevents horizontal stripe artifacts)
+    ax = sns.heatmap(sorted_log_df, cmap='viridis', linewidths=0)
 
     title_text = 'Virus Read Counts Heatmap' if args.value_type == "read_counts" else 'Virus Copy Number Heatmap'
     plt.title(title_text, fontsize=20, pad=15)
@@ -180,8 +180,32 @@ def main():
 
     plt.tight_layout()
 
-    # Output filename convention: {dataset}_{genome_build}_heatmap_{value_type}.tiff
-    out_filename = f"{args.dataset}_{args.genome_build}_heatmap_{args.value_type}.tiff"
+    # Phase/project tag normalization
+    p_val = str(args.phase).strip() if args.phase else ""
+    prj_val = str(args.project).strip() if args.project else ""
+
+    if not p_val or p_val.lower() in ["none", "0", "", "all_cohorts"]:
+        p_tag = "all"
+    elif p_val.startswith("phase"):
+        p_tag = p_val
+    else:
+        p_tag = f"phase{p_val}"
+
+    if not prj_val or prj_val.lower() in ["none", "0", "", "base", "combined"]:
+        prj_tag = "combined" if prj_val.lower() == "combined" else "all" if p_tag == "all" else "base"
+    else:
+        prj_tag = prj_val
+
+    # Short strategy tag
+    strat_raw = args.strategy or "clean_flags"
+    if "clean_filtered.sorted.flags" in strat_raw or strat_raw == "clean_flags":
+        strat_tag = "clean_flags"
+    elif "raw_filtered.sorted.flags" in strat_raw or strat_raw == "raw_flags":
+        strat_tag = "raw_flags"
+    else:
+        strat_tag = strat_raw.replace(".cram", "").replace(".bam", "").replace(".", "_")
+
+    out_filename = f"{args.dataset}_{args.genome_build}_{p_tag}_{prj_tag}_{strat_tag}_heatmap_{args.value_type}.tiff"
     out_path = os.path.join(args.out_dir, out_filename)
     plt.savefig(out_path, format="tiff", dpi=300, bbox_inches="tight")
     plt.close()

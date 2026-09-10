@@ -174,11 +174,14 @@ target_strategies:
 #   "both"         : Generate both per-phase/project AND combined cohort-wide plots/stats
 cohort_scope: "combined_all"
 
-# Transformation Switches for Panels A and B:
-#   panel_a_loglog: "on" or "off" (Triggers Log-Log scale for Panel A frequency histogram)
-#   panel_b_log_y : "on" or "off" (Triggers Log-Scale Y-axis for Panel B rank-abundance curve)
-panel_a_loglog: "on"
-panel_b_log_y: "on"
+# Transformation Switches for Reads vs Copy Number Distribution Plots:
+# Reads distribution plot (reads.tiff)
+reads_panel_a_loglog: "on"
+reads_panel_b_log_y: "on"
+
+# Copy number distribution plot (copy_number.tiff)
+copy_number_panel_a_loglog: "on"
+copy_number_panel_b_log_y: "on"
 
 # Minimum total mapped reads threshold for rendering per-virus TIFF plots:
 #   min_total_reads_to_plot: 3 (Skips plotting viruses with only 1 single read pair / <=2 reads)

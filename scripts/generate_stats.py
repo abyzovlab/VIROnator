@@ -23,10 +23,14 @@ def parse_args():
     ], help="Target CRAM strategy file names")
     parser.add_argument("--cohort-scope", default="combined_all", choices=["target_only", "combined_all", "both"],
                         help="Cohort scope setting")
-    parser.add_argument("--panel-a-loglog", default="on", choices=["on", "off"],
-                        help="Panel A scale: 'on' for Log-Log, 'off' for linear")
-    parser.add_argument("--panel-b-log-y", default="on", choices=["on", "off"],
-                        help="Panel B scale: 'on' for Log Y, 'off' for linear")
+    parser.add_argument("--reads-panel-a-loglog", default="on", choices=["on", "off"],
+                        help="Reads distribution Panel A scale: 'on' for Log-Log, 'off' for linear")
+    parser.add_argument("--reads-panel-b-log-y", default="on", choices=["on", "off"],
+                        help="Reads distribution Panel B scale: 'on' for Log Y, 'off' for linear")
+    parser.add_argument("--copy-number-panel-a-loglog", default="on", choices=["on", "off"],
+                        help="Copy number distribution Panel A scale: 'on' for Log-Log, 'off' for linear")
+    parser.add_argument("--copy-number-panel-b-log-y", default="on", choices=["on", "off"],
+                        help="Copy number distribution Panel B scale: 'on' for Log Y, 'off' for linear")
     parser.add_argument("--log-scale-read-cutoff", type=int, default=30,
                         help="Read count threshold to trigger Log-Scale transformations")
     parser.add_argument("--prelim-prevalence-cutoff-pct", type=float, default=5.0,
@@ -124,77 +128,95 @@ def generate_stats(args):
         "specimen", "phase", "project", "source_file"
     ]
 
-    with open(input_report_path, "r") as f:
-        header = None
-        for line in f:
-            line_str = line.strip()
-            if not line_str:
-                continue
-            parts = line_str.split("\t")
-            
-            if header is None:
-                first_elem = parts[0].lower().strip()
-                if "sample" in first_elem or "virus" in first_elem or "phase" in first_elem:
-                    header = [p.lower().strip() for p in parts]
-                    continue
-                else:
-                    header = standard_14_header[:len(parts)]
+    # Fast vector reading using pandas
+    try:
+        df_raw = pd.read_csv(input_report_path, sep="\t", dtype=str)
+    except Exception as e:
+        print(f"[ERROR] Failed to read report TSV with pandas: {e}")
+        sys.exit(1)
 
-            row = dict(zip(header, parts))
-            sample_id = row.get("sample_id", parts[0] if len(parts) > 0 else "").strip()
-            virus_acc = row.get("virus_accession", parts[1] if len(parts) > 1 else "").strip()
-            mapped_reads_str = row.get("virus_mapped_reads", parts[3] if len(parts) > 3 else "0").strip()
-            cn_str = row.get("viral_copy_number", parts[8] if len(parts) > 8 else "0").strip()
-            virus_name = row.get("virus_name_sanitized", parts[9] if len(parts) > 9 else "").strip()
-            raw_phase = row.get("phase", parts[11] if len(parts) > 11 else "unknown").strip()
-            raw_project = row.get("project", parts[12] if len(parts) > 12 else "base").strip()
-            strategy = row.get("source_file", parts[13] if len(parts) > 13 else "unknown").strip()
+    df_raw.columns = [c.lower().strip() for c in df_raw.columns]
+    
+    # Required columns fallback
+    col_map = {
+        'sample_id': df_raw.columns[0] if len(df_raw.columns) > 0 else 'sample_id',
+        'virus_accession': df_raw.columns[1] if len(df_raw.columns) > 1 else 'virus_accession',
+        'virus_mapped_reads': df_raw.columns[3] if len(df_raw.columns) > 3 else 'virus_mapped_reads',
+        'viral_copy_number': df_raw.columns[8] if len(df_raw.columns) > 8 else 'viral_copy_number',
+        'virus_name_sanitized': df_raw.columns[9] if len(df_raw.columns) > 9 else 'virus_name_sanitized',
+        'phase': df_raw.columns[11] if len(df_raw.columns) > 11 else 'phase',
+        'project': df_raw.columns[12] if len(df_raw.columns) > 12 else 'project',
+        'source_file': df_raw.columns[13] if len(df_raw.columns) > 13 else 'source_file'
+    }
 
-            if target_strategies and strategy not in target_strategies:
-                continue
+    df = pd.DataFrame()
+    df['sample_id'] = df_raw[col_map['sample_id']].fillna('').astype(str).str.strip()
+    df['virus_accession'] = df_raw[col_map['virus_accession']].fillna('').astype(str).str.strip()
+    df['virus_mapped_reads'] = pd.to_numeric(df_raw[col_map['virus_mapped_reads']], errors='coerce').fillna(0).astype(int)
+    df['viral_copy_number'] = pd.to_numeric(df_raw[col_map['viral_copy_number']], errors='coerce').fillna(0.0).astype(float)
+    df['virus_name_sanitized'] = df_raw[col_map['virus_name_sanitized']].fillna('').astype(str).str.strip()
+    df['phase'] = df_raw[col_map['phase']].fillna('unknown').astype(str).str.strip()
+    df['project'] = df_raw[col_map['project']].fillna('base').astype(str).str.strip()
+    df['project'] = df['project'].replace({'': 'base', 'none': 'base', '0': 'base'})
+    df['source_file'] = df_raw[col_map['source_file']].fillna('unknown').astype(str).str.strip()
 
-            try:
-                mapped_reads = int(mapped_reads_str)
-            except ValueError:
-                mapped_reads = 0
+    if target_strategies:
+        df = df[df['source_file'].isin(target_strategies)].copy()
 
-            try:
-                copy_num = float(cn_str)
-            except ValueError:
-                copy_num = 0.0
+    # Normalize phase matching
+    df['phase_clean'] = df['phase'].str.lower().str.strip()
+    df['project_clean'] = df['project'].str.lower().str.strip()
 
-            raw_phase_clean = raw_phase.lower().strip()
-            raw_proj_clean = raw_project.lower().strip() if raw_project else "base"
-            if not raw_proj_clean:
-                raw_proj_clean = "base"
+    # Pre-build data structures expected downstream
+    total_samples_map = collections.defaultdict(set)
+    viral_pos_samples_map = collections.defaultdict(set)
+    virus_data = collections.defaultdict(lambda: {
+        "name": "",
+        "samples": dict(),
+        "copy_numbers": dict()
+    })
+    dataset_records = collections.defaultdict(lambda: {"reads": [], "copy_numbers": []})
 
-            matches_target = True
-            if target_phase and not (raw_phase_clean == target_phase or raw_phase_clean == target_phase_alt):
-                matches_target = False
-            if target_project and raw_proj_clean != target_project:
-                matches_target = False
+    # Vector iteration using itertuples for speed
+    for row in df.itertuples(index=False):
+        sample_id = row.sample_id
+        virus_acc = row.virus_accession
+        mapped_reads = row.virus_mapped_reads
+        copy_num = row.viral_copy_number
+        virus_name = row.virus_name_sanitized
+        raw_phase = row.phase
+        raw_proj_clean = row.project_clean
+        strategy = row.source_file
 
-            keys_to_add = []
-            if cohort_scope in ["target_only", "both"] and matches_target:
-                keys_to_add.append((raw_phase, raw_proj_clean))
-            if cohort_scope in ["combined_all", "both"]:
-                keys_to_add.append(("all_cohorts", "combined"))
+        raw_phase_clean = row.phase_clean
 
-            for p_val, prj_val in keys_to_add:
-                ds_key = (p_val, prj_val, strategy)
-                total_samples_map[ds_key].add(sample_id)
+        matches_target = True
+        if target_phase and not (raw_phase_clean == target_phase or raw_phase_clean == target_phase_alt):
+            matches_target = False
+        if target_project and raw_proj_clean != target_project:
+            matches_target = False
 
-                if virus_acc and virus_acc.lower() != "none" and mapped_reads > 0:
-                    viral_pos_samples_map[ds_key].add(sample_id)
-                    v_key = (p_val, prj_val, strategy, virus_acc)
-                    display_name = virus_name if virus_name and virus_name.lower() != "none" else virus_acc
-                    virus_data[v_key]["name"] = display_name
-                    virus_data[v_key]["samples"][sample_id] = mapped_reads
-                    virus_data[v_key]["copy_numbers"][sample_id] = copy_num
+        keys_to_add = []
+        if cohort_scope in ["target_only", "both"] and matches_target:
+            keys_to_add.append((raw_phase, raw_proj_clean))
+        if cohort_scope in ["combined_all", "both"]:
+            keys_to_add.append(("all_cohorts", "combined"))
 
-                    ds_group_key = (p_val, prj_val)
-                    dataset_records[ds_group_key]["reads"].append(mapped_reads)
-                    dataset_records[ds_group_key]["copy_numbers"].append(copy_num)
+        for p_val, prj_val in keys_to_add:
+            ds_key = (p_val, prj_val, strategy)
+            total_samples_map[ds_key].add(sample_id)
+
+            if virus_acc and virus_acc.lower() != "none" and mapped_reads > 0:
+                viral_pos_samples_map[ds_key].add(sample_id)
+                v_key = (p_val, prj_val, strategy, virus_acc)
+                display_name = virus_name if virus_name and virus_name.lower() != "none" else virus_acc
+                virus_data[v_key]["name"] = display_name
+                virus_data[v_key]["samples"][sample_id] = mapped_reads
+                virus_data[v_key]["copy_numbers"][sample_id] = copy_num
+
+                ds_group_key = (p_val, prj_val)
+                dataset_records[ds_group_key]["reads"].append(mapped_reads)
+                dataset_records[ds_group_key]["copy_numbers"].append(copy_num)
 
     # 1. Standard 9-column Cohort Stats Summary TSV & MD
     header_cols = [
@@ -209,17 +231,13 @@ def generate_stats(args):
         pos_s = len(viral_pos_samples_map[ds_key])
         prev_p = (pos_s / float(tot_s) * 100.0) if tot_s > 0 else 0.0
         
-        tot_r = sum(
-            sum(v_info["samples"].values())
-            for v_k, v_info in virus_data.items()
-            if v_k[0] == p_val and v_k[1] == prj_val and v_k[2] == strat
-        )
-        u_vir = len({v_k[3] for v_k in virus_data.keys() if v_k[0] == p_val and v_k[1] == prj_val and v_k[2] == strat})
+        relevant_vkeys = [v_k for v_k in virus_data.keys() if v_k[0] == p_val and v_k[1] == prj_val and v_k[2] == strat]
+        tot_r = sum(sum(virus_data[v_k]["samples"].values()) for v_k in relevant_vkeys)
+        u_vir = len({v_k[3] for v_k in relevant_vkeys})
 
         v_counts = collections.Counter()
-        for v_k, v_info in virus_data.items():
-            if v_k[0] == p_val and v_k[1] == prj_val and v_k[2] == strat:
-                v_counts[v_info["name"]] += len(v_info["samples"])
+        for v_k in relevant_vkeys:
+            v_counts[virus_data[v_k]["name"]] += len(virus_data[v_k]["samples"])
         top_m = v_counts.most_common(1)[0][0] if v_counts else "None"
 
         short_s = get_short_strategy(strat)
@@ -247,29 +265,42 @@ def generate_stats(args):
         dataset_groups[(v_key[0], v_key[1])].append(v_key)
 
     for (cur_phase, cur_proj), group_v_keys in dataset_groups.items():
-        if not cur_phase or str(cur_phase).lower() in ["none", "0", "", "all_cohorts"]:
-            p_file_tag = "all" if str(cur_phase).lower() == "all_cohorts" else "phase"
-        elif str(cur_phase).startswith("phase"):
-            p_file_tag = str(cur_phase)
-        else:
-            p_file_tag = f"phase{cur_phase}"
+        is_phase_empty = not cur_phase or str(cur_phase).lower() in ["none", "0", "", "all_cohorts"]
+        is_proj_empty = not cur_proj or str(cur_proj).lower() in ["none", "0", "", "base", "combined"]
 
-        if not cur_proj or str(cur_proj).lower() in ["none", "0", ""]:
-            prj_file_tag = "base"
-        elif str(cur_proj).lower() == "combined":
+        if is_phase_empty and is_proj_empty:
+            p_file_tag = "all"
             prj_file_tag = "combined"
+            cur_phase_tag = "all"
+            cur_proj_tag = "all"
         else:
-            prj_file_tag = str(cur_proj)
+            if is_phase_empty:
+                p_file_tag = "all" if str(cur_phase).lower() == "all_cohorts" else "phase"
+                cur_phase_tag = "all"
+            elif str(cur_phase).startswith("phase"):
+                p_file_tag = str(cur_phase)
+                cur_phase_tag = str(cur_phase)
+            else:
+                p_file_tag = f"phase{cur_phase}"
+                cur_phase_tag = f"phase{cur_phase}"
 
-        cur_phase_tag = p_file_tag
-        cur_proj_tag = prj_file_tag
+            if is_proj_empty:
+                prj_file_tag = "combined" if str(cur_proj).lower() == "combined" else "base"
+                cur_proj_tag = "base"
+            else:
+                prj_file_tag = str(cur_proj)
+                cur_proj_tag = str(cur_proj)
+
+        # Output filename tags
+        strat_tag = get_short_strategy(group_v_keys[0][2]) if group_v_keys else "clean_flags"
+        fn_prefix = f"{dataset}_{genome_build}_{p_file_tag}_{prj_file_tag}_{strat_tag}"
 
         # ----------------------------------------------------------------------
         # 1. Generate VIRUSES TSV & VIRUSES_classes.tsv
         # ----------------------------------------------------------------------
-        viruses_tsv_name = f"{dataset}_{genome_build}_virus_stats_{p_file_tag}_{prj_file_tag}_VIRUSES.tsv"
+        viruses_tsv_name = f"{fn_prefix}_virus_stats_VIRUSES.tsv"
         viruses_tsv_path = os.path.join(out_dir, viruses_tsv_name)
-        classes_tsv_name = f"{dataset}_{genome_build}_virus_stats_{p_file_tag}_{prj_file_tag}_VIRUSES_classes.tsv"
+        classes_tsv_name = f"{fn_prefix}_virus_stats_VIRUSES_classes.tsv"
         classes_tsv_path = os.path.join(out_dir, classes_tsv_name)
 
         viruses_header = [
@@ -326,7 +357,7 @@ def generate_stats(args):
         # ----------------------------------------------------------------------
         # 1b. VIRUSES_classes.tiff (Vertical bar plot of 4 classification categories ordered highest to lowest)
         # ----------------------------------------------------------------------
-        classes_plot_name = f"{dataset}_{genome_build}_virus_stats_{p_file_tag}_{prj_file_tag}_VIRUSES_classes.tiff"
+        classes_plot_name = f"{fn_prefix}_virus_stats_VIRUSES_classes.tiff"
         classes_plot_path = os.path.join(out_dir, classes_plot_name)
 
         # Sort classes descending by count
@@ -335,14 +366,14 @@ def generate_stats(args):
         cls_counts = [c[1] for c in sorted_classes]
 
         fig, ax = plt.subplots(figsize=(8, 6), dpi=300)
-        bars = ax.bar(cls_names, cls_counts, width=0.6, color="#008fbf", edgecolor='none')
+        bars = ax.bar(cls_names, cls_counts, width=0.88, color="#008fbf", edgecolor='none')
         ax.set_ylabel("Occurrence Count", fontsize=14, color='black', labelpad=8)
         ax.set_xlabel("Preliminary Classification Category", fontsize=14, color='black', labelpad=8)
         ax.tick_params(axis='x', labelsize=12, rotation=15)
         ax.tick_params(axis='y', labelsize=12)
         ax.yaxis.set_major_locator(MaxNLocator(integer=True))
         ax.set_title(
-            f"Preliminary Classification Category Counts\n"
+            f"{dataset} Preliminary Classification Category Counts\n"
             f"Phase: {cur_phase_tag} | Project: {cur_proj_tag}",
             fontsize=16, pad=12, color='black'
         )
@@ -358,7 +389,6 @@ def generate_stats(args):
         ax.grid(False)
         ax.spines['top'].set_visible(False)
         ax.spines['right'].set_visible(False)
-        plt.tight_layout()
         plt.savefig(classes_plot_path, format="tiff", dpi=300, bbox_inches="tight")
         plt.close(fig)
         print(f"[SUCCESS] Generated VIRUSES classes TIFF plot: {classes_plot_path}")
@@ -366,7 +396,7 @@ def generate_stats(args):
         # ----------------------------------------------------------------------
         # 2. VIRUSES_percentages.tiff (Horizontal bar plot of positivity %)
         # ----------------------------------------------------------------------
-        pct_plot_name = f"{dataset}_{genome_build}_virus_stats_{p_file_tag}_{prj_file_tag}_VIRUSES_percentages.tiff"
+        pct_plot_name = f"{fn_prefix}_virus_stats_VIRUSES_percentages.tiff"
         pct_plot_path = os.path.join(out_dir, pct_plot_name)
 
         v_names_labels = []
@@ -395,7 +425,7 @@ def generate_stats(args):
             ax.tick_params(axis='x', labelsize=16)
             ax.tick_params(axis='y', labelsize=16)
             ax.set_title(
-                f"Overall Viral Prevalence (% of Total Cohort Samples)\n"
+                f"{dataset} Overall Viral Prevalence (% of Total Cohort Samples)\n"
                 f"Phase: {cur_phase_tag} | Project: {cur_proj_tag}",
                 fontsize=19, pad=14, color='black'
             )
@@ -410,7 +440,6 @@ def generate_stats(args):
             ax.grid(False)
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
-            plt.tight_layout()
             plt.savefig(pct_plot_path, format="tiff", dpi=300, bbox_inches="tight")
             plt.close(fig)
             print(f"[SUCCESS] Generated VIRUSES percentages TIFF plot: {pct_plot_path}")
@@ -418,7 +447,7 @@ def generate_stats(args):
         # ----------------------------------------------------------------------
         # 3. VIRUSES_reads.tiff (Horizontal bar plot of total assigned reads)
         # ----------------------------------------------------------------------
-        reads_plot_name = f"{dataset}_{genome_build}_virus_stats_{p_file_tag}_{prj_file_tag}_VIRUSES_reads.tiff"
+        reads_plot_name = f"{fn_prefix}_virus_stats_VIRUSES_reads.tiff"
         reads_plot_path = os.path.join(out_dir, reads_plot_name)
 
         v_reads_counts = []
@@ -436,10 +465,11 @@ def generate_stats(args):
 
             ax.set_xlabel('Total Mapped Reads', fontsize=16, color='black', labelpad=8)
             ax.set_ylabel('Virus', fontsize=16, color='black', labelpad=8)
+            ax.xaxis.set_major_formatter(matplotlib.ticker.StrMethodFormatter('{x:,.0f}'))
             ax.tick_params(axis='x', labelsize=16)
             ax.tick_params(axis='y', labelsize=16)
             ax.set_title(
-                f"Overall Mapped Read Count Across Cohort\n"
+                f"{dataset} Overall Mapped Read Count Across Cohort\n"
                 f"Phase: {cur_phase_tag} | Project: {cur_proj_tag}",
                 fontsize=19, pad=14, color='black'
             )
@@ -448,19 +478,18 @@ def generate_stats(args):
 
             for bar in bars:
                 w = bar.get_width()
-                ax.annotate(f"{int(w)}", xy=(w, bar.get_y() + bar.get_height() / 2),
+                ax.annotate(f"{int(w):,}", xy=(w, bar.get_y() + bar.get_height() / 2),
                             xytext=(6, 0), textcoords="offset points", ha='left', va='center', fontsize=13, color='black')
 
             ax.grid(False)
             ax.spines['top'].set_visible(False)
             ax.spines['right'].set_visible(False)
-            plt.tight_layout()
             plt.savefig(reads_plot_path, format="tiff", dpi=300, bbox_inches="tight")
             plt.close(fig)
             print(f"[SUCCESS] Generated VIRUSES reads TIFF plot: {reads_plot_path}")
 
         # ----------------------------------------------------------------------
-        # 4. Overall Read Counts (2-Panel Figure): {dataset}_{genome_build}_virus_stats_{phase}_{project}_reads.tiff
+        # 4. Overall Read Counts (2-Panel Figure): {dataset}_{genome_build}_{phase}_{project}_{strategy}_virus_stats_reads.tiff
         # ----------------------------------------------------------------------
         ds_group_key = (cur_phase, cur_proj)
         all_reads_list = dataset_records[ds_group_key]["reads"]
@@ -468,7 +497,7 @@ def generate_stats(args):
         if all_reads_list:
             all_reads_list = sorted(all_reads_list)
             tot_v_pos = len(all_reads_list)
-            reads_overall_name = f"{dataset}_{genome_build}_virus_stats_{p_file_tag}_{prj_file_tag}_reads.tiff"
+            reads_overall_name = f"{fn_prefix}_virus_stats_reads.tiff"
             reads_overall_path = os.path.join(out_dir, reads_overall_name)
 
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5.5), dpi=300)
@@ -476,12 +505,8 @@ def generate_stats(args):
             ax2.set_box_aspect(1)
             overall_color = "#008fbf"
 
-            u_vals, u_cnts = np.unique(all_reads_list, return_counts=True)
-            max_r = max(u_vals) if len(u_vals) > 0 else 1
-            min_r = min(u_vals) if len(u_vals) > 0 else 1
-
-            use_log_a = (args.panel_a_loglog == "on")
-            use_log_b = (args.panel_b_log_y == "on")
+            use_log_a = (args.reads_panel_a_loglog == "on")
+            use_log_b = (args.reads_panel_b_log_y == "on")
 
             if use_log_a and max_r > args.log_scale_read_cutoff and len(u_vals) > 1:
                 bins = np.logspace(np.log10(max(1, min_r)), np.log10(max_r), 30)
@@ -527,7 +552,7 @@ def generate_stats(args):
             ax2.spines['top'].set_visible(False)
             ax2.spines['right'].set_visible(False)
 
-            fig.suptitle(f"Dataset-Wide Read Counts Summary | Phase: {cur_phase_tag} | Project: {cur_proj_tag}\nTotal Viral Detections N = {tot_v_pos}", fontsize=13, y=1.02, color='black')
+            fig.suptitle(f"{dataset} Dataset-Wide Read Counts Summary | Phase: {cur_phase_tag} | Project: {cur_proj_tag}\nTotal Viral Detections N = {tot_v_pos}", fontsize=13, y=1.02, color='black')
             fig.text(0.5, 0.005, "Overall dataset-wide read count distribution across all detected viruses", ha='center', fontsize=10.5, style='normal', color='black')
             fig.subplots_adjust(top=0.82, bottom=0.18, left=0.10, right=0.95, wspace=0.30)
             plt.savefig(reads_overall_path, format="tiff", dpi=300, bbox_inches="tight")
@@ -535,14 +560,14 @@ def generate_stats(args):
             print(f"[SUCCESS] Generated overall reads TIFF plot: {reads_overall_path}")
 
         # ----------------------------------------------------------------------
-        # 5. Overall Copy Number (2-Panel Figure): {dataset}_{genome_build}_virus_stats_{phase}_{project}_copy_number.tiff
+        # 5. Overall Copy Number (2-Panel Figure): {dataset}_{genome_build}_{phase}_{project}_{strategy}_virus_stats_copy_number.tiff
         # ----------------------------------------------------------------------
         all_cn_list = dataset_records[ds_group_key]["copy_numbers"]
 
         if all_cn_list:
             all_cn_list = sorted(all_cn_list)
             tot_v_pos = len(all_cn_list)
-            cn_overall_name = f"{dataset}_{genome_build}_virus_stats_{p_file_tag}_{prj_file_tag}_copy_number.tiff"
+            cn_overall_name = f"{fn_prefix}_virus_stats_copy_number.tiff"
             cn_overall_path = os.path.join(out_dir, cn_overall_name)
 
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 5.5), dpi=300)
@@ -550,12 +575,8 @@ def generate_stats(args):
             ax2.set_box_aspect(1)
             overall_color = "#008fbf"
 
-            u_vals, u_cnts = np.unique(all_cn_list, return_counts=True)
-            max_r = max(u_vals) if len(u_vals) > 0 else 1.0
-            min_r = min(u_vals) if len(u_vals) > 0 else 0.001
-
-            use_log_a = (args.panel_a_loglog == "on")
-            use_log_b = (args.panel_b_log_y == "on")
+            use_log_a = (args.copy_number_panel_a_loglog == "on")
+            use_log_b = (args.copy_number_panel_b_log_y == "on")
 
             if use_log_a and max_r > args.log_scale_read_cutoff and len(u_vals) > 1:
                 bins = np.logspace(np.log10(max(1e-4, min_r)), np.log10(max_r), 30)
@@ -596,7 +617,7 @@ def generate_stats(args):
             ax2.spines['top'].set_visible(False)
             ax2.spines['right'].set_visible(False)
 
-            fig.suptitle(f"Dataset-Wide Copy Number Summary | Phase: {cur_phase_tag} | Project: {cur_proj_tag}\nTotal Viral Detections N = {tot_v_pos}", fontsize=13, y=1.02, color='black')
+            fig.suptitle(f"{dataset} Dataset-Wide Copy Number Summary | Phase: {cur_phase_tag} | Project: {cur_proj_tag}\nTotal Viral Detections N = {tot_v_pos}", fontsize=13, y=1.02, color='black')
             fig.text(0.5, 0.005, "Overall dataset-wide copy number distribution across all detected viruses", ha='center', fontsize=10.5, style='normal', color='black')
             fig.subplots_adjust(top=0.82, bottom=0.18, left=0.10, right=0.95, wspace=0.30)
             plt.savefig(cn_overall_path, format="tiff", dpi=300, bbox_inches="tight")
@@ -638,6 +659,9 @@ def generate_stats(args):
 def main():
     args = parse_args()
     generate_stats(args)
+    from datetime import datetime
+    end_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    print(f"\n[COMPLETED] Execution finished at: {end_time}")
 
 
 if __name__ == "__main__":
