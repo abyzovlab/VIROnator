@@ -142,12 +142,21 @@ report_script: "generate_report.py"
 
 
 # ==============================================================================
-# MODULE 5: STATS MODULE (Cohort Statistical Summary Snapshot & Heatmaps)
+# MODULE 5: STATS MODULE (Cohort Statistical Summary Snapshot, Plots & Heatmaps)
 # ==============================================================================
 stats_module: "off"  # Switch: "on" or "off" to run cohort stats summary & plots
 master_report_file: "{dataset}_{genome_build}_master_report.tsv"  # Input master report file
 stats_out_dirname: "{dataset}_{genome_build}_stats"
 stats_script: "generate_stats.py"
+
+# Transformation Switches for Reads vs Copy Number Distribution Plots:
+# Reads distribution plot (reads.tiff)
+reads_panel_a_loglog: "on"
+reads_panel_b_log_y: "on"
+
+# Copy number distribution plot (copy_number.tiff)
+copy_number_panel_a_loglog: "on"
+copy_number_panel_b_log_y: "on"
 
 # Heatmap Sub-Switches (Outputs 300 DPI publication TIFF heatmaps directly in stats_out_dirname):
 heatmap_read_counts: "off"              # Switch: "on" or "off" for read counts heatmap
@@ -169,19 +178,6 @@ target_strategies:
   - "exogeneSR_viral_clean_filtered.sorted.flags.cram"
 
 # Cohort Scope Options:
-#   "target_only"  : Plot only the specific phase & project defined in config
-#   "combined_all" : Aggregate ALL samples across ALL phases and ALL projects into unified plots/stats
-#   "both"         : Generate both per-phase/project AND combined cohort-wide plots/stats
-cohort_scope: "combined_all"
-
-# Transformation Switches for Reads vs Copy Number Distribution Plots:
-# Reads distribution plot (reads.tiff)
-reads_panel_a_loglog: "on"
-reads_panel_b_log_y: "on"
-
-# Copy number distribution plot (copy_number.tiff)
-copy_number_panel_a_loglog: "on"
-copy_number_panel_b_log_y: "on"
 
 # Minimum total mapped reads threshold for rendering per-virus TIFF plots:
 #   min_total_reads_to_plot: 3 (Skips plotting viruses with only 1 single read pair / <=2 reads)
