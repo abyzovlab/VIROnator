@@ -33,6 +33,8 @@ def parse_args():
                         help="Copy number distribution Panel B scale: 'on' for Log Y, 'off' for linear")
     parser.add_argument("--log-scale-read-cutoff", type=int, default=30,
                         help="Read count threshold to trigger Log-Scale transformations")
+    parser.add_argument("--log-scale-copy-number-cutoff", type=float, default=0.1,
+                        help="Copy number threshold to trigger Log-Scale transformations")
     parser.add_argument("--prelim-prevalence-cutoff-pct", type=float, default=5.0,
                         help="Preliminary prevalence cutoff %")
     parser.add_argument("--prelim-mean-read-cutoff", type=float, default=6.0,
@@ -269,10 +271,11 @@ def generate_stats(args):
         is_proj_empty = not cur_proj or str(cur_proj).lower() in ["none", "0", "", "base", "combined"]
 
         if is_phase_empty and is_proj_empty:
-            p_file_tag = "all"
-            prj_file_tag = "combined"
+            p_file_tag = ""
+            prj_file_tag = ""
             cur_phase_tag = "all"
             cur_proj_tag = "all"
+            fn_prefix = f"{dataset}_{genome_build}_{strat_tag}"
         else:
             if is_phase_empty:
                 p_file_tag = "all" if str(cur_phase).lower() == "all_cohorts" else "phase"
@@ -291,9 +294,7 @@ def generate_stats(args):
                 prj_file_tag = str(cur_proj)
                 cur_proj_tag = str(cur_proj)
 
-        # Output filename tags
-        strat_tag = get_short_strategy(group_v_keys[0][2]) if group_v_keys else "clean_flags"
-        fn_prefix = f"{dataset}_{genome_build}_{p_file_tag}_{prj_file_tag}_{strat_tag}"
+            fn_prefix = f"{dataset}_{genome_build}_{p_file_tag}_{prj_file_tag}_{strat_tag}"
 
         # ----------------------------------------------------------------------
         # 1. Generate VIRUSES TSV & VIRUSES_classes.tsv
@@ -586,7 +587,9 @@ def generate_stats(args):
             max_r = max(u_vals) if len(u_vals) > 0 else 1.0
             min_r = min(u_vals) if len(u_vals) > 0 else 0.001
 
-            if use_log_a and max_r > args.log_scale_read_cutoff and len(u_vals) > 1:
+            cn_cutoff = float(getattr(args, "log_scale_copy_number_cutoff", 0.1))
+
+            if use_log_a and max_r > cn_cutoff and len(u_vals) > 1:
                 bins = np.logspace(np.log10(max(1e-4, min_r)), np.log10(max_r), 30)
                 ax1.hist(all_cn_list, bins=bins, color=overall_color, rwidth=0.92, edgecolor='none')
                 ax1.set_xscale('log')
@@ -610,7 +613,7 @@ def generate_stats(args):
             bar_w_o = 1.0 if tot_v_pos > 50 else 0.88
             ax2.bar(o_ranks, all_cn_list, width=bar_w_o, color=overall_color, edgecolor='none')
             
-            if use_log_b and max_r > args.log_scale_read_cutoff and len(u_vals) > 1:
+            if use_log_b and max_r > cn_cutoff and len(u_vals) > 1:
                 ax2.set_yscale('log')
                 ax2.set_ylabel("Viral Copy Number (Log Scale)", fontsize=11, labelpad=8, color='black')
             else:

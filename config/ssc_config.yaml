@@ -153,10 +153,12 @@ stats_script: "generate_stats.py"
 # Reads distribution plot (reads.tiff)
 reads_panel_a_loglog: "on"
 reads_panel_b_log_y: "on"
+log_scale_read_cutoff: 30                    # Threshold to trigger log scale for read counts (default: 30)
 
 # Copy number distribution plot (copy_number.tiff)
 copy_number_panel_a_loglog: "on"
 copy_number_panel_b_log_y: "on"
+log_scale_copy_number_cutoff: 0.1             # Threshold to trigger log scale for copy numbers (default: 0.1)
 
 # Heatmap Sub-Switches (Outputs 300 DPI publication TIFF heatmaps directly in stats_out_dirname):
 heatmap_read_counts: "off"              # Switch: "on" or "off" for read counts heatmap

@@ -619,13 +619,14 @@ rule generate_stats:
         cn_pa = str(config.get("copy_number_panel_a_loglog", "on"))
         cn_pb = str(config.get("copy_number_panel_b_log_y", "on"))
         cutoff = int(config.get("log_scale_read_cutoff", 30))
+        cn_cutoff = float(config.get("log_scale_copy_number_cutoff", 0.1))
         prev_cutoff = float(config.get("prelim_prevalence_cutoff_pct", 5.0))
         mean_cutoff = float(config.get("prelim_mean_read_cutoff", 6.0))
         rc_switch = str(config.get("heatmap_read_counts", "off")).lower()
         cn_switch = str(config.get("heatmap_copy_number", "off")).lower()
         hm_strategy = str(config.get("target_heatmap_strategy", "clean_flags"))
         
-        cmd = f"python3 {input.script} --input-report \"{input.master_report}\" --out-dir \"{out_dir}\" --dataset \"{ds}\" --genome-build \"{gb}\" --target-phase \"{phase}\" --target-project \"{project}\" --strategies {strategies} --cohort-scope \"{cohort_scope}\" --reads-panel-a-loglog \"{reads_pa}\" --reads-panel-b-log-y \"{reads_pb}\" --copy-number-panel-a-loglog \"{cn_pa}\" --copy-number-panel-b-log-y \"{cn_pb}\" --log-scale-read-cutoff {cutoff} --prelim-prevalence-cutoff-pct {prev_cutoff} --prelim-mean-read-cutoff {mean_cutoff} --heatmap-read-counts \"{rc_switch}\" --heatmap-copy-number \"{cn_switch}\" --target-heatmap-strategy \"{hm_strategy}\""
+        cmd = f"python3 {input.script} --input-report \"{input.master_report}\" --out-dir \"{out_dir}\" --dataset \"{ds}\" --genome-build \"{gb}\" --target-phase \"{phase}\" --target-project \"{project}\" --strategies {strategies} --cohort-scope \"{cohort_scope}\" --reads-panel-a-loglog \"{reads_pa}\" --reads-panel-b-log-y \"{reads_pb}\" --copy-number-panel-a-loglog \"{cn_pa}\" --copy-number-panel-b-log-y \"{cn_pb}\" --log-scale-read-cutoff {cutoff} --log-scale-copy-number-cutoff {cn_cutoff} --prelim-prevalence-cutoff-pct {prev_cutoff} --prelim-mean-read-cutoff {mean_cutoff} --heatmap-read-counts \"{rc_switch}\" --heatmap-copy-number \"{cn_switch}\" --target-heatmap-strategy \"{hm_strategy}\""
         subprocess.run(cmd, shell=True, check=True)
 
         # Copy local outputs to GCS bucket if output_bucket is configured

@@ -144,12 +144,6 @@ def main():
     num_samples = log_df.shape[0]
     num_viruses = log_df.shape[1]
 
-    # Proportional figure dimensions capped for high performance & clean rendering
-    calc_height = max(8.0, min(35.0, num_samples * 0.15 + 4.0))
-    calc_width = max(10.0, min(30.0, num_viruses * 0.4 + 4.0))
-
-    plt.figure(figsize=(calc_width, calc_height), dpi=300)
-
     if num_viruses > 1:
         linkage_matrix = linkage(log_df.T, method='average')
         ordered_columns = leaves_list(linkage_matrix)
@@ -159,8 +153,13 @@ def main():
     else:
         sorted_log_df = log_df
 
-    # 7. Render Heatmap (linewidths=0 prevents horizontal stripe artifacts)
-    ax = sns.heatmap(sorted_log_df, cmap='viridis', linewidths=0)
+    # 7. Render Heatmap with square=True for square cells and tight condensed spacing
+    cell_size = 0.20  # inch per cell (condensed square cells)
+    calc_width = max(8.0, num_viruses * cell_size + 4.0)
+    calc_height = max(6.0, num_samples * cell_size + 3.0)
+
+    fig, ax = plt.subplots(figsize=(calc_width, calc_height), dpi=300)
+    sns.heatmap(sorted_log_df, cmap='viridis', linewidths=0, square=True, ax=ax, cbar_kws={"shrink": 0.8})
 
     title_text = 'Virus Read Counts Heatmap' if args.value_type == "read_counts" else 'Virus Copy Number Heatmap'
     plt.title(title_text, fontsize=20, pad=15)
@@ -178,23 +177,11 @@ def main():
     for label in colorbar.ax.get_yticklabels():
         label.set_rotation(0)
 
-    plt.tight_layout()
-
-    # Phase/project tag normalization
     p_val = str(args.phase).strip() if args.phase else ""
     prj_val = str(args.project).strip() if args.project else ""
 
-    if not p_val or p_val.lower() in ["none", "0", "", "all_cohorts"]:
-        p_tag = "all"
-    elif p_val.startswith("phase"):
-        p_tag = p_val
-    else:
-        p_tag = f"phase{p_val}"
-
-    if not prj_val or prj_val.lower() in ["none", "0", "", "base", "combined"]:
-        prj_tag = "combined" if prj_val.lower() == "combined" else "all" if p_tag == "all" else "base"
-    else:
-        prj_tag = prj_val
+    is_phase_empty = not p_val or p_val.lower() in ["none", "0", "", "all_cohorts"]
+    is_proj_empty = not prj_val or prj_val.lower() in ["none", "0", "", "base", "combined"]
 
     # Short strategy tag
     strat_raw = args.strategy or "clean_flags"
@@ -205,7 +192,13 @@ def main():
     else:
         strat_tag = strat_raw.replace(".cram", "").replace(".bam", "").replace(".", "_")
 
-    out_filename = f"{args.dataset}_{args.genome_build}_{p_tag}_{prj_tag}_{strat_tag}_heatmap_{args.value_type}.tiff"
+    if is_phase_empty and is_proj_empty:
+        out_filename = f"{args.dataset}_{args.genome_build}_{strat_tag}_heatmap_{args.value_type}.tiff"
+    else:
+        p_tag = "all" if is_phase_empty else p_val if p_val.startswith("phase") else f"phase{p_val}"
+        prj_tag = "base" if is_proj_empty else prj_val
+        out_filename = f"{args.dataset}_{args.genome_build}_{p_tag}_{prj_tag}_{strat_tag}_heatmap_{args.value_type}.tiff"
+
     out_path = os.path.join(args.out_dir, out_filename)
     plt.savefig(out_path, format="tiff", dpi=300, bbox_inches="tight")
     plt.close()
