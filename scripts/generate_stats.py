@@ -270,6 +270,8 @@ def generate_stats(args):
         is_phase_empty = not cur_phase or str(cur_phase).lower() in ["none", "0", "", "all_cohorts"]
         is_proj_empty = not cur_proj or str(cur_proj).lower() in ["none", "0", "", "base", "combined"]
 
+        strat_tag = get_short_strategy(group_v_keys[0][2]) if group_v_keys else "clean_flags"
+
         if is_phase_empty and is_proj_empty:
             p_file_tag = ""
             prj_file_tag = ""
