@@ -508,6 +508,10 @@ def generate_stats(args):
             use_log_a = (args.reads_panel_a_loglog == "on")
             use_log_b = (args.reads_panel_b_log_y == "on")
 
+            u_vals, u_cnts = np.unique(all_reads_list, return_counts=True)
+            max_r = max(u_vals) if len(u_vals) > 0 else 1
+            min_r = min(u_vals) if len(u_vals) > 0 else 1
+
             if use_log_a and max_r > args.log_scale_read_cutoff and len(u_vals) > 1:
                 bins = np.logspace(np.log10(max(1, min_r)), np.log10(max_r), 30)
                 ax1.hist(all_reads_list, bins=bins, color=overall_color, rwidth=0.92, edgecolor='none')
@@ -577,6 +581,10 @@ def generate_stats(args):
 
             use_log_a = (args.copy_number_panel_a_loglog == "on")
             use_log_b = (args.copy_number_panel_b_log_y == "on")
+
+            u_vals, u_cnts = np.unique(all_cn_list, return_counts=True)
+            max_r = max(u_vals) if len(u_vals) > 0 else 1.0
+            min_r = min(u_vals) if len(u_vals) > 0 else 0.001
 
             if use_log_a and max_r > args.log_scale_read_cutoff and len(u_vals) > 1:
                 bins = np.logspace(np.log10(max(1e-4, min_r)), np.log10(max_r), 30)
