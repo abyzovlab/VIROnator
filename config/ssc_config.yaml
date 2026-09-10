@@ -164,6 +164,7 @@ log_scale_copy_number_cutoff: 0.1             # Threshold to trigger log scale f
 heatmap_read_counts: "off"              # Switch: "on" or "off" for read counts heatmap
 heatmap_copy_number: "off"              # Switch: "on" or "off" for copy number heatmap
 target_heatmap_strategy: "clean_flags"  # Candidate CRAM strategy: e.g. "clean_flags" or "clean_filtered"
+heatmap_min_reads_cutoff: 3             # Min reads threshold for heatmap inclusion (3 = skips hits with <=2 reads/1 read pair)
 
 
 

@@ -34,6 +34,8 @@ def parse_args():
     parser.add_argument("--strategy", default="clean_flags", help="Target CRAM strategy string/keyword")
     parser.add_argument("--value-type", choices=["read_counts", "copy_number"], required=True,
                         help="Value type to plot: 'read_counts' or 'copy_number'")
+    parser.add_argument("--min-reads-cutoff", type=int, default=3,
+                        help="Minimum mapped reads threshold for sample inclusion in heatmap (default: 3)")
     return parser.parse_args()
 
 
@@ -120,8 +122,13 @@ def main():
             mask_strat = df_source.str.lower().str.contains(target_strategy.lower())
         df = df[mask_strat]
 
+    # Filter out hits below min_reads_cutoff (skips <= 2 reads / 1 read pair noise)
+    if reads_col in df.columns:
+        df_reads_num = pd.to_numeric(df[reads_col], errors='coerce').fillna(0)
+        df = df[df_reads_num >= args.min_reads_cutoff].copy()
+
     if df.empty:
-        print(f"[WARNING] No records found matching phase='{target_phase}', project='{target_project}', strategy='{target_strategy}' in master report.")
+        print(f"[WARNING] No records found with reads >= {args.min_reads_cutoff} for strategy '{target_strategy}'. Skipping heatmap.")
         sys.exit(0)
 
     # 4. Construct Pivot Table
@@ -132,6 +139,11 @@ def main():
 
     # Pivot matrix: Index = Sample_ID, Columns = Virus_Display
     pivot_df = df.pivot_table(index=sample_col, columns="Virus_Display", values=value_col, aggfunc="max", fill_value=0.0)
+
+    # Drop sample rows that are completely 0 across all viruses
+    if args.value_type == "copy_number":
+        row_max = pivot_df.max(axis=1)
+        pivot_df = pivot_df[row_max > 0.0]
 
     if pivot_df.empty or pivot_df.shape[1] == 0:
         print(f"[WARNING] Matrix is empty after pivot for {args.value_type}. Skipping heatmap.")
@@ -153,13 +165,14 @@ def main():
     else:
         sorted_log_df = log_df
 
-    # 7. Render Heatmap with square=True for square cells and tight condensed spacing
-    cell_size = 0.20  # inch per cell (condensed square cells)
-    calc_width = max(8.0, num_viruses * cell_size + 4.0)
-    calc_height = max(6.0, num_samples * cell_size + 3.0)
+    # Proportional figure dimensions capped for high performance & clean rendering
+    calc_height = max(8.0, min(35.0, num_samples * 0.15 + 4.0))
+    calc_width = max(10.0, min(30.0, num_viruses * 0.4 + 4.0))
 
-    fig, ax = plt.subplots(figsize=(calc_width, calc_height), dpi=300)
-    sns.heatmap(sorted_log_df, cmap='viridis', linewidths=0, square=True, ax=ax, cbar_kws={"shrink": 0.8})
+    plt.figure(figsize=(calc_width, calc_height), dpi=300)
+
+    # 7. Render Heatmap (linewidths=0 prevents horizontal stripe artifacts)
+    ax = sns.heatmap(sorted_log_df, cmap='viridis', linewidths=0)
 
     title_text = 'Virus Read Counts Heatmap' if args.value_type == "read_counts" else 'Virus Copy Number Heatmap'
     plt.title(title_text, fontsize=20, pad=15)

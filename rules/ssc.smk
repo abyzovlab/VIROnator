@@ -625,8 +625,9 @@ rule generate_stats:
         rc_switch = str(config.get("heatmap_read_counts", "off")).lower()
         cn_switch = str(config.get("heatmap_copy_number", "off")).lower()
         hm_strategy = str(config.get("target_heatmap_strategy", "clean_flags"))
+        hm_min_reads = int(config.get("heatmap_min_reads_cutoff", 3))
         
-        cmd = f"python3 {input.script} --input-report \"{input.master_report}\" --out-dir \"{out_dir}\" --dataset \"{ds}\" --genome-build \"{gb}\" --target-phase \"{phase}\" --target-project \"{project}\" --strategies {strategies} --cohort-scope \"{cohort_scope}\" --reads-panel-a-loglog \"{reads_pa}\" --reads-panel-b-log-y \"{reads_pb}\" --copy-number-panel-a-loglog \"{cn_pa}\" --copy-number-panel-b-log-y \"{cn_pb}\" --log-scale-read-cutoff {cutoff} --log-scale-copy-number-cutoff {cn_cutoff} --prelim-prevalence-cutoff-pct {prev_cutoff} --prelim-mean-read-cutoff {mean_cutoff} --heatmap-read-counts \"{rc_switch}\" --heatmap-copy-number \"{cn_switch}\" --target-heatmap-strategy \"{hm_strategy}\""
+        cmd = f"python3 {input.script} --input-report \"{input.master_report}\" --out-dir \"{out_dir}\" --dataset \"{ds}\" --genome-build \"{gb}\" --target-phase \"{phase}\" --target-project \"{project}\" --strategies {strategies} --cohort-scope \"{cohort_scope}\" --reads-panel-a-loglog \"{reads_pa}\" --reads-panel-b-log-y \"{reads_pb}\" --copy-number-panel-a-loglog \"{cn_pa}\" --copy-number-panel-b-log-y \"{cn_pb}\" --log-scale-read-cutoff {cutoff} --log-scale-copy-number-cutoff {cn_cutoff} --prelim-prevalence-cutoff-pct {prev_cutoff} --prelim-mean-read-cutoff {mean_cutoff} --heatmap-read-counts \"{rc_switch}\" --heatmap-copy-number \"{cn_switch}\" --target-heatmap-strategy \"{hm_strategy}\" --heatmap-min-reads-cutoff {hm_min_reads}"
         subprocess.run(cmd, shell=True, check=True)
 
         # Copy local outputs to GCS bucket if output_bucket is configured

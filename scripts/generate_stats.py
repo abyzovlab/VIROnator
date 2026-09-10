@@ -45,6 +45,8 @@ def parse_args():
                         help="Generate copy number heatmap in stats directory")
     parser.add_argument("--target-heatmap-strategy", default="clean_flags",
                         help="Strategy filter for heatmap generation")
+    parser.add_argument("--heatmap-min-reads-cutoff", type=int, default=3,
+                        help="Minimum mapped reads threshold for heatmap inclusion (default: 3)")
     return parser.parse_args()
 
 
@@ -369,7 +371,7 @@ def generate_stats(args):
         cls_counts = [c[1] for c in sorted_classes]
 
         fig, ax = plt.subplots(figsize=(8, 6), dpi=300)
-        bars = ax.bar(cls_names, cls_counts, width=0.88, color="#008fbf", edgecolor='none')
+        bars = ax.bar(cls_names, cls_counts, width=0.95, color="#008fbf", edgecolor='none')
         ax.set_ylabel("Occurrence Count", fontsize=14, color='black', labelpad=8)
         ax.set_xlabel("Preliminary Classification Category", fontsize=14, color='black', labelpad=8)
         ax.tick_params(axis='x', labelsize=12, rotation=15)
@@ -643,6 +645,7 @@ def generate_stats(args):
     rc_switch = str(getattr(args, "heatmap_read_counts", "off")).lower()
     cn_switch = str(getattr(args, "heatmap_copy_number", "off")).lower()
     hm_strategy = getattr(args, "target_heatmap_strategy", "clean_flags")
+    hm_min_reads = getattr(args, "heatmap_min_reads_cutoff", 3)
 
     if rc_switch == "on" or cn_switch == "on":
         import subprocess
@@ -655,7 +658,7 @@ def generate_stats(args):
                 f"python3 {heatmap_script_path} --input-report \"{input_report_path}\" "
                 f"--out-dir \"{out_dir}\" --dataset \"{dataset}\" --genome-build \"{genome_build}\" "
                 f"--phase \"{args.target_phase or ''}\" --project \"{args.target_project or ''}\" "
-                f"--strategy \"{hm_strategy}\" --value-type \"read_counts\""
+                f"--strategy \"{hm_strategy}\" --value-type \"read_counts\" --min-reads-cutoff {hm_min_reads}"
             )
             subprocess.run(cmd_rc, shell=True, check=True)
 
@@ -664,7 +667,7 @@ def generate_stats(args):
                 f"python3 {heatmap_script_path} --input-report \"{input_report_path}\" "
                 f"--out-dir \"{out_dir}\" --dataset \"{dataset}\" --genome-build \"{genome_build}\" "
                 f"--phase \"{args.target_phase or ''}\" --project \"{args.target_project or ''}\" "
-                f"--strategy \"{hm_strategy}\" --value-type \"copy_number\""
+                f"--strategy \"{hm_strategy}\" --value-type \"copy_number\" --min-reads-cutoff {hm_min_reads}"
             )
             subprocess.run(cmd_cn, shell=True, check=True)
 
