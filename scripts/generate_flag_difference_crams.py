@@ -113,6 +113,87 @@ def find_sample_vironator_dir(sample_id, base_dir, vironator_dirname):
     return flat_path if os.path.exists(flat_path) else None
 
 
+def parse_custom_input_tsv(input_tsv_path):
+    """
+    Parses custom 4-column difference TSV (sample, virus, flags-noflags, difference).
+    """
+    if not os.path.exists(input_tsv_path):
+        print(f"[ERROR] Custom input TSV file not found: {input_tsv_path}", flush=True)
+        sys.exit(1)
+
+    print(f"[INFO] Reading custom difference TSV: {input_tsv_path}", flush=True)
+    df = pd.read_csv(input_tsv_path, sep="\t", dtype=str)
+    sample_col = df.columns[0]
+    samples = sorted(df[sample_col].dropna().str.strip().unique())
+    return samples, df
+
+
+def generate_difference_cram_for_sample(sample_id, sample_dir, args):
+    """
+    Generates additional CRAM file for a single sample by finding read IDs present in flags CRAM
+    that are absent from noflags CRAM.
+    """
+    cram_noflags_path = os.path.join(sample_dir, args.cram_noflags)
+    cram_flags_path = os.path.join(sample_dir, args.cram_flags)
+    cram_add_path = os.path.join(sample_dir, args.cram_additional)
+
+    if not os.path.exists(cram_flags_path):
+        print(f"  [SKIP] Flags CRAM missing for sample {sample_id}: {cram_flags_path}", flush=True)
+        return False
+
+    if not os.path.exists(cram_noflags_path):
+        print(f"  [SKIP] Noflags CRAM missing for sample {sample_id}: {cram_noflags_path}", flush=True)
+        return False
+
+    ref_flag = f"-T \"{args.ref_genome}\"" if args.ref_genome and os.path.exists(args.ref_genome) else ""
+
+    # Shell pipeline to extract difference read names and filter flags CRAM
+    tmp_noflags_ids = os.path.join(sample_dir, ".tmp_noflags_ids.txt")
+    tmp_flags_ids = os.path.join(sample_dir, ".tmp_flags_ids.txt")
+    tmp_diff_ids = os.path.join(sample_dir, ".tmp_diff_ids.txt")
+
+    try:
+        # Extract sorted QNAMEs
+        cmd_noflags = f"samtools view {ref_flag} \"{cram_noflags_path}\" | cut -f1 | sort -u > \"{tmp_noflags_ids}\""
+        cmd_flags = f"samtools view {ref_flag} \"{cram_flags_path}\" | cut -f1 | sort -u > \"{tmp_flags_ids}\""
+        subprocess.run(cmd_noflags, shell=True, check=True)
+        subprocess.run(cmd_flags, shell=True, check=True)
+
+        # Comm difference
+        cmd_comm = f"comm -13 \"{tmp_noflags_ids}\" \"{tmp_flags_ids}\" > \"{tmp_diff_ids}\""
+        subprocess.run(cmd_comm, shell=True, check=True)
+
+        diff_count = 0
+        if os.path.exists(tmp_diff_ids):
+            with open(tmp_diff_ids, "r") as f:
+                diff_count = sum(1 for _ in f)
+
+        if diff_count == 0:
+            print(f"  [INFO] 0 difference reads for sample {sample_id}. Creating empty header CRAM.", flush=True)
+            cmd_empty = f"samtools view -H {ref_flag} \"{cram_flags_path}\" | samtools view -b - | samtools convert {ref_flag} -O cram -o \"{cram_add_path}\""
+            subprocess.run(cmd_empty, shell=True, check=True)
+        else:
+            print(f"  [BUILD] Extracting {diff_count} additional reads into {args.cram_additional}...", flush=True)
+            cmd_filter = f"samtools view -N \"{tmp_diff_ids}\" {ref_flag} -O cram -o \"{cram_add_path}\" \"{cram_flags_path}\""
+            subprocess.run(cmd_filter, shell=True, check=True)
+
+        # Clean temp files
+        for tmp_f in [tmp_noflags_ids, tmp_flags_ids, tmp_diff_ids]:
+            if os.path.exists(tmp_f):
+                os.remove(tmp_f)
+
+        print(f"  [SUCCESS] Created: {cram_add_path}", flush=True)
+        return True
+
+    except Exception as e:
+        print(f"  [ERROR] Failed generating difference CRAM for {sample_id}: {e}", flush=True)
+        for tmp_f in [tmp_noflags_ids, tmp_flags_ids, tmp_diff_ids]:
+            if os.path.exists(tmp_f):
+                try: os.remove(tmp_f)
+                except Exception: pass
+        return False
+
+
 def process_master_report_comparison(master_report_path, output_stats_dir, dataset="MCBiobank", genome_build="hg38", phase="", project=""):
     """
     Implements the complete workflow described in OLD/MCBiobank_flags_vs_noflags_workflow.docx:
@@ -264,16 +345,16 @@ def process_master_report_comparison(master_report_path, output_stats_dir, datas
     df_diff.to_csv(diff_path, sep="\t", index=False)
     print(f"[REPORT] Saved common hits read count difference TSV: {diff_path}")
 
-    samples = sorted(df[sample_col].dropna().str.strip().unique())
+    samples = sorted(df_clean[sample_col].dropna().str.strip().unique())
     return samples, df_diff
 
 
 def main():
     args = parse_args()
 
-    print("======================================================================")
-    print("VIROnator Flag Difference CRAM Generator & Mini-Report Module")
-    print("======================================================================")
+    print("======================================================================", flush=True)
+    print("VIROnator Flag Difference CRAM Generator & Mini-Report Module", flush=True)
+    print("======================================================================", flush=True)
 
     # Resolve stats_dir with permission fallback
     stats_dir = os.path.join(args.output_dir, args.stats_dirname)
@@ -295,29 +376,29 @@ def main():
         if os.path.exists(repo_master):
             samples, _ = process_master_report_comparison(repo_master, stats_dir, args.dataset, args.genome_build, args.phase, args.project)
         else:
-            print("[ERROR] Neither --input-tsv nor --master-report was provided.")
-            print("[NOTE] Please provide an input TSV file or ensure the master report TSV is placed in the VIROnator repository directory.")
+            print("[ERROR] Neither --input-tsv nor --master-report was provided.", flush=True)
+            print("[NOTE] Please provide an input TSV file or ensure the master report TSV is placed in the VIROnator repository directory.", flush=True)
             sys.exit(1)
 
     total_samples = len(samples)
-    print(f"\n[START] Processing CRAM differences for {total_samples} samples sequentially...\n")
+    print(f"\n[START] Processing CRAM differences for {total_samples} samples sequentially...\n", flush=True)
 
     success_count = 0
     for idx, sample_id in enumerate(samples, start=1):
-        print(f"[{idx}/{total_samples}] Processing sample: {sample_id}")
+        print(f"[{idx}/{total_samples}] Processing sample: {sample_id}", flush=True)
         sample_dir = find_sample_vironator_dir(sample_id, args.output_dir, args.vironator_dirname)
 
         if not sample_dir or not os.path.exists(sample_dir):
-            print(f"  [WARNING] Vironator directory not found for sample {sample_id}. Skipping.")
+            print(f"  [WARNING] Vironator directory not found for sample {sample_id} under output-dir '{args.output_dir}' or vironator-dir '{args.vironator_dirname}'. Skipping.", flush=True)
             continue
 
         ok = generate_difference_cram_for_sample(sample_id, sample_dir, args)
         if ok:
             success_count += 1
 
-    print("\n======================================================================")
-    print(f"[COMPLETED] Successfully processed {success_count}/{total_samples} samples.")
-    print("======================================================================")
+    print("\n======================================================================", flush=True)
+    print(f"[COMPLETED] Successfully processed {success_count}/{total_samples} samples.", flush=True)
+    print("======================================================================", flush=True)
 
 
 if __name__ == "__main__":
