@@ -227,7 +227,7 @@ cram_additional_file: "exogeneSR_viral_clean_filtered.sorted.flags.additional.cr
 # Automated IGV Snapshot Settings:
 generate_igv_snapshots: "on"                       # Switch: "on" to generate IGV batch scripts & PNG snapshots for non-zero difference pairs
 igv_ref_genome: "HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"  # Combined FASTA reference file in ref_dir (/mnt/disks/staff/refs/)
-igv_binary_path: "xvfb-run --auto-servernum --server-args=\"-screen 0 1920x1080x24\" igv.sh"    # Headless IGV execution command
+igv_binary_path: "xvfb-run -a igv.sh"                # Headless IGV execution command
 
 # Input TSV File Configuration:
 # - custom_input_tsv_provided: "yes" or "no"

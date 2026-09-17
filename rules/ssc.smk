@@ -656,7 +656,7 @@ rule generate_flag_difference_crams:
         """
         IGV_FLAG=""
         if [ "{params.gen_igv}" = "on" ] || [ "{params.gen_igv}" = "yes" ]; then
-            IGV_FLAG="--generate-igv-snapshots --igv-binary \"{params.igv_bin}\" --ref-viral-fasta \"{params.ref_viral}\""
+            IGV_FLAG="--generate-igv-snapshots --igv-binary '{params.igv_bin}' --ref-viral-fasta '{params.ref_viral}'"
         fi
         
         if [ "{params.custom_provided}" = "yes" ] && [ -n "{params.custom_path}" ]; then
