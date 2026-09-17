@@ -95,22 +95,33 @@ def parse_args():
 
 def find_sample_vironator_dir(sample_id, base_dir, vironator_dirname):
     """
-    Locates the specific sample directory inside the vironator output structure.
+    Locates the specific sample directory inside the vironator output structure across candidate locations.
     """
-    vironator_base = os.path.join(base_dir, vironator_dirname)
-    if not os.path.exists(vironator_base):
-        vironator_base = base_dir
+    candidate_bases = [
+        os.path.join(base_dir, vironator_dirname),
+        os.path.join(".", vironator_dirname),
+        os.path.join(base_dir, "vironator"),
+        os.path.join(".", "vironator"),
+        base_dir,
+        "."
+    ]
 
-    # Search pattern for sample directory
-    pattern = os.path.join(vironator_base, "**", sample_id)
-    matches = [d for d in glob.glob(pattern, recursive=True) if os.path.isdir(d)]
-    
-    if matches:
-        return matches[0]
-    
-    # Fallback flat path
-    flat_path = os.path.join(vironator_base, sample_id)
-    return flat_path if os.path.exists(flat_path) else None
+    for v_base in candidate_bases:
+        if not os.path.exists(v_base):
+            continue
+
+        # Check direct sample folder under candidate base
+        direct_path = os.path.join(v_base, sample_id)
+        if os.path.exists(direct_path) and os.path.isdir(direct_path):
+            return direct_path
+
+        # Glob search under candidate base
+        pattern = os.path.join(v_base, "**", sample_id)
+        matches = [d for d in glob.glob(pattern, recursive=True) if os.path.isdir(d)]
+        if matches:
+            return matches[0]
+
+    return None
 
 
 def parse_custom_input_tsv(input_tsv_path):
@@ -389,7 +400,7 @@ def main():
         sample_dir = find_sample_vironator_dir(sample_id, args.output_dir, args.vironator_dirname)
 
         if not sample_dir or not os.path.exists(sample_dir):
-            print(f"  [WARNING] Vironator directory not found for sample {sample_id} under output-dir '{args.output_dir}' or vironator-dir '{args.vironator_dirname}'. Skipping.", flush=True)
+            print(f"  [WARNING] Sample directory for '{sample_id}' not found under '{args.output_dir}/{args.vironator_dirname}' or local relative paths. Skipping.", flush=True)
             continue
 
         ok = generate_difference_cram_for_sample(sample_id, sample_dir, args)
