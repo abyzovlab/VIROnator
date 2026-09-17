@@ -640,6 +640,7 @@ rule generate_flag_difference_crams:
         gb=lambda wildcards: str(config.get("genome_build", "hg38")),
         phase=lambda wildcards: str(config.get("phase", "")),
         project=lambda wildcards: str(config.get("project", "")),
+        bucket=lambda wildcards: str(config.get("output_bucket", "")),
         custom_provided=lambda wildcards: str(config.get("custom_input_tsv_provided", "no")).lower(),
         custom_path=lambda wildcards: str(config.get("custom_input_tsv_path", "")),
         out_dir=lambda wildcards: str(config.get("output_dir", "/mnt/disks/staff")),
@@ -651,9 +652,9 @@ rule generate_flag_difference_crams:
     shell:
         """
         if [ "{params.custom_provided}" = "yes" ] && [ -n "{params.custom_path}" ]; then
-            python3 {input.script} --input-tsv "{params.custom_path}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}" --stats-dirname "{params.comp_dir}" --dataset "{params.ds}" --genome-build "{params.gb}" --phase "{params.phase}" --project "{params.project}"
+            python3 {input.script} --input-tsv "{params.custom_path}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}" --stats-dirname "{params.comp_dir}" --dataset "{params.ds}" --genome-build "{params.gb}" --phase "{params.phase}" --project "{params.project}" --output-bucket "{params.bucket}"
         else
-            python3 {input.script} --master-report "{input.master_report}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}" --stats-dirname "{params.comp_dir}" --dataset "{params.ds}" --genome-build "{params.gb}" --phase "{params.phase}" --project "{params.project}"
+            python3 {input.script} --master-report "{input.master_report}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}" --stats-dirname "{params.comp_dir}" --dataset "{params.ds}" --genome-build "{params.gb}" --phase "{params.phase}" --project "{params.project}" --output-bucket "{params.bucket}"
         fi
         
         # Sync generated comparison TSV reports to output bucket if configured

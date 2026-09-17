@@ -86,6 +86,11 @@ def parse_args():
         help="Project identifier (optional)"
     )
     parser.add_argument(
+        "--output-bucket",
+        default=None,
+        help="Google Cloud Storage output bucket name (optional)"
+    )
+    parser.add_argument(
         "--ref-genome",
         default=None,
         help="Reference FASTA path for CRAM decoding/encoding (optional)"
@@ -93,33 +98,42 @@ def parse_args():
     return parser.parse_args()
 
 
-def find_sample_vironator_dir(sample_id, base_dir, vironator_dirname):
+def find_sample_vironator_dir(sample_id, base_dir, vironator_dirname, gcs_bucket=None, phase="", project=""):
     """
-    Locates the specific sample directory inside the vironator output structure across candidate locations.
+    Locates and fetches sample CRAM directory directly from GCS output bucket using output_bucket, dataset, build, phase, project variables.
     """
-    candidate_bases = [
-        os.path.join(base_dir, vironator_dirname),
-        os.path.join(".", vironator_dirname),
-        os.path.join(base_dir, "vironator"),
-        os.path.join(".", "vironator"),
-        base_dir,
-        "."
-    ]
+    local_sample_dir = os.path.join(".", vironator_dirname, sample_id)
 
-    for v_base in candidate_bases:
-        if not os.path.exists(v_base):
-            continue
+    # If already downloaded locally in previous step, reuse
+    if os.path.exists(local_sample_dir) and os.path.isdir(local_sample_dir):
+        return local_sample_dir
 
-        # Check direct sample folder under candidate base
-        direct_path = os.path.join(v_base, sample_id)
-        if os.path.exists(direct_path) and os.path.isdir(direct_path):
-            return direct_path
+    if gcs_bucket:
+        # Candidate GCS paths (flat, phase/project structured)
+        phase_part = f"phase{phase}/" if phase and str(phase).strip() and str(phase).strip().lower() not in ["none", "0"] else ""
+        project_part = f"{project}/" if project and str(project).strip() and str(project).strip().lower() not in ["none", "0", "base"] else ""
 
-        # Glob search under candidate base
-        pattern = os.path.join(v_base, "**", sample_id)
-        matches = [d for d in glob.glob(pattern, recursive=True) if os.path.isdir(d)]
-        if matches:
-            return matches[0]
+        gcs_candidates = [
+            f"gs://{gcs_bucket}/{vironator_dirname}/{phase_part}{project_part}{sample_id}/",
+            f"gs://{gcs_bucket}/{vironator_dirname}/{sample_id}/",
+            f"gs://{gcs_bucket}/{sample_id}/"
+        ]
+
+        for gcs_sample_path in gcs_candidates:
+            check_cmd = f"gsutil -q stat \"{gcs_sample_path}*\" 2>/dev/null"
+            if subprocess.run(check_cmd, shell=True).returncode == 0:
+                print(f"  [GCS FETCH] Pulling CRAM files from GCS: {gcs_sample_path} -> {local_sample_dir}", flush=True)
+                os.makedirs(local_sample_dir, exist_ok=True)
+                dl_cmd = f"gsutil -q -m cp -r \"{gcs_sample_path}*\" \"{local_sample_dir}/\" 2>/dev/null || true"
+                subprocess.run(dl_cmd, shell=True)
+
+                if os.path.exists(local_sample_dir) and len(os.listdir(local_sample_dir)) > 0:
+                    return local_sample_dir
+
+    # Fallback check for any existing local path
+    for cand in [os.path.join(base_dir, vironator_dirname, sample_id), os.path.join(".", sample_id)]:
+        if os.path.exists(cand) and os.path.isdir(cand):
+            return cand
 
     return None
 
@@ -397,10 +411,10 @@ def main():
     success_count = 0
     for idx, sample_id in enumerate(samples, start=1):
         print(f"[{idx}/{total_samples}] Processing sample: {sample_id}", flush=True)
-        sample_dir = find_sample_vironator_dir(sample_id, args.output_dir, args.vironator_dirname)
+        sample_dir = find_sample_vironator_dir(sample_id, args.output_dir, args.vironator_dirname, gcs_bucket=args.output_bucket, phase=args.phase, project=args.project)
 
         if not sample_dir or not os.path.exists(sample_dir):
-            print(f"  [WARNING] Sample directory for '{sample_id}' not found under '{args.output_dir}/{args.vironator_dirname}' or local relative paths. Skipping.", flush=True)
+            print(f"  [WARNING] Sample directory for '{sample_id}' not found in GCS bucket 'gs://{args.output_bucket}/{args.vironator_dirname}/'. Skipping.", flush=True)
             continue
 
         ok = generate_difference_cram_for_sample(sample_id, sample_dir, args)
