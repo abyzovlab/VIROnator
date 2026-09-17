@@ -75,7 +75,12 @@ if config.get("distributions_module", "off") == "on":
 if config.get("flag_comparison_module", "off") == "on":
     targets.append("config/flag_difference_crams.done")
 
+# Module 9: IGV Snapshot Generation
+if config.get("igv_snapshots_module", "off") == "on":
+    targets.append("config/igv_snapshots.done")
+
 rule all:
     input:
         targets
+
 

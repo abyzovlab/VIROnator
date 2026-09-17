@@ -670,6 +670,63 @@ rule generate_flag_difference_crams:
         touch {output.token}
         """
 
+rule generate_igv_snapshots:
+    """
+    Generates IGV batch scripts (.igv) and automated PNG snapshots for sample-virus pairs with non-zero read differences.
+    """
+    input:
+        script="scripts/generate_igv_snapshots.py" if os.path.exists("scripts/generate_igv_snapshots.py") else os.path.join(config["scripts_dir"], config.get("igv_snapshots_script", "generate_igv_snapshots.py")),
+        diff_token="config/flag_difference_crams.done",
+        config_file="config/ssc_config.yaml"
+    output:
+        token="config/igv_snapshots.done"
+    params:
+        ds=lambda wildcards: str(config.get("dataset", "MCBiobank")),
+        gb=lambda wildcards: str(config.get("genome_build", "hg38")),
+        phase=lambda wildcards: str(config.get("phase", "")),
+        project=lambda wildcards: str(config.get("project", "")),
+        out_dir=lambda wildcards: str(config.get("output_dir", "/mnt/disks/staff")),
+        vironator_dir=lambda wildcards: str(config.get("vironator_out_dirname", f"{config.get('dataset', 'MCBiobank')}_{config.get('genome_build', 'hg38')}_vironator")),
+        comp_dir=lambda wildcards: str(config.get("comparison_out_dirname", f"{config.get('dataset', 'MCBiobank')}_{config.get('genome_build', 'hg38')}_comparisons")),
+        snaps_dir=lambda wildcards: str(config.get("igv_snapshots_out_dirname", f"{config.get('dataset', 'MCBiobank')}_{config.get('genome_build', 'hg38')}_igv_snapshots")),
+        ref_vir_cont=lambda wildcards: os.path.join(config["ref_dir"], config.get("igv_ref_genome", config.get("ref_vir_cont", "HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"))),
+        cram_flags=lambda wildcards: str(config.get("cram_flags_file", "exogeneSR_viral_clean_filtered.sorted.flags.cram")),
+        cram_noflags=lambda wildcards: str(config.get("cram_noflags_file", "exogeneSR_viral_clean_filtered.sorted.cram")),
+        cram_add=lambda wildcards: str(config.get("cram_additional_file", "exogeneSR_viral_clean_filtered.sorted.flags.additional.cram")),
+        bucket=lambda wildcards: str(config.get("output_bucket", "")),
+        igv_bin=lambda wildcards: str(config.get("igv_binary_path", "igv")),
+        run_auto=lambda wildcards: str(config.get("run_igv_automatically", "off")).lower()
+    shell:
+        """
+        RUN_FLAG=""
+        if [ "{params.run_auto}" = "on" ] || [ "{params.run_auto}" = "yes" ]; then
+            RUN_FLAG="--run-igv"
+        fi
+        
+        python3 {input.script} --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}" --comparison-dirname "{params.comp_dir}" --snapshots-dirname "{params.snaps_dir}" --ref-genome "{params.ref_vir_cont}" --dataset "{params.ds}" --genome-build "{params.gb}" --phase "{params.phase}" --project "{params.project}" --cram-flags "{params.cram_flags}" --cram-noflags "{params.cram_noflags}" --cram-additional "{params.cram_add}" --output-bucket "{params.bucket}" --igv-binary "{params.igv_bin}" $RUN_FLAG
+        
+        # Sync generated PNG snapshots directly to sample vironator directories on GCS bucket if output_bucket is configured
+        if [ -n "{config[output_bucket]}" ]; then
+            VIRONATOR_GCS="gs://{config[output_bucket]}/{params.vironator_dir}/"
+            # 1. Check local output_dir mount (/mnt/disks/staff)
+            if [ -d "{params.out_dir}/{params.vironator_dir}" ]; then
+                find "{params.out_dir}/{params.vironator_dir}" -type f -name "*_igv.png" | while read -r png_file; do
+                    rel_path="${{png_file#{params.out_dir}/{params.vironator_dir}/}}"
+                    gsutil -q cp "$png_file" "${{VIRONATOR_GCS}}${{rel_path}}" 2>/dev/null || true
+                done
+            fi
+            # 2. Check local execution workspace (./vironator_dir)
+            if [ -d "./{params.vironator_dir}" ]; then
+                find "./{params.vironator_dir}" -type f -name "*_igv.png" | while read -r png_file; do
+                    rel_path="${{png_file#./{params.vironator_dir}/}}"
+                    gsutil -q cp "$png_file" "${{VIRONATOR_GCS}}${{rel_path}}" 2>/dev/null || true
+                done
+            fi
+        fi
+        touch {output.token}
+        """
+
+
 
 
 
