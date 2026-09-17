@@ -210,10 +210,11 @@ strategy_colors:
   overall: "#008fbf"
 
 # ==============================================================================
-# MODULE 7: FLAG COMPARISON & DIFFERENCE MODULE
+# MODULE 7: FLAG COMPARISON & IGV SNAPSHOT MODULE
 # ==============================================================================
-flag_comparison_module: "off"                       # Switch: "on" or "off" to run sequential flag difference extraction
+flag_comparison_module: "off"                       # Switch: "on" or "off" to run sequential flag difference extraction & IGV snapshot generation
 flag_difference_script: "generate_flag_difference_crams.py"
+
 # Output Directory Configuration:
 # - comparison_out_dirname: Directory name where comparison mini-reports & TSV tables are saved
 comparison_out_dirname: "{dataset}_{genome_build}_comparisons"
@@ -222,6 +223,11 @@ comparison_out_dirname: "{dataset}_{genome_build}_comparisons"
 cram_noflags_file: "exogeneSR_viral_clean_filtered.sorted.cram"
 cram_flags_file: "exogeneSR_viral_clean_filtered.sorted.flags.cram"
 cram_additional_file: "exogeneSR_viral_clean_filtered.sorted.flags.additional.cram"
+
+# Automated IGV Snapshot Settings:
+generate_igv_snapshots: "on"                       # Switch: "on" to generate IGV batch scripts & PNG snapshots for non-zero difference pairs
+igv_ref_genome: "HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"  # Combined FASTA reference file in ref_dir (/mnt/disks/staff/refs/)
+igv_binary_path: "igv"                              # Path to IGV executable (e.g. igv, igv.sh)
 
 # Input TSV File Configuration:
 # - custom_input_tsv_provided: "yes" or "no"
@@ -235,6 +241,7 @@ custom_input_tsv_path: "flag_difference_input.tsv"
 # MODULE 8: REFINEMENT MODULE (NCBI RefSeq Strain Resolution & Species Collapse)
 # ==============================================================================
 refinement_module: "off"                 # Master switch: "on" or "off"
+
 
 # Stage-by-Stage Sub-Switches:
 make_taxonomy_index_stage: "off"         # Stage 1: Build 14-column taxonomy index TSV
@@ -267,15 +274,6 @@ refinement_jobexec_dirname: "jobexec_refinement_{dataset}_{genome_build}"
 refinement_strategy: "clean"            # Candidate read source strategy: "clean" or "raw"
 bowtie2_max_multimaps: 10               # -k flag for Bowtie2 multimapping alignment
 
-# ==============================================================================
-# MODULE 9: AUTOMATED IGV SNAPSHOT GENERATION MODULE
-# ==============================================================================
-igv_snapshots_module: "off"                          # Switch: "on" or "off" to run IGV batch script & snapshot generation
-igv_snapshots_script: "generate_igv_snapshots.py"
-igv_snapshots_out_dirname: "{dataset}_{genome_build}_igv_snapshots"
-igv_ref_genome: "HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"  # Combined FASTA reference file in ref_dir (/mnt/disks/staff/refs/)
-igv_binary_path: "igv"                               # Path to IGV executable (e.g. igv, igv.sh)
-run_igv_automatically: "off"                        # Switch: "on" to execute IGV after writing batch script
 
 
 
