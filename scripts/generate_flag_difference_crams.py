@@ -66,6 +66,26 @@ def parse_args():
         help="Stats output directory name"
     )
     parser.add_argument(
+        "--dataset",
+        default="MCBiobank",
+        help="Dataset identifier"
+    )
+    parser.add_argument(
+        "--genome-build",
+        default="hg38",
+        help="Genome build identifier"
+    )
+    parser.add_argument(
+        "--phase",
+        default="",
+        help="Phase identifier (optional)"
+    )
+    parser.add_argument(
+        "--project",
+        default="",
+        help="Project identifier (optional)"
+    )
+    parser.add_argument(
         "--ref-genome",
         default=None,
         help="Reference FASTA path for CRAM decoding/encoding (optional)"
@@ -93,17 +113,10 @@ def find_sample_vironator_dir(sample_id, base_dir, vironator_dirname):
     return flat_path if os.path.exists(flat_path) else None
 
 
-def process_master_report_comparison(master_report_path, output_stats_dir):
+def process_master_report_comparison(master_report_path, output_stats_dir, dataset="MCBiobank", genome_build="hg38", phase="", project=""):
     """
     Implements the complete workflow described in OLD/MCBiobank_flags_vs_noflags_workflow.docx:
-    1. Filter out 'None' rows.
-    2. Split into noflags vs flags entries (based on Source_File / CRAM strategy or filename).
-    3. Compare sample-virus pairs (Sample_ID + Virus_Accession) to generate:
-       - common list (shared sample-virus pairs with read count comparison)
-       - noflags unique list
-       - flags unique list (and summary of extra hits per virus)
-    4. Generate summary TSVs / mini-reports in output_stats_dir.
-    5. Return sample list for difference CRAM generation.
+    Outputs TSV files prepended with prefix: {dataset}_{genome_build}[_{phase}][_{project}]
     """
     if not os.path.exists(master_report_path):
         local_repo_master = os.path.basename(master_report_path)
@@ -114,12 +127,17 @@ def process_master_report_comparison(master_report_path, output_stats_dir):
             print("[IMPORTANT] Please ensure the master report TSV is copied directly to your cloned VIROnator repository directory.")
             sys.exit(1)
 
+    # Build dynamic filename prefix
+    parts = [str(dataset).strip(), str(genome_build).strip()]
+    if phase and str(phase).strip() and str(phase).strip().lower() not in ["none", "0"]:
+        parts.append(str(phase).strip())
+    if project and str(project).strip() and str(project).strip().lower() not in ["none", "0", "base"]:
+        parts.append(str(project).strip())
+    prefix = "_".join(parts)
+
     print(f"[INFO] Reading master report: {master_report_path}")
     df = pd.read_csv(master_report_path, sep="\t", dtype=str)
     df.columns = [c.strip() for c in df.columns]
-
-    # Filter out rows containing 'None' or empty values
-    df_clean = df[~df.isin(["None", "none", None]).any(axis=1)].copy()
 
     # Identify key columns
     sample_col = df.columns[0]  # Sample_ID
@@ -129,17 +147,32 @@ def process_master_report_comparison(master_report_path, output_stats_dir):
     source_col = [c for c in df.columns if "source" in c.lower() or "file" in c.lower()]
     source_col = source_col[0] if source_col else df.columns[-1]
 
-    # Split into flags and noflags DataFrames
-    is_flags = df_clean[source_col].str.contains("flags", case=False, na=False)
+    # Step 0: Filter out rows containing 'None', empty values, or <= 0 mapped reads
+    df_clean = df[~df.isin(["None", "none", "NONE", None]).any(axis=1)].copy()
+    if reads_col in df_clean.columns:
+        df_clean[reads_col] = pd.to_numeric(df_clean[reads_col], errors='coerce').fillna(0)
+        df_clean = df_clean[df_clean[reads_col] > 0].copy()
+
+    # Step 0 Split: flags vs noflags matching target CRAM filename strings
+    flags_target = "exogeneSR_viral_clean_filtered.sorted.flags"
+    noflags_target = "exogeneSR_viral_clean_filtered.sorted.cram"
+
+    is_flags = df_clean[source_col].str.contains(flags_target, case=False, na=False)
+    # noflags matches exogeneSR_viral_clean_filtered.sorted.cram but excludes flags
+    is_noflags = df_clean[source_col].str.contains(noflags_target, case=False, na=False) & (~is_flags)
+
     df_flags = df_clean[is_flags].copy()
-    df_noflags = df_clean[~is_flags].copy()
+    df_noflags = df_clean[is_noflags].copy()
 
     # Ensure output stats dir exists
     os.makedirs(output_stats_dir, exist_ok=True)
 
-    # Save cleaned splits
-    noflags_tsv = os.path.join(output_stats_dir, "master_report_cleans_noflags.tsv")
-    flags_tsv = os.path.join(output_stats_dir, "master_report_cleans_flags.tsv")
+    # Save cleaned splits per Step 0 with dynamic prefix
+    cleans_tsv = os.path.join(output_stats_dir, f"{prefix}_master_report_cleans.tsv")
+    noflags_tsv = os.path.join(output_stats_dir, f"{prefix}_master_report_cleans_noflags.tsv")
+    flags_tsv = os.path.join(output_stats_dir, f"{prefix}_master_report_cleans_flags.tsv")
+
+    df_clean.to_csv(cleans_tsv, sep="\t", index=False)
     df_noflags.to_csv(noflags_tsv, sep="\t", index=False)
     df_flags.to_csv(flags_tsv, sep="\t", index=False)
 
@@ -154,16 +187,28 @@ def process_master_report_comparison(master_report_path, output_stats_dir):
     flags_unique_keys = flags_keys - noflags_keys
     noflags_unique_keys = noflags_keys - flags_keys
 
-    # 1. Output Unique Lists (Mini-Reports)
+    # 1. Output Common List (Step 1 & Step 3) and Unique Lists (Step 1)
+    df_flags_common = df_flags[df_flags['key'].isin(common_keys)].copy()
+    df_noflags_common = df_noflags[df_noflags['key'].isin(common_keys)].copy()
+
+    df_flags_common.insert(0, 'Source_Strategy', 'flags')
+    df_noflags_common.insert(0, 'Source_Strategy', 'noflags')
+
+    df_common_concat = pd.concat([df_flags_common, df_noflags_common], ignore_index=True)
+    df_common_ordered = df_common_concat.sort_values(by=[sample_col, virus_acc_col, 'Source_Strategy']).drop(columns=['key'])
+
+    common_ordered_path = os.path.join(output_stats_dir, f"{prefix}_master_report_cleans_common_list_ordered.tsv")
+    df_common_ordered.to_csv(common_ordered_path, sep="\t", index=False)
+
     df_flags_unique = df_flags[df_flags['key'].isin(flags_unique_keys)].drop(columns=['key'])
     df_noflags_unique = df_noflags[df_noflags['key'].isin(noflags_unique_keys)].drop(columns=['key'])
 
-    flags_unique_path = os.path.join(output_stats_dir, "master_report_cleans_flags_unique_list.tsv")
-    noflags_unique_path = os.path.join(output_stats_dir, "master_report_cleans_noflags_unique_list.tsv")
+    flags_unique_path = os.path.join(output_stats_dir, f"{prefix}_master_report_cleans_flags_unique_list.tsv")
+    noflags_unique_path = os.path.join(output_stats_dir, f"{prefix}_master_report_cleans_noflags_unique_list.tsv")
     df_flags_unique.to_csv(flags_unique_path, sep="\t", index=False)
     df_noflags_unique.to_csv(noflags_unique_path, sep="\t", index=False)
 
-    # 2. Summarize Flags-Unique Hits by Virus
+    # 2. Summarize Flags-Unique Hits by Virus (Step 2)
     if not df_flags_unique.empty:
         df_flags_unique[reads_col] = pd.to_numeric(df_flags_unique[reads_col], errors='coerce').fillna(0)
         summary_rows = []
@@ -187,11 +232,11 @@ def process_master_report_comparison(master_report_path, output_stats_dir):
         df_summary = pd.DataFrame(summary_rows)
         if not df_summary.empty:
             df_summary = df_summary.sort_values(by="total_reads", ascending=False)
-        summary_path = os.path.join(output_stats_dir, "master_report_cleans_flags_unique_list_summary.tsv")
+        summary_path = os.path.join(output_stats_dir, f"{prefix}_master_report_cleans_flags_unique_list_summary.tsv")
         df_summary.to_csv(summary_path, sep="\t", index=False)
         print(f"[REPORT] Saved flags-unique viral summary: {summary_path}")
 
-    # 3. Read Count Differences for Shared Hits
+    # 3. Read Count Differences for Shared Hits (Step 4)
     diff_records = []
     flags_map = df_flags.set_index('key')
     noflags_map = df_noflags.set_index('key')
@@ -200,7 +245,6 @@ def process_master_report_comparison(master_report_path, output_stats_dir):
         r_flag = flags_map.loc[key]
         r_noflag = noflags_map.loc[key]
 
-        # Handle duplicates if any by taking first or sum
         s_id = r_flag[sample_col].iloc[0] if isinstance(r_flag, pd.DataFrame) else r_flag[sample_col]
         v_acc = r_flag[virus_acc_col].iloc[0] if isinstance(r_flag, pd.DataFrame) else r_flag[virus_acc_col]
 
@@ -216,7 +260,7 @@ def process_master_report_comparison(master_report_path, output_stats_dir):
         })
 
     df_diff = pd.DataFrame(diff_records)
-    diff_path = os.path.join(output_stats_dir, "master_report_cleans_common_flags_vs_noflags_diff.tsv")
+    diff_path = os.path.join(output_stats_dir, f"{prefix}_master_report_cleans_common_flags_vs_noflags_diff.tsv")
     df_diff.to_csv(diff_path, sep="\t", index=False)
     print(f"[REPORT] Saved common hits read count difference TSV: {diff_path}")
 
@@ -243,11 +287,13 @@ def main():
     if args.input_tsv:
         samples, _ = parse_custom_input_tsv(args.input_tsv)
     elif args.master_report:
-        samples, _ = process_master_report_comparison(args.master_report, stats_dir)
+        samples, _ = process_master_report_comparison(args.master_report, stats_dir, args.dataset, args.genome_build, args.phase, args.project)
     else:
-        repo_master = "MCBiobank_hg38_master_report.tsv"
+        repo_master = f"{args.dataset}_{args.genome_build}_master_report.tsv"
+        if not os.path.exists(repo_master):
+            repo_master = "MCBiobank_hg38_master_report.tsv"
         if os.path.exists(repo_master):
-            samples, _ = process_master_report_comparison(repo_master, stats_dir)
+            samples, _ = process_master_report_comparison(repo_master, stats_dir, args.dataset, args.genome_build, args.phase, args.project)
         else:
             print("[ERROR] Neither --input-tsv nor --master-report was provided.")
             print("[NOTE] Please provide an input TSV file or ensure the master report TSV is placed in the VIROnator repository directory.")

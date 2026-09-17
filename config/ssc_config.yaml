@@ -214,6 +214,8 @@ strategy_colors:
 # ==============================================================================
 flag_comparison_module: "off"                       # Switch: "on" or "off" to run sequential flag difference extraction
 flag_difference_script: "generate_flag_difference_crams.py"
+# Output Directory Configuration:
+# - comparison_out_dirname: Directory name where comparison mini-reports & TSV tables are saved
 comparison_out_dirname: "{dataset}_{genome_build}_comparisons"
 
 # Flag CRAM Targets:
