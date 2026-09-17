@@ -210,12 +210,22 @@ strategy_colors:
   overall: "#008fbf"
 
 # ==============================================================================
-# MODULE 7: FLAG COMPARISON MODULE (SAM Flag Comparison for Clean Strategy)
+# MODULE 7: FLAG COMPARISON & DIFFERENCE MODULE
 # ==============================================================================
-flag_comparison_module: "off"  # Switch: "on" or "off" to enable SAM flag comparison module
-flag_comparison_out_dirname: "{dataset}_{genome_build}_flag_comparison"
-flag_comparison_jobexec_dirname: "jobexec_flag_comparison_{dataset}_{genome_build}"
-flag_comparison_script: "run_flag_comparison.py"
+flag_comparison_module: "off"                       # Switch: "on" or "off" to run sequential flag difference extraction
+flag_difference_script: "generate_flag_difference_crams.py"
+
+# Flag CRAM Targets:
+cram_noflags_file: "exogeneSR_viral_clean_filtered.sorted.cram"
+cram_flags_file: "exogeneSR_viral_clean_filtered.sorted.flags.cram"
+cram_additional_file: "exogeneSR_viral_clean_filtered.sorted.flags.additional.cram"
+
+# Input TSV File Configuration:
+# - custom_input_tsv_provided: "yes" or "no"
+#   If "yes": Provide path to 4-column difference TSV (sample, virus, flags-noflags, difference)
+#   If "no" : Uses master_report_file copied into local VIROnator repository directory.
+custom_input_tsv_provided: "no"
+custom_input_tsv_path: "flag_difference_input.tsv"
 
 # ==============================================================================
 # MODULE 8: REFINEMENT MODULE (NCBI RefSeq Strain Resolution & Species Collapse)

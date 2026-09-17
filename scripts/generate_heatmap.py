@@ -149,15 +149,18 @@ def main():
         print(f"[WARNING] Matrix is empty after pivot for {args.value_type}. Skipping heatmap.")
         sys.exit(0)
 
-    # 5. Transform log10(df + 1e-7) as in OLD/06_heatmap.py
-    log_df = np.log10(pivot_df + 1e-7)
+    # 5. Transform log10(df) for positive values only; mask 0.0 values as NaN
+    log_df = pivot_df.replace(0.0, np.nan)
+    log_df = np.log10(log_df)
 
     # 6. Hierarchical Clustering (average linkage)
     num_samples = log_df.shape[0]
     num_viruses = log_df.shape[1]
 
+    # Fill NaNs with 0 for clustering calculation only
+    log_df_cluster = log_df.fillna(0.0)
     if num_viruses > 1:
-        linkage_matrix = linkage(log_df.T, method='average')
+        linkage_matrix = linkage(log_df_cluster.T, method='average')
         ordered_columns = leaves_list(linkage_matrix)
         sorted_column_names = sorted(log_df.columns[ordered_columns])
         sorted_log_df = log_df[sorted_column_names]
@@ -167,20 +170,24 @@ def main():
 
     # Proportional figure dimensions capped for high performance & clean rendering
     calc_height = max(8.0, min(35.0, num_samples * 0.15 + 4.0))
-    calc_width = max(10.0, min(30.0, num_viruses * 0.4 + 4.0))
+    calc_width = max(6.0, min(20.0, num_viruses * 0.22 + 3.0))
 
     plt.figure(figsize=(calc_width, calc_height), dpi=300)
 
-    # 7. Render Heatmap (linewidths=0 prevents horizontal stripe artifacts)
-    ax = sns.heatmap(sorted_log_df, cmap='viridis', linewidths=0)
+    # Set light gray background color for zero/NaN entries
+    current_cmap = matplotlib.cm.get_cmap('viridis').copy()
+    current_cmap.set_bad(color='#e0e0e0')
+
+    # 7. Render Heatmap (linewidths=0.5 for clean cell separation)
+    ax = sns.heatmap(sorted_log_df, cmap=current_cmap, linewidths=0.5, linecolor='white', mask=sorted_log_df.isna())
 
     title_text = 'Virus Read Counts Heatmap' if args.value_type == "read_counts" else 'Virus Copy Number Heatmap'
     plt.title(title_text, fontsize=20, pad=15)
     plt.xlabel('Virus', fontsize=16, labelpad=10)
     plt.ylabel('Sample', fontsize=16, labelpad=10)
 
-    xtick_size = max(6, min(12, int(200 / max(1, num_viruses))))
-    ytick_size = max(4, min(10, int(200 / max(1, num_samples))))
+    xtick_size = max(8, min(14, int(220 / max(1, num_viruses))))
+    ytick_size = max(7, min(14, int(300 / max(1, num_samples))))
 
     plt.xticks(fontsize=xtick_size, rotation=90)
     plt.yticks(fontsize=ytick_size, rotation=0)

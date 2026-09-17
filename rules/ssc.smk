@@ -324,80 +324,42 @@ rule generate_reporting_job_file:
         with open(output.job, "w") as f:
             f.write(formatted_content)
 
-rule create_flag_comparison_directory:
+rule generate_flag_difference_crams:
     """
-    Initializes target flag comparison directory on GCS using gsutil.
-    """
-    input:
-        placeholder=config["placeholder_file"],
-        config_file="config/ssc_config.yaml"
-    output:
-        token="config/flag_comparison_dir.created"
-    shell:
-        """
-        TARGET_PATH="gs://{config[output_bucket]}/{config[flag_comparison_out_dirname]}/{phase_part}{project_part}test.txt"
-        if ! gsutil -q stat "$TARGET_PATH"; then
-            gsutil cp {input.placeholder} "$TARGET_PATH"
-        fi
-        touch {output.token}
-        """
-
-rule generate_flag_comparison_job_file:
-    """
-    Generates ssc_flag_comparison.job from ssc_flag_comparison.job.template.
+    Module 7: Iterates over samples sequentially to find read differences between flags and noflags CRAMs,
+    writing exogeneSR_viral_clean_filtered.sorted.flags.additional.cram directly into each sample's vironator directory.
     """
     input:
-        template="config/ssc_flag_comparison.job.template",
+        script="scripts/generate_flag_difference_crams.py",
         config_file="config/ssc_config.yaml"
     output:
-        job="config/ssc_flag_comparison.job"
-    run:
-        import shutil, subprocess
-        staff_scripts = os.path.join(config["output_dir"], "scripts")
-        try:
-            os.makedirs(staff_scripts, exist_ok=True)
-            if os.path.exists("scripts"):
-                shutil.copytree("scripts", staff_scripts, dirs_exist_ok=True)
-        except Exception:
-            bucket = config.get("output_bucket")
-            if bucket:
-                subprocess.run(f"gsutil -q cp -r scripts/* gs://{bucket}/scripts/ 2>/dev/null", shell=True)
-
-        with open(input.template, "r") as f:
-            content = f.read()
-        
-        formatted_content = (
-            content.replace("{dataset}", str(config.get("dataset", "DATASET")))
-            .replace("{phase}", str(config["phase"]))
-            .replace("{project}", str(config["project"]))
-            .replace("{output_bucket}", str(config["output_bucket"]))
-            .replace("{output_dir}", str(config["output_dir"]))
-            .replace("{viral_bed_path}", os.path.join(config["ref_dir"], config["viral_bed_file"]))
-            .replace("{python_bin}", str(config.get("python_bin", "python3")))
-            .replace("{flag_script_path}", os.path.join(config["scripts_dir"], config.get("flag_comparison_script", "run_flag_comparison.py")))
-            .replace("{vironator_out_dirname}", str(config["vironator_out_dirname"]))
-            .replace("{flag_comparison_out_dirname}", str(config["flag_comparison_out_dirname"]))
-            .replace("{vironator_jobexec_dirname}", str(config["vironator_jobexec_dirname"]))
-            .replace("{flag_comparison_jobexec_dirname}", str(config.get("flag_comparison_jobexec_dirname", "jobexec_flag_comparison")))
-        )
-        
-        with open(output.job, "w") as f:
-            f.write(formatted_content)
-
-rule merge_flag_comparison_reports:
-    """
-    Consolidates individual per-sample flag comparison reports into a single master cohort report.
-    """
-    input:
-        script="scripts/merge_flag_comparison.py",
-        config_file="config/ssc_config.yaml"
-    output:
-        master_report="cohort_flag_comparison_master.tsv"
+        token="config/flag_difference_crams.done"
     run:
         import subprocess
-        flag_dir = os.path.join(config["output_dir"], config["flag_comparison_out_dirname"])
-        cmd = f"python3 {input.script} --flag-dir \"{flag_dir}\" --out-file \"{output.master_report}\""
+        custom_tsv_opt = str(config.get("custom_input_tsv_provided", "no")).strip().lower()
+        custom_tsv_path = config.get("custom_input_tsv_path", "")
+        master_report_path = config.get("master_report_file", f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_master_report.tsv")
+        
+        cram_noflags = config.get("cram_noflags_file", "exogeneSR_viral_clean_filtered.sorted.cram")
+        cram_flags = config.get("cram_flags_file", "exogeneSR_viral_clean_filtered.sorted.flags.cram")
+        cram_additional = config.get("cram_additional_file", "exogeneSR_viral_clean_filtered.sorted.flags.additional.cram")
+        
+        out_dir = config.get("output_dir", "/mnt/disks/staff")
+        vironator_dir = config.get("vironator_out_dirname", f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_vironator")
+        ref_genome = config.get("ref_genome", "")
+
+        cmd = f"python3 {input.script} --output-dir \"{out_dir}\" --vironator-dirname \"{vironator_dir}\" --cram-noflags \"{cram_noflags}\" --cram-flags \"{cram_flags}\" --cram-additional \"{cram_additional}\""
+        if ref_genome and os.path.exists(ref_genome):
+            cmd += f" --ref-genome \"{ref_genome}\""
+
+        if custom_tsv_opt in ["yes", "true", "1"] and custom_tsv_path and os.path.exists(custom_tsv_path):
+            cmd += f" --input-tsv \"{custom_tsv_path}\""
+        else:
+            cmd += f" --master-report \"{master_report_path}\""
+
         subprocess.run(cmd, shell=True, check=True)
+        with open(output.token, "w") as f:
+            f.write("done\n")
 
 rule make_taxonomy_index:
     """
@@ -694,11 +656,39 @@ rule generate_distributions:
         """
         PLOTS_GCS="gs://{config[output_bucket]}/{config[plots_out_dirname]}/test.txt"
         STATS_GCS="gs://{config[output_bucket]}/{config[stats_out_dirname]}/test.txt"
-        gsutil cp config/ssc_config.yaml "$PLOTS_GCS" 2>/dev/null || true
-        gsutil cp config/ssc_config.yaml "$STATS_GCS" 2>/dev/null || true
         python3 {input.script} --input-report {input.master_report} --plots-dir "{params.plots_dir}" --stats-dir "{params.stats_dir}" --dataset "{params.ds}" --genome-build "{params.gb}" --target-phase "{params.phase}" --target-project "{params.project}" --strategies {params.strategies} --cohort-scope "{params.cohort_scope}" --panel-a-loglog "{params.panel_a_loglog}" --panel-b-log-y "{params.panel_b_log_y}" --min-total-reads-to-plot {params.min_total_reads} --min-max-reads-to-plot {params.min_max_reads} --log-scale-read-cutoff {params.log_scale_cutoff} --prelim-prevalence-cutoff-pct {params.prelim_prev_cutoff} --prelim-mean-read-cutoff {params.prelim_mean_cutoff}
         touch {output.token}
         """
+
+rule generate_flag_difference_crams:
+    """
+    Generates difference CRAM files (exogeneSR_viral_clean_filtered.sorted.flags.additional.cram)
+    and full flags vs. noflags comparison mini-reports from the master report TSV per OLD/MCBiobank_flags_vs_noflags_workflow.docx.
+    """
+    input:
+        script="scripts/generate_flag_difference_crams.py" if os.path.exists("scripts/generate_flag_difference_crams.py") else os.path.join(config["scripts_dir"], config.get("flag_difference_script", "generate_flag_difference_crams.py")),
+        master_report=lambda wildcards: get_master_report_path(config),
+        config_file="config/ssc_config.yaml"
+    output:
+        token="config/flag_difference_crams.done"
+    params:
+        custom_provided=lambda wildcards: str(config.get("custom_input_tsv_provided", "no")).lower(),
+        custom_path=lambda wildcards: str(config.get("custom_input_tsv_path", "")),
+        out_dir=lambda wildcards: str(config.get("output_dir", "/mnt/disks/staff")),
+        vironator_dir=lambda wildcards: str(config.get("vironator_out_dirname", f"{config.get('dataset', 'MCBiobank')}_{config.get('genome_build', 'hg38')}_vironator")),
+        cram_noflags=lambda wildcards: str(config.get("cram_noflags_file", "exogeneSR_viral_clean_filtered.sorted.cram")),
+        cram_flags=lambda wildcards: str(config.get("cram_flags_file", "exogeneSR_viral_clean_filtered.sorted.flags.cram")),
+        cram_add=lambda wildcards: str(config.get("cram_additional_file", "exogeneSR_viral_clean_filtered.sorted.flags.additional.cram"))
+    shell:
+        """
+        if [ "{params.custom_provided}" = "yes" ] && [ -n "{params.custom_path}" ]; then
+            python3 {input.script} --input-tsv "{params.custom_path}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}"
+        else
+            python3 {input.script} --master-report "{input.master_report}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}"
+        fi
+        touch {output.token}
+        """
+
 
 
 

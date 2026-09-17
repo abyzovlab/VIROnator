@@ -71,6 +71,10 @@ if config.get("stats_module", "off") == "on":
 if config.get("distributions_module", "off") == "on":
     targets.append("config/distributions.done")
 
+# Module 7: Flag Difference CRAM Generation
+if config.get("flag_comparison_module", "off") == "on":
+    targets.append("config/flag_difference_crams.done")
+
 rule all:
     input:
         targets
