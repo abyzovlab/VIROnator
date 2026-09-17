@@ -223,6 +223,24 @@ def generate_difference_cram_for_sample(sample_id, sample_dir, args):
                 os.remove(tmp_f)
 
         print(f"  [SUCCESS] Created: {cram_add_path}", flush=True)
+
+        # Upload generated additional CRAM back to GCS bucket if output_bucket is specified
+        if args.output_bucket:
+            phase_part = f"phase{args.phase}/" if args.phase and str(args.phase).strip() and str(args.phase).strip().lower() not in ["none", "0"] else ""
+            project_part = f"{args.project}/" if args.project and str(args.project).strip() and str(args.project).strip().lower() not in ["none", "0", "base"] else ""
+            gcs_dest_sample = f"gs://{args.output_bucket}/{args.vironator_dirname}/{phase_part}{project_part}{sample_id}/"
+            
+            print(f"  [GCS UPLOAD] Syncing generated difference CRAM to {gcs_dest_sample}", flush=True)
+            upload_cmd = f"gsutil -q cp \"{cram_add_path}\" \"{gcs_dest_sample}\" 2>/dev/null || true"
+            subprocess.run(upload_cmd, shell=True)
+
+        # Cleanup local staging sample folder if it was staged under local ./vironator_dirname
+        local_staging_dir = os.path.abspath(os.path.join(".", args.vironator_dirname, sample_id))
+        if os.path.abspath(sample_dir) == local_staging_dir and os.path.exists(local_staging_dir):
+            import shutil
+            shutil.rmtree(local_staging_dir, ignore_errors=True)
+            print(f"  [CLEANUP] Removed temporary local sample staging directory: {local_staging_dir}", flush=True)
+
         return True
 
     except Exception as e:
@@ -441,6 +459,13 @@ def main():
         ok = generate_difference_cram_for_sample(sample_id, sample_dir, args)
         if ok:
             success_count += 1
+
+    # Cleanup top-level local vironator directory if empty or remaining
+    local_vir_parent = os.path.abspath(os.path.join(".", args.vironator_dirname))
+    if os.path.exists(local_vir_parent):
+        import shutil
+        shutil.rmtree(local_vir_parent, ignore_errors=True)
+        print(f"[CLEANUP] Removed temporary top-level staging directory: {local_vir_parent}", flush=True)
 
     print("\n======================================================================", flush=True)
     print(f"[COMPLETED] Successfully processed CRAM differences for {success_count}/{total_samples} samples.", flush=True)
