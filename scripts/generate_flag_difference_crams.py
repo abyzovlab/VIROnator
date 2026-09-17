@@ -370,7 +370,13 @@ def process_master_report_comparison(master_report_path, output_stats_dir, datas
     df_diff.to_csv(diff_path, sep="\t", index=False)
     print(f"[REPORT] Saved common hits read count difference TSV: {diff_path}")
 
-    samples = sorted(df_clean[sample_col].dropna().str.strip().unique())
+    # Filter samples to ONLY those with non-zero differences (difference != 0) in common_flags_vs_noflags_diff
+    if not df_diff.empty:
+        non_zero_diff_df = df_diff[df_diff['difference'] != 0]
+        samples = sorted(non_zero_diff_df['sample'].dropna().str.strip().unique())
+    else:
+        samples = []
+
     return samples, df_diff
 
 
