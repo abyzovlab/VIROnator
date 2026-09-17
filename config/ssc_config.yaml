@@ -214,6 +214,7 @@ strategy_colors:
 # ==============================================================================
 flag_comparison_module: "off"                       # Switch: "on" or "off" to run sequential flag difference extraction
 flag_difference_script: "generate_flag_difference_crams.py"
+comparison_out_dirname: "{dataset}_{genome_build}_comparisons"
 
 # Flag CRAM Targets:
 cram_noflags_file: "exogeneSR_viral_clean_filtered.sorted.cram"

@@ -61,6 +61,11 @@ def parse_args():
         help="Vironator output directory name"
     )
     parser.add_argument(
+        "--stats-dirname",
+        default="MCBiobank_hg38_stats",
+        help="Stats output directory name"
+    )
+    parser.add_argument(
         "--ref-genome",
         default=None,
         help="Reference FASTA path for CRAM decoding/encoding (optional)"
@@ -226,16 +231,22 @@ def main():
     print("VIROnator Flag Difference CRAM Generator & Mini-Report Module")
     print("======================================================================")
 
+    # Resolve stats_dir with permission fallback
+    stats_dir = os.path.join(args.output_dir, args.stats_dirname)
+    try:
+        os.makedirs(stats_dir, exist_ok=True)
+    except PermissionError:
+        stats_dir = os.path.join(".", args.stats_dirname)
+        os.makedirs(stats_dir, exist_ok=True)
+
     samples = []
     if args.input_tsv:
         samples, _ = parse_custom_input_tsv(args.input_tsv)
     elif args.master_report:
-        stats_dir = os.path.join(args.output_dir, "MCBiobank_hg38_stats")
         samples, _ = process_master_report_comparison(args.master_report, stats_dir)
     else:
         repo_master = "MCBiobank_hg38_master_report.tsv"
         if os.path.exists(repo_master):
-            stats_dir = os.path.join(args.output_dir, "MCBiobank_hg38_stats")
             samples, _ = process_master_report_comparison(repo_master, stats_dir)
         else:
             print("[ERROR] Neither --input-tsv nor --master-report was provided.")

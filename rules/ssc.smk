@@ -640,15 +640,27 @@ rule generate_flag_difference_crams:
         custom_path=lambda wildcards: str(config.get("custom_input_tsv_path", "")),
         out_dir=lambda wildcards: str(config.get("output_dir", "/mnt/disks/staff")),
         vironator_dir=lambda wildcards: str(config.get("vironator_out_dirname", f"{config.get('dataset', 'MCBiobank')}_{config.get('genome_build', 'hg38')}_vironator")),
+        comp_dir=lambda wildcards: str(config.get("comparison_out_dirname", f"{config.get('dataset', 'MCBiobank')}_{config.get('genome_build', 'hg38')}_comparisons")),
         cram_noflags=lambda wildcards: str(config.get("cram_noflags_file", "exogeneSR_viral_clean_filtered.sorted.cram")),
         cram_flags=lambda wildcards: str(config.get("cram_flags_file", "exogeneSR_viral_clean_filtered.sorted.flags.cram")),
         cram_add=lambda wildcards: str(config.get("cram_additional_file", "exogeneSR_viral_clean_filtered.sorted.flags.additional.cram"))
     shell:
         """
         if [ "{params.custom_provided}" = "yes" ] && [ -n "{params.custom_path}" ]; then
-            python3 {input.script} --input-tsv "{params.custom_path}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}"
+            python3 {input.script} --input-tsv "{params.custom_path}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}" --stats-dirname "{params.comp_dir}"
         else
-            python3 {input.script} --master-report "{input.master_report}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}"
+            python3 {input.script} --master-report "{input.master_report}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}" --stats-dirname "{params.comp_dir}"
+        fi
+        
+        # Sync generated comparison TSV reports to output bucket if configured
+        if [ -n "{config[output_bucket]}" ]; then
+            GCS_DEST="gs://{config[output_bucket]}/{params.comp_dir}/"
+            if [ -d "{params.comp_dir}" ]; then
+                gsutil -q cp {params.comp_dir}/* "$GCS_DEST" 2>/dev/null || true
+            fi
+            if [ -d "{params.out_dir}/{params.comp_dir}" ]; then
+                gsutil -q cp {params.out_dir}/{params.comp_dir}/* "$GCS_DEST" 2>/dev/null || true
+            fi
         fi
         touch {output.token}
         """
