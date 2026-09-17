@@ -144,11 +144,11 @@ def process_master_report_comparison(master_report_path, output_stats_dir):
     df_flags.to_csv(flags_tsv, sep="\t", index=False)
 
     # Build comparison keys (Sample_ID + Virus_Accession)
-    df_flags['key'] = df_flags[sample_col] + "___" + df_flags[virus_acc_col]
-    df_noflags['key'] = df_noflags[sample_col] + "___" + df_noflags[virus_acc_col]
+    df_flags['key'] = df_flags[sample_col].astype(str) + "___" + df_flags[virus_acc_col].astype(str)
+    df_noflags['key'] = df_noflags[sample_col].astype(str) + "___" + df_noflags[virus_acc_col].astype(str)
 
-    flags_keys = set(df_flags['key'])
-    noflags_keys = set(df_noflags['key'])
+    flags_keys = set(df_flags['key'].dropna())
+    noflags_keys = set(df_noflags['key'].dropna())
 
     common_keys = flags_keys.intersection(noflags_keys)
     flags_unique_keys = flags_keys - noflags_keys
@@ -196,7 +196,7 @@ def process_master_report_comparison(master_report_path, output_stats_dir):
     flags_map = df_flags.set_index('key')
     noflags_map = df_noflags.set_index('key')
 
-    for key in sorted(common_keys):
+    for key in sorted(common_keys, key=lambda k: str(k)):
         r_flag = flags_map.loc[key]
         r_noflag = noflags_map.loc[key]
 
