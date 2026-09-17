@@ -201,11 +201,13 @@ def main():
         print("[INFO] No non-zero difference pairs to visualize. Exiting.")
         sys.exit(0)
 
-    # Prepare output snapshot directory
+    # Prepare output snapshot directory (fallback to local work_dir when mounted disk is unavailable)
     snapshots_dir = os.path.join(args.output_dir, args.snapshots_dirname)
-    if not os.path.exists(snapshots_dir):
+    try:
+        os.makedirs(snapshots_dir, exist_ok=True)
+    except Exception:
         snapshots_dir = os.path.abspath(os.path.join(".", args.snapshots_dirname))
-    os.makedirs(snapshots_dir, exist_ok=True)
+        os.makedirs(snapshots_dir, exist_ok=True)
     print(f"[INFO] Output snapshots directory: {snapshots_dir}")
 
     # Resolve reference genome

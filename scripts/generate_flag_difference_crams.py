@@ -402,11 +402,11 @@ def main():
     print("VIROnator Flag Difference CRAM Generator & Mini-Report Module", flush=True)
     print("======================================================================", flush=True)
 
-    # Resolve stats_dir with permission fallback
+    # Resolve stats_dir with fallback to local work_dir when mounted disk is unavailable
     stats_dir = os.path.join(args.output_dir, args.stats_dirname)
     try:
         os.makedirs(stats_dir, exist_ok=True)
-    except PermissionError:
+    except Exception:
         stats_dir = os.path.join(".", args.stats_dirname)
         os.makedirs(stats_dir, exist_ok=True)
 
