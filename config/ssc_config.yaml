@@ -210,9 +210,9 @@ strategy_colors:
   overall: "#008fbf"
 
 # ==============================================================================
-# MODULE 7: FLAG COMPARISON & IGV SNAPSHOT MODULE
+# MODULE 7: FLAG COMPARISON & DIFFERENCE MODULE
 # ==============================================================================
-flag_comparison_module: "off"                       # Switch: "on" or "off" to run sequential flag difference extraction & IGV snapshot generation
+flag_comparison_module: "off"                       # Switch: "on" or "off" to run sequential flag difference extraction
 flag_difference_script: "generate_flag_difference_crams.py"
 
 # Output Directory Configuration:
@@ -224,11 +224,6 @@ cram_noflags_file: "exogeneSR_viral_clean_filtered.sorted.cram"
 cram_flags_file: "exogeneSR_viral_clean_filtered.sorted.flags.cram"
 cram_additional_file: "exogeneSR_viral_clean_filtered.sorted.flags.additional.cram"
 
-# Automated IGV Snapshot Settings:
-generate_igv_snapshots: "on"                       # Switch: "on" to generate IGV batch scripts & PNG snapshots for non-zero difference pairs
-igv_ref_genome: "HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"  # Combined FASTA reference file in ref_dir (/mnt/disks/staff/refs/)
-igv_binary_path: "xvfb-run -a igv.sh"                # Headless IGV execution command
-
 # Input TSV File Configuration:
 # - custom_input_tsv_provided: "yes" or "no"
 #   If "yes": Uses custom_input_tsv_path (4-column difference TSV: sample, virus, flags-noflags, difference)
@@ -236,6 +231,7 @@ igv_binary_path: "xvfb-run -a igv.sh"                # Headless IGV execution co
 master_report_file: "{dataset}_{genome_build}_master_report.tsv"
 custom_input_tsv_provided: "no"
 custom_input_tsv_path: "flag_difference_input.tsv"
+
 
 # ==============================================================================
 # MODULE 8: REFINEMENT MODULE (NCBI RefSeq Strain Resolution & Species Collapse)

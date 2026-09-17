@@ -446,40 +446,6 @@ def main():
     print(f"[COMPLETED] Successfully processed CRAM differences for {success_count}/{total_samples} samples.", flush=True)
     print("======================================================================", flush=True)
 
-    # Optional step: Integrated IGV Snapshot Generation for non-zero difference pairs
-    if args.generate_igv_snapshots:
-        prefix = f"{args.dataset}_{args.genome_build}"
-        diff_tsv = os.path.join(stats_dir, f"{prefix}_master_report_cleans_common_flags_vs_noflags_diff.tsv")
-        if not os.path.exists(diff_tsv) and args.input_tsv:
-            diff_tsv = args.input_tsv
-
-        if os.path.exists(diff_tsv):
-            print("\n[IGV] Generating IGV batch scripts and automated snapshots for non-zero difference pairs...", flush=True)
-            igv_script = os.path.join(os.path.dirname(__file__), "generate_igv_snapshots.py")
-            ref_viral = args.ref_viral_fasta if args.ref_viral_fasta else args.ref_genome
-
-            cmd_igv = (
-                f"python3 \"{igv_script}\" "
-                f"--diff-tsv \"{diff_tsv}\" "
-                f"--output-dir \"{args.output_dir}\" "
-                f"--vironator-dirname \"{args.vironator_dirname}\" "
-                f"--comparison-dirname \"{args.stats_dirname}\" "
-                f"--dataset \"{args.dataset}\" "
-                f"--genome-build \"{args.genome_build}\" "
-                f"--cram-flags \"{args.cram_flags}\" "
-                f"--cram-noflags \"{args.cram_noflags}\" "
-                f"--cram-additional \"{args.cram_additional}\" "
-                f"--igv-binary \"{args.igv_binary}\" "
-                f"--run-igv"
-            )
-            if args.output_bucket:
-                cmd_igv += f" --output-bucket \"{args.output_bucket}\""
-            if ref_viral:
-                cmd_igv += f" --ref-genome \"{ref_viral}\""
-
-            subprocess.run(cmd_igv, shell=True)
-
-
 
 if __name__ == "__main__":
     main()

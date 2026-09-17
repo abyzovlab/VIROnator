@@ -648,24 +648,13 @@ rule generate_flag_difference_crams:
         comp_dir=lambda wildcards: str(config.get("comparison_out_dirname", f"{config.get('dataset', 'MCBiobank')}_{config.get('genome_build', 'hg38')}_comparisons")),
         cram_noflags=lambda wildcards: str(config.get("cram_noflags_file", "exogeneSR_viral_clean_filtered.sorted.cram")),
         cram_flags=lambda wildcards: str(config.get("cram_flags_file", "exogeneSR_viral_clean_filtered.sorted.flags.cram")),
-        cram_add=lambda wildcards: str(config.get("cram_additional_file", "exogeneSR_viral_clean_filtered.sorted.flags.additional.cram")),
-        gen_igv=lambda wildcards: str(config.get("generate_igv_snapshots", "on")).lower(),
-        ref_viral=lambda wildcards: os.path.join(config["ref_dir"], config.get("igv_ref_genome", config.get("ref_vir_cont", "HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"))),
-        igv_bin=lambda wildcards: str(config.get("igv_binary_path", "igv"))
+        cram_add=lambda wildcards: str(config.get("cram_additional_file", "exogeneSR_viral_clean_filtered.sorted.flags.additional.cram"))
     shell:
         """
         if [ "{params.custom_provided}" = "yes" ] && [ -n "{params.custom_path}" ]; then
-            if [ "{params.gen_igv}" = "on" ] || [ "{params.gen_igv}" = "yes" ]; then
-                python3 {input.script} --input-tsv "{params.custom_path}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}" --stats-dirname "{params.comp_dir}" --dataset "{params.ds}" --genome-build "{params.gb}" --phase "{params.phase}" --project "{params.project}" --output-bucket "{params.bucket}" --generate-igv-snapshots --igv-binary "{params.igv_bin}" --ref-viral-fasta "{params.ref_viral}"
-            else
-                python3 {input.script} --input-tsv "{params.custom_path}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}" --stats-dirname "{params.comp_dir}" --dataset "{params.ds}" --genome-build "{params.gb}" --phase "{params.phase}" --project "{params.project}" --output-bucket "{params.bucket}"
-            fi
+            python3 {input.script} --input-tsv "{params.custom_path}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}" --stats-dirname "{params.comp_dir}" --dataset "{params.ds}" --genome-build "{params.gb}" --phase "{params.phase}" --project "{params.project}" --output-bucket "{params.bucket}"
         else
-            if [ "{params.gen_igv}" = "on" ] || [ "{params.gen_igv}" = "yes" ]; then
-                python3 {input.script} --master-report "{input.master_report}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}" --stats-dirname "{params.comp_dir}" --dataset "{params.ds}" --genome-build "{params.gb}" --phase "{params.phase}" --project "{params.project}" --output-bucket "{params.bucket}" --generate-igv-snapshots --igv-binary "{params.igv_bin}" --ref-viral-fasta "{params.ref_viral}"
-            else
-                python3 {input.script} --master-report "{input.master_report}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}" --stats-dirname "{params.comp_dir}" --dataset "{params.ds}" --genome-build "{params.gb}" --phase "{params.phase}" --project "{params.project}" --output-bucket "{params.bucket}"
-            fi
+            python3 {input.script} --master-report "{input.master_report}" --cram-noflags "{params.cram_noflags}" --cram-flags "{params.cram_flags}" --cram-additional "{params.cram_add}" --output-dir "{params.out_dir}" --vironator-dirname "{params.vironator_dir}" --stats-dirname "{params.comp_dir}" --dataset "{params.ds}" --genome-build "{params.gb}" --phase "{params.phase}" --project "{params.project}" --output-bucket "{params.bucket}"
         fi
         
         # Sync generated comparison TSV reports to output bucket if configured
@@ -677,21 +666,7 @@ rule generate_flag_difference_crams:
             if [ -d "{params.out_dir}/{params.comp_dir}" ]; then
                 gsutil -q cp {params.out_dir}/{params.comp_dir}/* "$GCS_DEST" 2>/dev/null || true
             fi
-            
-            # Sync generated PNG snapshots directly to sample vironator directories on GCS
-            VIRONATOR_GCS="gs://{config[output_bucket]}/{params.vironator_dir}/"
-            if [ -d "{params.out_dir}/{params.vironator_dir}" ]; then
-                find "{params.out_dir}/{params.vironator_dir}" -type f -name "*_igv.png" | while read -r png_file; do
-                    rel_path="${{png_file#{params.out_dir}/{params.vironator_dir}/}}"
-                    gsutil -q cp "$png_file" "${{VIRONATOR_GCS}}${{rel_path}}" 2>/dev/null || true
-                done
-            fi
-            if [ -d "./{params.vironator_dir}" ]; then
-                find "./{params.vironator_dir}" -type f -name "*_igv.png" | while read -r png_file; do
-                    rel_path="${{png_file#./{params.vironator_dir}/}}"
-                    gsutil -q cp "$png_file" "${{VIRONATOR_GCS}}${{rel_path}}" 2>/dev/null || true
-                done
-            fi
+            rm -rf "./{params.comp_dir}" 2>/dev/null || true
         fi
         touch {output.token}
         """

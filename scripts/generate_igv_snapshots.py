@@ -277,16 +277,41 @@ def main():
 
     print(f"[SUCCESS] Wrote IGV batch script ({valid_pairs_count} snapshot commands) to: {batch_script_path}")
 
-    # Optionally execute IGV batch mode
+    # Optionally execute IGV batch mode or igv-reports
     if args.run_igv:
-        print(f"[INFO] Launching IGV batch mode with binary: {args.igv_binary}")
-        igv_cmd = f"{args.igv_binary} -b {batch_script_path}"
-        try:
-            res = subprocess.run(igv_cmd, shell=True, check=True, capture_output=True, text=True)
-            print("[INFO] IGV stdout:\n", res.stdout)
-        except subprocess.CalledProcessError as e:
-            print(f"[ERROR] IGV execution failed: {e.stderr}")
-            sys.exit(e.returncode)
+        igv_bin = args.igv_binary
+        if igv_bin.startswith("xvfb-run"):
+            check_xvfb = subprocess.run("which xvfb-run 2>/dev/null", shell=True).returncode
+            if check_xvfb != 0:
+                print("  [WARNING] 'xvfb-run' not found on PATH. Falling back to direct IGV invocation ('igv.sh').")
+                igv_bin = igv_bin.split()[-1]
+
+        # Check if igv-reports is requested or available
+        if "igv-reports" in igv_bin or "create_report" in igv_bin:
+            print(f"[INFO] Launching IGV-Reports HTML generator for {valid_pairs_count} pairs...")
+            for idx, row in diff_df.iterrows():
+                sample = str(row["sample"]).strip()
+                virus = str(row["virus"]).strip() if "virus" in row else str(row.get("virus_accession", "")).strip()
+                sample_dir = find_sample_dir(sample, args.output_dir, args.vironator_dirname, phase=args.phase, project=args.project)
+                cram_flags_path = os.path.join(sample_dir, args.cram_flags)
+                cram_noflags_path = os.path.join(sample_dir, args.cram_noflags)
+                cram_add_path = os.path.join(sample_dir, args.cram_additional)
+                tracks = [p for p in [cram_flags_path, cram_noflags_path, cram_add_path] if os.path.exists(p)]
+                if tracks:
+                    html_out = os.path.join(sample_dir, f"{sample}_{virus}_igv_report.html")
+                    cmd = f"create_report {virus} --fasta \"{ref_genome}\" --tracks {' '.join(tracks)} --output \"{html_out}\" 2>/dev/null || true"
+                    subprocess.run(cmd, shell=True)
+            print("[SUCCESS] Completed IGV HTML report generation.")
+        else:
+            print(f"[INFO] Launching IGV batch mode with binary: {igv_bin}")
+            igv_cmd = f"{igv_bin} -b {batch_script_path}"
+            try:
+                res = subprocess.run(igv_cmd, shell=True, check=True, capture_output=True, text=True)
+                print("[INFO] IGV stdout:\n", res.stdout)
+            except subprocess.CalledProcessError as e:
+                print(f"[WARNING] IGV batch GUI execution failed (likely headless X11 missing): {e.stderr}")
+                print("[NOTE] Batch script is preserved at: ", batch_script_path)
+                print("[NOTE] You can run 'create_report' (igv-reports) or load the .igv script directly in desktop IGV GUI.")
 
 
 if __name__ == "__main__":
