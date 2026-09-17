@@ -324,42 +324,6 @@ rule generate_reporting_job_file:
         with open(output.job, "w") as f:
             f.write(formatted_content)
 
-rule generate_flag_difference_crams:
-    """
-    Module 7: Iterates over samples sequentially to find read differences between flags and noflags CRAMs,
-    writing exogeneSR_viral_clean_filtered.sorted.flags.additional.cram directly into each sample's vironator directory.
-    """
-    input:
-        script="scripts/generate_flag_difference_crams.py",
-        config_file="config/ssc_config.yaml"
-    output:
-        token="config/flag_difference_crams.done"
-    run:
-        import subprocess
-        custom_tsv_opt = str(config.get("custom_input_tsv_provided", "no")).strip().lower()
-        custom_tsv_path = config.get("custom_input_tsv_path", "")
-        master_report_path = config.get("master_report_file", f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_master_report.tsv")
-        
-        cram_noflags = config.get("cram_noflags_file", "exogeneSR_viral_clean_filtered.sorted.cram")
-        cram_flags = config.get("cram_flags_file", "exogeneSR_viral_clean_filtered.sorted.flags.cram")
-        cram_additional = config.get("cram_additional_file", "exogeneSR_viral_clean_filtered.sorted.flags.additional.cram")
-        
-        out_dir = config.get("output_dir", "/mnt/disks/staff")
-        vironator_dir = config.get("vironator_out_dirname", f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_vironator")
-        ref_genome = config.get("ref_genome", "")
-
-        cmd = f"python3 {input.script} --output-dir \"{out_dir}\" --vironator-dirname \"{vironator_dir}\" --cram-noflags \"{cram_noflags}\" --cram-flags \"{cram_flags}\" --cram-additional \"{cram_additional}\""
-        if ref_genome and os.path.exists(ref_genome):
-            cmd += f" --ref-genome \"{ref_genome}\""
-
-        if custom_tsv_opt in ["yes", "true", "1"] and custom_tsv_path and os.path.exists(custom_tsv_path):
-            cmd += f" --input-tsv \"{custom_tsv_path}\""
-        else:
-            cmd += f" --master-report \"{master_report_path}\""
-
-        subprocess.run(cmd, shell=True, check=True)
-        with open(output.token, "w") as f:
-            f.write("done\n")
 
 rule make_taxonomy_index:
     """
