@@ -20,7 +20,7 @@ Sets locus to full virus genome length (goto <virus_accession>) without zooming 
 ONE-LINER COMMAND:
 --------------------------------------------------------------------------------
 
-python3 scripts/standalone_igv_snapshot_generator.py --diff-tsv MCBiobank_hg38_comparisons/MCBiobank_hg38_master_report_cleans_common_flags_vs_noflags_diff.tsv --vironator-dir ./CRAMs --ref-genome ./REFS/HumanViral_Reference_02-07-2022_modified.renamed.fa --igv-binary igv.sh --run-igv
+python3 standalone_igv_snapshot_generator.py --diff-tsv MCBiobank_hg38_master_report_cleans_common_flags_vs_noflags_diff.tsv --vironator-dir additional/ --ref-genome REFS/HumanViral_Reference_02-07-2022_modified.renamed.fa --igv-binary "/Users/M277455/IGV_2.16.2/igv.sh" --run-igv
 
 ================================================================================
 """
@@ -34,15 +34,15 @@ import pandas as pd
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Standalone IGV batch script generator and PNG snapshot runner.",
+        description="Standalone IGV batch script generator for additional difference CRAM files.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 EXACT COMMAND EXAMPLE:
-  python3 scripts/standalone_igv_snapshot_generator.py \\
-      --diff-tsv MCBiobank_hg38_comparisons/MCBiobank_hg38_master_report_cleans_common_flags_vs_noflags_diff.tsv \\
-      --vironator-dir ./CRAMs \\
-      --ref-genome ./REFS/HumanViral_Reference_02-07-2022_modified.renamed.fa \\
-      --igv-binary igv.sh \\
+  python3 standalone_igv_snapshot_generator.py \\
+      --diff-tsv MCBiobank_hg38_master_report_cleans_common_flags_vs_noflags_diff.tsv \\
+      --vironator-dir additional/ \\
+      --ref-genome REFS/HumanViral_Reference_02-07-2022_modified.renamed.fa \\
+      --igv-binary "/Users/M277455/IGV_2.16.2/igv.sh" \\
       --run-igv
         """
     )
@@ -121,6 +121,9 @@ def main():
         print("[INFO] No non-zero difference pairs found. Exiting.")
         sys.exit(0)
 
+    snapshots_dir = os.path.abspath(args.output_snapshots_dir) if args.output_snapshots_dir else os.path.abspath("snapshots")
+    os.makedirs(snapshots_dir, exist_ok=True)
+
     # Batch script output path
     batch_script_path = os.path.abspath("igv_snapshots_batch.igv")
     batch_lines = [
@@ -129,46 +132,36 @@ def main():
     ]
 
     valid_pairs_count = 0
+    flat_dir = os.path.abspath(args.vironator_dir)
+
     for idx, row in diff_df.iterrows():
         sample = str(row["sample"]).strip()
         virus = str(row["virus"]).strip() if "virus" in row else str(row.get("virus_accession", "")).strip()
 
-        # Candidate directory paths for sample CRAM files
+        # Candidate file names matching flat directory structure: s_3595-ST-0078_exogeneSR_viral_clean_filtered.sorted.flags.additional.cram
         sample_dir = os.path.abspath(os.path.join(args.vironator_dir, sample))
-        flat_dir = os.path.abspath(args.vironator_dir)
+        cand_paths = [
+            os.path.join(flat_dir, f"{sample}_{args.cram_additional}"),
+            os.path.join(flat_dir, f"{sample}.{args.cram_additional}"),
+            os.path.join(sample_dir, args.cram_additional),
+            os.path.join(flat_dir, args.cram_additional)
+        ]
 
-        # Check candidate locations for CRAM files (subfolder vs flat)
-        tracks_to_load = []
-        for label, cram_name in [("flags", args.cram_flags), ("noflags", args.cram_noflags), ("additional", args.cram_additional)]:
-            cand_paths = [
-                os.path.join(sample_dir, cram_name),
-                os.path.join(flat_dir, f"{sample}.{cram_name}"),
-                os.path.join(flat_dir, f"{sample}_{cram_name}"),
-                os.path.join(flat_dir, cram_name)
-            ]
-            found = False
-            for p in cand_paths:
-                if os.path.exists(p) and os.path.getsize(p) > 0:
-                    tracks_to_load.append(p)
-                    found = True
-                    break
-            if not found:
-                print(f"  [WARNING] Track {label} missing for sample {sample} under {sample_dir} or {flat_dir}")
+        additional_cram_path = None
+        for p in cand_paths:
+            if os.path.exists(p) and os.path.getsize(p) > 0:
+                additional_cram_path = p
+                break
 
-        if not tracks_to_load:
-            print(f"  [SKIP] No CRAM tracks found for sample {sample}")
+        if not additional_cram_path:
+            print(f"  [SKIP] Additional CRAM missing for sample '{sample}' in '{flat_dir}'")
             continue
 
-        target_snap_dir = os.path.abspath(args.output_snapshots_dir) if args.output_snapshots_dir else sample_dir
-        os.makedirs(target_snap_dir, exist_ok=True)
-
         batch_lines.append("new")
-        batch_lines.append(f"snapshotDirectory {target_snap_dir}")
-        for track_path in tracks_to_load:
-            batch_lines.append(f"load {track_path}")
-
+        batch_lines.append(f"snapshotDirectory {snapshots_dir}")
+        batch_lines.append(f"load {additional_cram_path}")
         batch_lines.append(f"goto {virus}")
-        snapshot_filename = f"{sample}_{virus}_igv.png"
+        snapshot_filename = f"{sample}_{virus}_additional_igv.png"
         batch_lines.append(f"snapshot {snapshot_filename}")
         valid_pairs_count += 1
 
@@ -178,6 +171,7 @@ def main():
         f.write("\n".join(batch_lines) + "\n")
 
     print(f"\n[SUCCESS] Saved IGV batch script ({valid_pairs_count} snapshot commands) to: {batch_script_path}")
+    print(f"[INFO] Snapshots output directory set to: {snapshots_dir}")
 
     if args.run_igv:
         print(f"\n[INFO] Launching IGV with binary: {args.igv_binary}")
