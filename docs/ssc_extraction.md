@@ -256,6 +256,10 @@ snakemake generate_distributions --cores 1
 batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_flag_comparison.config -non-spot config/ssc_flag_comparison.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
 
+> [!NOTE]
+> **`clean_flags` Strategy Rationale:**
+> The `clean_flags` strategy mitigates the overly restrictive read reduction applied by the `f2` (bitwise flag 2 / proper pair) filter in the alternative "no-flag" option. Relying strictly on proper pair alignment statistics can inadvertently discard valid candidate reads, particularly when alignment statistics or pairing metrics are unaligned or not entirely solid. Retaining reads via `clean_flags` ensures a more comprehensive and robust viral read capture.
+
 #### Module 8: NCBI RefSeq Refinement Module (`ssc_refinement.job`)
 ```bash
 # 1. Build taxonomy index TSV:

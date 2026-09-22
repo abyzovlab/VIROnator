@@ -197,6 +197,10 @@ snakemake cohort_refinement_master.tsv --cores 1
 Evaluates the clean strategy across 3 SAM flag filtering commands to isolate the impact of aligner `-f 2` flags vs manual bitwise flags:
 
 > [!NOTE]
+> **`clean_flags` Strategy Rationale:**
+> The `clean_flags` strategy mitigates the overly restrictive read reduction applied by the `f2` (bitwise flag 2 / proper pair) filter in the alternative "no-flag" option. Relying strictly on proper pair alignment statistics can inadvertently discard valid candidate reads, particularly when alignment statistics or pairing metrics are unaligned or not entirely solid. Retaining reads via `clean_flags` ensures a more comprehensive and robust viral read capture.
+
+> [!NOTE]
 > This module is not estimating viral abundance. It is estimating high-confidence, reference-discriminating read-pair support. That is useful, however it will undercount viruses when related references share homologous sequence. This is for the reference-unique evidence. We report high-specificity reference-discriminating read support.
 
 1. Enable Module 7 in `config/ssc_config.yaml`:

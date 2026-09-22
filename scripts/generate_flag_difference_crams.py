@@ -217,21 +217,27 @@ def generate_difference_cram_for_sample(sample_id, sample_dir, args):
             cmd_filter = f"samtools view -N \"{tmp_diff_ids}\" {ref_flag} -O cram -o \"{cram_add_path}\" \"{cram_flags_path}\""
             subprocess.run(cmd_filter, shell=True, check=True)
 
+        # Generate samtools CRAM index (.crai)
+        cram_add_crai = f"{cram_add_path}.crai"
+        print(f"  [INDEX] Indexing additional CRAM: {cram_add_path}", flush=True)
+        cmd_index = f"samtools index \"{cram_add_path}\""
+        subprocess.run(cmd_index, shell=True, check=True)
+
         # Clean temp files
         for tmp_f in [tmp_noflags_ids, tmp_flags_ids, tmp_diff_ids]:
             if os.path.exists(tmp_f):
                 os.remove(tmp_f)
 
-        print(f"  [SUCCESS] Created: {cram_add_path}", flush=True)
+        print(f"  [SUCCESS] Created: {cram_add_path} and {cram_add_crai}", flush=True)
 
-        # Upload generated additional CRAM back to GCS bucket if output_bucket is specified
+        # Upload generated additional CRAM and .crai back to GCS bucket if output_bucket is specified
         if args.output_bucket:
             phase_part = f"phase{args.phase}/" if args.phase and str(args.phase).strip() and str(args.phase).strip().lower() not in ["none", "0"] else ""
             project_part = f"{args.project}/" if args.project and str(args.project).strip() and str(args.project).strip().lower() not in ["none", "0", "base"] else ""
             gcs_dest_sample = f"gs://{args.output_bucket}/{args.vironator_dirname}/{phase_part}{project_part}{sample_id}/"
             
-            print(f"  [GCS UPLOAD] Syncing generated difference CRAM to {gcs_dest_sample}", flush=True)
-            upload_cmd = f"gsutil -q cp \"{cram_add_path}\" \"{gcs_dest_sample}\" 2>/dev/null || true"
+            print(f"  [GCS UPLOAD] Syncing generated difference CRAM and index to {gcs_dest_sample}", flush=True)
+            upload_cmd = f"gsutil -q cp \"{cram_add_path}\" \"{cram_add_crai}\" \"{gcs_dest_sample}\" 2>/dev/null || true"
             subprocess.run(upload_cmd, shell=True)
 
         # Cleanup local staging sample folder if it was staged under local ./vironator_dirname

@@ -3,6 +3,7 @@
 # ==============================================================================
 # dataset: "SSC"
 # dataset: "BSMN"
+# dataset: "1000GP"
 dataset: "MCBiobank"
 genome_build: "hg38"
 # phase: "2"
@@ -21,6 +22,7 @@ data_dir: "/mnt/disks/lab"
 # data_subdir: "tertiary/SSC_hg38/WGS"  # Middle subdirectory path inside data_dir (set to "" for flat datasets)
 data_subdir: "whole_genome/bb1000_2013/raw/bam"
 # data_subdir: "tertiary/s203958.TS_mosaicism/integrated/raw_data/BSMN_download"
+# data_subdir: "s203958.TS_mosaicism/integrated/raw_data/1000G_2504_high_coverage"
 input_keyword: ""                      # Optional middle keyword after sample dot (e.g. "final", "sorted", or "" for none)
 input_suffix: "bam"                    # File extension after keyword (e.g. "cram", "bam")
 output_dir: "/mnt/disks/staff"
@@ -58,6 +60,7 @@ reporting_jobexec_dirname: "jobexec_reporting_{dataset}_{genome_build}"
 #   automatic appending.
 # samples_list: "samples_mayo_biobank.txt"
 samples_list: "samples_p4_clean_base"
+# samples_list: "samples_1000GP.txt"
 # samples_list: "samples_WGS.TS.Vaccarino"
 # samples_list: "samples_WGS.SCZ.Weinberger"
 # samples_list: "samples_WGS.SCZ.Chess"
