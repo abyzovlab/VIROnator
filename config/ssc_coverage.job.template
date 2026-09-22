@@ -135,54 +135,70 @@ echo "[DIAGNOSTIC] SPECIMEN: ${SPECIMEN}"
 # Locating human CRAM on mounted filesystem (/mnt/disks/lab)
 echo "[DIAGNOSTIC] Locating human CRAM file on mounted filesystem (${DATA_DIR})..."
 
-if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ]; then
-    CRAM="${BASE_INPUT_DIR}/phase${PHASE}/CRAM/${TARGET_FILENAME}"
-    if [ ! -f "${CRAM}" ]; then
-        CRAM=$(find "${BASE_INPUT_DIR}" -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
+CRAM=""
+# Candidate paths depending on whether PHASE and/or PROJECT are set
+if [ -n "${PHASE}" ] && [ "${PHASE}" != "none" ] && [ "${PHASE}" != "0" ]; then
+    if [ -n "${PROJECT}" ] && [ "${PROJECT}" != "base" ] && [ "${PROJECT}" != "none" ]; then
+        CRAM="${BASE_INPUT_DIR}/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${TARGET_FILENAME}"
+        [ ! -f "${CRAM}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE}/CRAM/${PROJECT}/${TARGET_FILENAME}"
+    else
+        CRAM="${BASE_INPUT_DIR}/phase${PHASE}/CRAM/${TARGET_FILENAME}"
     fi
 else
-    # Try Phase 1/Phase 2 structure: .../CRAM/PROJECT/Sample_SAMPLE/analysis/TARGET_FILENAME
-    CRAM="${BASE_INPUT_DIR}/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${TARGET_FILENAME}"
-    
-    # Try Phase 3-2 structure: .../CRAM/PROJECT/TARGET_FILENAME
-    if [ ! -f "${CRAM}" ]; then
-        CRAM="${BASE_INPUT_DIR}/phase${PHASE}/CRAM/${PROJECT}/${TARGET_FILENAME}"
+    if [ -n "${PROJECT}" ] && [ "${PROJECT}" != "base" ] && [ "${PROJECT}" != "none" ]; then
+        CRAM="${BASE_INPUT_DIR}/${PROJECT}/${TARGET_FILENAME}"
+    else
+        CRAM="${BASE_INPUT_DIR}/${TARGET_FILENAME}"
     fi
-    
-    # Strict fallback search with mandatory dot boundary
-    if [ ! -f "${CRAM}" ]; then
-        CRAM=$(find "${BASE_INPUT_DIR}" -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
-    fi
+fi
+
+# Fallback search if candidate path does not exist
+if [ -z "${CRAM}" ] || [ ! -f "${CRAM}" ]; then
+    CRAM=$(find "${BASE_INPUT_DIR}" -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
 fi
 
 echo "[DIAGNOSTIC] RESOLVED CRAM FILE: ${CRAM}"
 
 if [ -z "${CRAM}" ] || [ ! -f "${CRAM}" ]; then
-    echo "[WARNING] CRAM file not found for ${SAMPLE}! Assigning default coverage 30.00"
-    COVERAGE="30.00"
-else
-    echo "[DIAGNOSTIC] Extracting exact reference genome size directly from CRAM header (@SQ LN)..."
+    echo "[ERROR] CRAM file not found for sample '${SAMPLE}' in '${BASE_INPUT_DIR}'!"
+    echo "[ERROR] Cannot calculate coverage without a valid input alignment file. Exiting."
+    exit 1
+fi
+
+# 1. Attempt fast index query first via samtools idxstats (.crai / .bai)
+GENOME_SIZE=0
+MAPPED_READS=0
+
+echo "[DIAGNOSTIC] Attempting fast query via samtools idxstats..."
+IDXSTATS_OUT=$(samtools idxstats "${CRAM}" 2>/dev/null || echo "")
+
+if [ -n "${IDXSTATS_OUT}" ]; then
+    eval $(echo "${IDXSTATS_OUT}" | awk '
+        $1 != "*" { ref_len += $2; mapped += $3 }
+        END { printf "GENOME_SIZE=%d; MAPPED_READS=%d;", ref_len, mapped }
+    ')
+fi
+
+# 2. If idxstats failed or .crai was missing, fall back to extracting GENOME_SIZE from CRAM header (@SQ LN)
+if [ -z "${GENOME_SIZE}" ] || [ "${GENOME_SIZE}" -eq 0 ]; then
+    echo "[DIAGNOSTIC] Index query unavailable/empty. Extracting reference genome size directly from CRAM header (@SQ LN)..."
     GENOME_SIZE=$(samtools view -H "${CRAM}" 2>/dev/null | awk '$1=="@SQ" {for(i=1;i<=NF;i++) if($i ~ /^LN:/) {split($i,a,":"); sum+=a[2]}} END {print sum}')
+fi
 
-    if [ -z "${GENOME_SIZE}" ] || [ "${GENOME_SIZE}" -eq 0 ]; then
-        echo "[DIAGNOSTIC] Header query empty. Using default reference genome size (GRCh38)..."
-        GENOME_SIZE=3099734149
-    fi
+# 3. If mapped reads unavailable from index, count mapped reads via samtools view -c -F 4
+if [ -z "${MAPPED_READS}" ] || [ "${MAPPED_READS}" -eq 0 ]; then
+    echo "[DIAGNOSTIC] Index query unavailable for mapped reads. Counting mapped reads via samtools view -c -F 4..."
+    MAPPED_READS=$(samtools view -c -F 4 "${CRAM}" 2>/dev/null || echo "0")
+fi
 
-    echo "[DIAGNOSTIC] Querying mapped reads..."
-    MAPPED_READS=$(samtools idxstats "${CRAM}" 2>/dev/null | awk '{sum+=$3} END {print sum}')
-    if [ -z "${MAPPED_READS}" ] || [ "${MAPPED_READS}" -eq 0 ]; then
-        echo "[DIAGNOSTIC] Fast index query unavailable. Counting mapped reads via samtools view -c -F 4..."
-        MAPPED_READS=$(samtools view -c -F 4 "${CRAM}" 2>/dev/null || echo "0")
-    fi
-    echo "[DIAGNOSTIC] TOTAL REFERENCE LENGTH (BP): ${GENOME_SIZE}"
-    echo "[DIAGNOSTIC] TOTAL MAPPED READS: ${MAPPED_READS}"
+echo "[DIAGNOSTIC] TOTAL REFERENCE LENGTH (BP): ${GENOME_SIZE}"
+echo "[DIAGNOSTIC] TOTAL MAPPED READS: ${MAPPED_READS}"
 
-    if [ "${MAPPED_READS}" -gt 0 ] && [ "${GENOME_SIZE}" -gt 0 ]; then
-        COVERAGE=$(awk -v reads="${MAPPED_READS}" -v gsz="${GENOME_SIZE}" 'BEGIN {printf "%.2f", (reads * 150.0) / gsz}')
-    else
-        COVERAGE="30.00"
-    fi
+if [ "${MAPPED_READS}" -gt 0 ] && [ "${GENOME_SIZE}" -gt 0 ]; then
+    COVERAGE=$(awk -v reads="${MAPPED_READS}" -v gsz="${GENOME_SIZE}" 'BEGIN {printf "%.2f", (reads * 150.0) / gsz}')
+else
+    echo "[ERROR] Mapped reads count or reference size is 0 for sample '${SAMPLE}'!"
+    exit 1
 fi
 
 echo "[DIAGNOSTIC] CALCULATED COVERAGE: ${COVERAGE}"
