@@ -59,7 +59,6 @@ GCS_WGS_BASE="gs://${DATA_BUCKET}/${DATA_SUBDIR}"
 DATA_DIR="{data_dir}"
 INPUT_KEYWORD="{input_keyword}"
 INPUT_SUFFIX="{input_suffix}"
-GENOME_SIZE=3099734149
 
 # Strip leading/trailing dots if provided in variables
 INPUT_KEYWORD="${INPUT_KEYWORD#.}"
@@ -162,15 +161,24 @@ if [ -z "${CRAM}" ] || [ ! -f "${CRAM}" ]; then
     echo "[WARNING] CRAM file not found for ${SAMPLE}! Assigning default coverage 30.00"
     COVERAGE="30.00"
 else
-    echo "[DIAGNOSTIC] Querying mapped reads via samtools idxstats (fast index query)..."
+    echo "[DIAGNOSTIC] Extracting exact reference genome size directly from CRAM header (@SQ LN)..."
+    GENOME_SIZE=$(samtools view -H "${CRAM}" 2>/dev/null | awk '$1=="@SQ" {for(i=1;i<=NF;i++) if($i ~ /^LN:/) {split($i,a,":"); sum+=a[2]}} END {print sum}')
+
+    if [ -z "${GENOME_SIZE}" ] || [ "${GENOME_SIZE}" -eq 0 ]; then
+        echo "[DIAGNOSTIC] Header query empty. Using default reference genome size (GRCh38)..."
+        GENOME_SIZE=3099734149
+    fi
+
+    echo "[DIAGNOSTIC] Querying mapped reads..."
     MAPPED_READS=$(samtools idxstats "${CRAM}" 2>/dev/null | awk '{sum+=$3} END {print sum}')
     if [ -z "${MAPPED_READS}" ] || [ "${MAPPED_READS}" -eq 0 ]; then
-        echo "[DIAGNOSTIC] Fast index query empty/unavailable. Falling back to samtools view -c -F 4..."
+        echo "[DIAGNOSTIC] Fast index query unavailable. Counting mapped reads via samtools view -c -F 4..."
         MAPPED_READS=$(samtools view -c -F 4 "${CRAM}" 2>/dev/null || echo "0")
     fi
+    echo "[DIAGNOSTIC] TOTAL REFERENCE LENGTH (BP): ${GENOME_SIZE}"
     echo "[DIAGNOSTIC] TOTAL MAPPED READS: ${MAPPED_READS}"
 
-    if [ "${MAPPED_READS}" -gt 0 ]; then
+    if [ "${MAPPED_READS}" -gt 0 ] && [ "${GENOME_SIZE}" -gt 0 ]; then
         COVERAGE=$(awk -v reads="${MAPPED_READS}" -v gsz="${GENOME_SIZE}" 'BEGIN {printf "%.2f", (reads * 150.0) / gsz}')
     else
         COVERAGE="30.00"

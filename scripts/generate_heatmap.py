@@ -187,10 +187,11 @@ def main():
     plt.ylabel('Sample', fontsize=16, labelpad=10)
 
     xtick_size = max(8, min(14, int(220 / max(1, num_viruses))))
-    ytick_size = max(7, min(14, int(300 / max(1, num_samples))))
+    ytick_size = min(14, max(1, int(300 / max(1, num_samples))))
 
     plt.xticks(fontsize=xtick_size, rotation=90)
-    plt.yticks(fontsize=ytick_size, rotation=0)
+    ax.set_yticks(np.arange(num_samples) + 0.5)
+    ax.set_yticklabels(sorted_log_df.index, fontsize=ytick_size, rotation=0)
 
     colorbar = ax.collections[0].colorbar
     colorbar.ax.tick_params(labelsize=12)
