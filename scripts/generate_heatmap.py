@@ -92,9 +92,9 @@ def main():
     reads_col = col_map.get("virus_mapped_reads", df.columns[3])
     cn_col = col_map.get("viral_copy_number", df.columns[8] if len(df.columns) > 8 else df.columns[3])
     name_col = col_map.get("virus_name_sanitized", df.columns[9] if len(df.columns) > 9 else df.columns[1])
+    source_col = col_map.get("source_file", df.columns[10] if len(df.columns) > 10 else df.columns[-1])
     phase_col = col_map.get("phase", df.columns[11] if len(df.columns) > 11 else None)
     proj_col = col_map.get("project", df.columns[12] if len(df.columns) > 12 else None)
-    source_col = col_map.get("source_file", df.columns[13] if len(df.columns) > 13 else df.columns[-1])
 
     # 3. Apply Filtering
     # Match phase

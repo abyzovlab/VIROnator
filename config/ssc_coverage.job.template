@@ -114,23 +114,102 @@ echo "[DIAGNOSTIC] PROJECT: ${PROJECT:-base}"
 echo "[DIAGNOSTIC] OUTPUT DIRECTORY: ${COVERAGE_DIR}"
 echo "[DIAGNOSTIC] OUTPUT FILE: ${OUT_FILE}"
 
-# Extract specimen from metadata file if available
-echo "[DIAGNOSTIC] Checking specimen metadata..."
-SPECIMEN="blood"
-if [ -f "${SAMPLE_METADATA}" ]; then
-    FOUND_SPEC=$(awk -v smp="${SAMPLE}" -v ph="phase${PHASE}" 'NR>1 {
-        clean_sample=$1; gsub(/\.sorted/, "", clean_sample); gsub(/Sample_/, "", clean_sample);
-        target_sample=smp; gsub(/\.sorted/, "", target_sample); gsub(/Sample_/, "", target_sample);
-        if (clean_sample == target_sample && ($4 == ph || $4 == "'${PHASE}'")) {
-            print $3; exit;
-        }
-    }' "${SAMPLE_METADATA}" 2>/dev/null || echo "")
-    if [ -n "${FOUND_SPEC}" ]; then
-        SPECIMEN="${FOUND_SPEC}"
-    fi
+RAW_METADATA="{raw_metadata_path}"
+META_SEP="{metadata_separator}"
+SAMPLE_COL="{sample_id_column}"
+ENABLE_SPECIMEN="{enable_specimen}"
+ENABLE_TISSUE="{enable_tissue}"
+ENABLE_CELL="{enable_cell}"
+ENABLE_SEX="{enable_sex}"
+ENABLE_RACE="{enable_race}"
+ENABLE_CLINIC_NUMBER="{enable_clinic_number}"
+ENABLE_AGE="{enable_age}"
+
+SPECIMEN="Unknown"
+TISSUE="Unknown"
+CELL="Unknown"
+SEX="Unknown"
+RACE="Unknown"
+CLINIC_NUMBER="Unknown"
+AGE="Unknown"
+
+if [ -f "${RAW_METADATA}" ]; then
+    echo "[DIAGNOSTIC] Querying metadata from ${RAW_METADATA} (separator: ${META_SEP})..."
+    eval $(python3 -c "
+import sys, csv, re
+
+raw_meta = '${RAW_METADATA}'
+sep_mode = '${META_SEP}'.strip().lower()
+target_sample = '${SAMPLE}'
+sample_col = '${SAMPLE_COL}'.strip().lower()
+
+enable_spec = '${ENABLE_SPECIMEN}' == 'on'
+enable_tissue = '${ENABLE_TISSUE}' == 'on'
+enable_cell = '${ENABLE_CELL}' == 'on'
+enable_sex = '${ENABLE_SEX}' == 'on'
+enable_race = '${ENABLE_RACE}' == 'on'
+enable_cn = '${ENABLE_CLINIC_NUMBER}' == 'on'
+enable_age = '${ENABLE_AGE}' == 'on'
+
+spec, tissue, cell, sex, race, cn, age = 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown'
+
+try:
+    with open(raw_meta, 'r', encoding='utf-8', errors='replace') as f:
+        delim = '\t'
+        if sep_mode == 'comma' or sep_mode == ',':
+            delim = ','
+        elif sep_mode == 'auto':
+            sample_text = f.read(4096)
+            f.seek(0)
+            try:
+                dialect = csv.Sniffer().sniff(sample_text)
+                delim = dialect.delimiter
+            except Exception:
+                delim = '\t' if '\t' in sample_text else ','
+        
+        reader = csv.reader(f, delimiter=delim)
+        header = next(reader, None)
+        if header:
+            header_clean = [c.strip().lower() for c in header]
+            s_idx = header_clean.index(sample_col) if sample_col in header_clean else 0
+            
+            spec_idx = header_clean.index('specimen') if 'specimen' in header_clean else -1
+            tissue_idx = header_clean.index('tissue') if 'tissue' in header_clean else -1
+            cell_idx = header_clean.index('cell') if 'cell' in header_clean else (-1 if 'cell_line' not in header_clean else header_clean.index('cell_line'))
+            sex_idx = header_clean.index('sex') if 'sex' in header_clean else -1
+            race_idx = header_clean.index('race') if 'race' in header_clean else -1
+            cn_idx = header_clean.index('clinic_number') if 'clinic_number' in header_clean else (-1 if 'clinic_no' not in header_clean else header_clean.index('clinic_no'))
+            age_idx = header_clean.index('age') if 'age' in header_clean else -1
+
+            for row in reader:
+                if len(row) > s_idx:
+                    row_smp = row[s_idx].strip()
+                    # Exact string match to end of line / token
+                    if row_smp == target_sample or row_smp.replace('.sorted', '').replace('Sample_', '') == target_sample:
+                        if enable_spec and spec_idx != -1 and len(row) > spec_idx and row[spec_idx].strip():
+                            spec = row[spec_idx].strip()
+                        if enable_tissue and tissue_idx != -1 and len(row) > tissue_idx and row[tissue_idx].strip():
+                            tissue = row[tissue_idx].strip()
+                        if enable_cell and cell_idx != -1 and len(row) > cell_idx and row[cell_idx].strip():
+                            cell = row[cell_idx].strip()
+                        if enable_sex and sex_idx != -1 and len(row) > sex_idx and row[sex_idx].strip():
+                            sex = row[sex_idx].strip()
+                        if enable_race and race_idx != -1 and len(row) > race_idx and row[race_idx].strip():
+                            race = row[race_idx].strip()
+                        if enable_cn and cn_idx != -1 and len(row) > cn_idx and row[cn_idx].strip():
+                            cn = row[cn_idx].strip()
+                        if enable_age and age_idx != -1 and len(row) > age_idx and row[age_idx].strip():
+                            age = row[age_idx].strip()
+                        break
+except Exception as e:
+    pass
+
+def esc(v): return re.sub(r'[^A-Za-z0-9_.-]', '_', str(v))
+print(f'SPECIMEN=\"{esc(spec)}\"; TISSUE=\"{esc(tissue)}\"; CELL=\"{esc(cell)}\"; SEX=\"{esc(sex)}\"; RACE=\"{esc(race)}\"; CLINIC_NUMBER=\"{esc(cn)}\"; AGE=\"{esc(age)}\";')
+")
 fi
 
-echo "[DIAGNOSTIC] SPECIMEN: ${SPECIMEN}"
+echo "[DIAGNOSTIC] METADATA -> SPECIMEN: ${SPECIMEN} | TISSUE: ${TISSUE} | CELL: ${CELL} | SEX: ${SEX} | RACE: ${RACE} | CLINIC_NUMBER: ${CLINIC_NUMBER} | AGE: ${AGE}"
 
 # Locating human CRAM on mounted filesystem (/mnt/disks/lab)
 echo "[DIAGNOSTIC] Locating human CRAM file on mounted filesystem (${DATA_DIR})..."
@@ -203,10 +282,49 @@ fi
 
 echo "[DIAGNOSTIC] CALCULATED COVERAGE: ${COVERAGE}"
 
+# Dynamically assemble TSV header and row values based on active metadata switches
+HEADER_COLS=("sample" "coverage")
+ROW_COLS=("${SAMPLE}" "${COVERAGE}")
+
+if [ "${ENABLE_SPECIMEN}" = "on" ]; then
+    HEADER_COLS+=("specimen")
+    ROW_COLS+=("${SPECIMEN}")
+fi
+if [ "${ENABLE_TISSUE}" = "on" ]; then
+    HEADER_COLS+=("tissue")
+    ROW_COLS+=("${TISSUE}")
+fi
+if [ "${ENABLE_CELL}" = "on" ]; then
+    HEADER_COLS+=("cell")
+    ROW_COLS+=("${CELL}")
+fi
+if [ "${ENABLE_SEX}" = "on" ]; then
+    HEADER_COLS+=("sex")
+    ROW_COLS+=("${SEX}")
+fi
+if [ "${ENABLE_RACE}" = "on" ]; then
+    HEADER_COLS+=("race")
+    ROW_COLS+=("${RACE}")
+fi
+if [ "${ENABLE_CLINIC_NUMBER}" = "on" ]; then
+    HEADER_COLS+=("clinic_number")
+    ROW_COLS+=("${CLINIC_NUMBER}")
+fi
+if [ "${ENABLE_AGE}" = "on" ]; then
+    HEADER_COLS+=("age")
+    ROW_COLS+=("${AGE}")
+fi
+
+HEADER_COLS+=("phase" "project" "cram_url")
+ROW_COLS+=("phase${PHASE}" "${PROJECT:-base}" "${CRAM_URL:-NONE}")
+
+HEADER_LINE=$(IFS=$'\t'; echo "${HEADER_COLS[*]}")
+ROW_LINE=$(IFS=$'\t'; echo "${ROW_COLS[*]}")
+
 # Output individual sample coverage TSV
 echo "[DIAGNOSTIC] Writing output file: ${OUT_FILE}..."
-echo -e "sample\tcoverage\tspecimen\tphase\tproject\tcram_url" > "${OUT_FILE}"
-echo -e "${SAMPLE}\t${COVERAGE}\t${SPECIMEN}\tphase${PHASE}\t${PROJECT:-base}\t${CRAM_URL:-NONE}" >> "${OUT_FILE}"
+echo "${HEADER_LINE}" > "${OUT_FILE}"
+echo "${ROW_LINE}" >> "${OUT_FILE}"
 
 echo "[DIAGNOSTIC] Output File Size: $(ls -lh "${OUT_FILE}")"
 echo "=== END COVERAGE CALCULATION (SUCCESS) ==="

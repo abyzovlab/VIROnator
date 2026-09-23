@@ -81,6 +81,20 @@ coverage_module: "off"  # Switch: "on" or "off" to run coverage calculation job
 coverage_out_dirname: "{dataset}_{genome_build}_coverage"
 coverage_jobexec_dirname: "jobexec_coverage_{dataset}_{genome_build}"
 
+# Input Raw Metadata File (stored directly in ref_dir /mnt/disks/staff/refs/)
+raw_metadata_file: "{dataset}_{genome_build}_metadata.tsv"  # Filename of raw metadata file in ref_dir
+metadata_separator: "tab"                                   # File delimiter: "tab" (\t), "comma" (,), or "auto"
+sample_id_column: "sample"                                  # Name of Sample ID column in raw_metadata_file
+
+# Metadata Attribute Feature Switches ("on" or "off")
+enable_specimen: "on"                   # Switch: "on" or "off" to include 'specimen' column
+enable_tissue: "off"                     # Switch: "on" or "off" to include 'tissue' column
+enable_cell: "off"                       # Switch: "on" or "off" to include 'cell' column
+enable_sex: "off"                        # Switch: "on" or "off" to include 'sex' column
+enable_race: "off"                       # Switch: "on" or "off" to include 'race' column
+enable_clinic_number: "off"              # Switch: "on" or "off" to include 'clinic_number' column
+enable_age: "off"                        # Switch: "on" or "off" to include 'age' column
+
 
 # ==============================================================================
 # MODULE 2: UNMAPPED EXTRACTION MODULE (Phase 1 CRAM Candidate Extraction)

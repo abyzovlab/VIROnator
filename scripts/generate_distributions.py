@@ -156,7 +156,7 @@ def main():
         "sample_id", "virus_accession", "virus_length", "virus_mapped_reads",
         "normalized_coverage", "physical_coverage", "human_genome_size",
         "sample_read_depth", "viral_copy_number", "virus_name_sanitized",
-        "specimen", "phase", "project", "source_file"
+        "source_file", "phase", "project", "specimen"
     ]
 
     with open(args.input_report, "r") as f:
@@ -180,9 +180,9 @@ def main():
             virus_acc = row.get("virus_accession", parts[1] if len(parts) > 1 else "").strip()
             mapped_reads_str = row.get("virus_mapped_reads", parts[3] if len(parts) > 3 else "0").strip()
             virus_name = row.get("virus_name_sanitized", parts[9] if len(parts) > 9 else "").strip()
+            strategy = row.get("source_file", parts[10] if len(parts) > 10 else "unknown").strip()
             raw_phase = row.get("phase", parts[11] if len(parts) > 11 else "unknown").strip()
             raw_project = row.get("project", parts[12] if len(parts) > 12 else "base").strip()
-            strategy = row.get("source_file", parts[13] if len(parts) > 13 else "unknown").strip()
 
             # Filter by requested target strategies if specified
             if target_strategies and strategy not in target_strategies:

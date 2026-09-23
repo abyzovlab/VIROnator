@@ -285,12 +285,11 @@ def process_master_report_comparison(master_report_path, output_stats_dir, datas
     df.columns = [c.strip() for c in df.columns]
 
     # Identify key columns
-    sample_col = df.columns[0]  # Sample_ID
-    virus_acc_col = df.columns[1] if len(df.columns) > 1 else df.columns[0]  # Virus_Accession
-    virus_name_col = df.columns[9] if len(df.columns) > 9 else virus_acc_col
-    reads_col = df.columns[3] if len(df.columns) > 3 else df.columns[0]
-    source_col = [c for c in df.columns if "source" in c.lower() or "file" in c.lower()]
-    source_col = source_col[0] if source_col else df.columns[-1]
+    sample_col = [c for c in df.columns if "sample" in c.lower()][0] if any("sample" in c.lower() for c in df.columns) else df.columns[0]
+    virus_acc_col = [c for c in df.columns if "accession" in c.lower()][0] if any("accession" in c.lower() for c in df.columns) else df.columns[1]
+    virus_name_col = [c for c in df.columns if "name" in c.lower()][0] if any("name" in c.lower() for c in df.columns) else virus_acc_col
+    reads_col = [c for c in df.columns if "mapped_reads" in c.lower() or "reads" in c.lower()][0] if any("mapped_reads" in c.lower() for c in df.columns) else df.columns[3]
+    source_col = [c for c in df.columns if "source" in c.lower() or "file" in c.lower()][0] if any("source" in c.lower() or "file" in c.lower() for c in df.columns) else df.columns[-1]
 
     # Step 0: Filter out rows containing 'None', empty values, or <= 0 mapped reads
     df_clean = df[~df.isin(["None", "none", "NONE", None]).any(axis=1)].copy()

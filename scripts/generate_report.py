@@ -126,12 +126,10 @@ def calculate_human_genome_size(fai_filepath):
 
 def load_metadata(filepath, sample_id, phase, project):
     """
-    Loads sample read depth and specimen from sample_metadata.tsv.
-    Expected columns: sample, coverage, specimen, phase, project
-    Requires exact 3-way match on sample, phase, and project.
+    Loads sample read depth and dynamic metadata attributes from master coverage TSV.
     """
     default_depth = 30.0
-    default_specimen = "Unknown"
+    meta_dict = {}
     
     project_key = project.strip().lower() if project.strip() else "base"
     clean_sample = sample_id.replace(".sorted", "").replace("Sample_", "").strip().lower()
@@ -143,7 +141,7 @@ def load_metadata(filepath, sample_id, phase, project):
         target_phase_alt = target_phase.replace("phase", "")
 
     if not os.path.exists(filepath):
-        return default_depth, default_specimen
+        return default_depth, meta_dict
 
     with open(filepath, "r") as f:
         header = None
@@ -152,7 +150,6 @@ def load_metadata(filepath, sample_id, phase, project):
             if not line_str:
                 continue
             
-            # Split by tab if tabs present, otherwise fallback to any whitespace
             if "\t" in line_str:
                 parts = [p.strip() for p in line_str.split("\t")]
             else:
@@ -166,7 +163,6 @@ def load_metadata(filepath, sample_id, phase, project):
             
             row = dict(zip(header, parts))
             
-            # Sample ID column aliases
             row_sample = ""
             for k in ["sample", "sample_id", "specimen_id", "id"]:
                 if k in row and row[k]:
@@ -181,34 +177,31 @@ def load_metadata(filepath, sample_id, phase, project):
             if not row_project:
                 row_project = "base"
             
-            # Coverage column aliases
             cov_val = None
             for k in ["coverage", "mean_coverage", "depth", "read_depth", "mean_depth", "mean_read_depth", "wgs_coverage"]:
                 if k in row and row[k]:
                     cov_val = row[k]
                     break
-            
-            # Specimen column aliases
-            spec_val = "Unknown"
-            for k in ["specimen", "sample_type", "tissue", "material"]:
-                if k in row and row[k]:
-                    spec_val = row[k]
-                    break
 
-            # Flexible phase and project matching (supports literal "phase", empty, none, base defaults)
             phase_match = (row_phase == target_phase or row_phase == target_phase_alt or not row_phase or row_phase in ["phase", "none", "base", "0", "", "all"])
             project_match = (row_project == project_key or not row_project or row_project in ["phase", "none", "base", "0", "", "all"])
 
-            # Match sample ID (unambiguous sample match)
+            # Exact sample match
             if row_sample == clean_sample and phase_match and project_match:
                 try:
                     depth = float(cov_val) if cov_val is not None else 30.0
                 except (ValueError, TypeError):
                     depth = 30.0
-                specimen = spec_val if spec_val else "Unknown"
-                return depth, specimen
+                
+                # Extract all extra metadata attributes present in header
+                ignore_keys = {"sample", "sample_id", "specimen_id", "id", "coverage", "mean_coverage", "depth", "read_depth", "mean_depth", "wgs_coverage", "phase", "project", "cram_url"}
+                for h_raw, val in zip(header, parts):
+                    if h_raw not in ignore_keys:
+                        meta_dict[h_raw] = val if val and val != "NONE" else "Unknown"
+                
+                return depth, meta_dict
 
-    return default_depth, default_specimen
+    return default_depth, meta_dict
 
 
 def audit_intermediate_files(vironator_dir):
@@ -344,8 +337,8 @@ def main():
     human_genome_size = calculate_human_genome_size(args.human_ref_fai)
     print(f"Human Genome Size: {human_genome_size} bp")
     
-    read_depth, specimen = load_metadata(args.metadata, args.sample_id, args.phase, args.project)
-    print(f"Metadata Lookup Result -> Read Depth: {read_depth}, Specimen: {specimen}")
+    read_depth, meta_dict = load_metadata(args.metadata, args.sample_id, args.phase, args.project)
+    print(f"Metadata Lookup Result -> Read Depth: {read_depth}, Metadata Attributes: {meta_dict}")
 
     audit_intermediate_files(args.vironator_dir)
 
@@ -360,7 +353,8 @@ def main():
 
     os.makedirs(os.path.dirname(args.out_file), exist_ok=True)
 
-    header = [
+    # Base columns before dynamic metadata
+    base_header = [
         "Sample_ID",
         "Virus_Accession",
         "Virus_Length",
@@ -371,11 +365,14 @@ def main():
         "Sample_Read_Depth",
         "Viral_Copy_Number",
         "Virus_Name_Sanitized",
-        "Specimen",
+        "Source_File",
         "Phase",
         "Project",
-        "Source_File",
     ]
+
+    # Dynamic metadata columns (capitalized headers for report)
+    meta_headers = [k.capitalize() for k in meta_dict.keys()]
+    header = base_header + meta_headers
 
     rows = []
     print("\n--- Evaluating CRAM Files ---")
@@ -392,7 +389,7 @@ def main():
 
         if not positive_hits:
             print(f"  -> No viral read pairs detected in {fname} (Adding baseline negative record)")
-            row = [
+            base_row = [
                 str(args.sample_id),
                 "None",
                 "0",
@@ -403,12 +400,12 @@ def main():
                 f"{read_depth:.2f}",
                 "0.000000",
                 "None",
-                str(specimen),
+                fname,
                 phase_label,
                 project_label,
-                fname,
             ]
-            rows.append(row)
+            meta_row = [str(meta_dict.get(k, "Unknown")) for k in meta_dict.keys()]
+            rows.append(base_row + meta_row)
         else:
             print(f"  -> POSITIVE FINDINGS: {len(positive_hits)} viral contigs with mapped read pairs in {fname}")
             for virus_accession, read_count in positive_hits.items():
@@ -421,7 +418,7 @@ def main():
                 virus_name = viral_names.get(virus_accession, virus_accession)
                 print(f"     + {virus_accession} ({virus_name}): {read_count} read pairs | PhysCov: {phys_cov}%")
 
-                row = [
+                base_row = [
                     str(args.sample_id),
                     str(virus_accession),
                     str(virus_length),
@@ -432,12 +429,12 @@ def main():
                     f"{read_depth:.2f}",
                     f"{copy_number:.6f}",
                     str(virus_name),
-                    str(specimen),
+                    fname,
                     phase_label,
                     project_label,
-                    fname,
                 ]
-                rows.append(row)
+                meta_row = [str(meta_dict.get(k, "Unknown")) for k in meta_dict.keys()]
+                rows.append(base_row + meta_row)
 
     if os.path.exists(args.out_file):
         try:

@@ -143,14 +143,14 @@ def generate_stats(args):
     
     # Required columns fallback
     col_map = {
-        'sample_id': df_raw.columns[0] if len(df_raw.columns) > 0 else 'sample_id',
-        'virus_accession': df_raw.columns[1] if len(df_raw.columns) > 1 else 'virus_accession',
-        'virus_mapped_reads': df_raw.columns[3] if len(df_raw.columns) > 3 else 'virus_mapped_reads',
-        'viral_copy_number': df_raw.columns[8] if len(df_raw.columns) > 8 else 'viral_copy_number',
-        'virus_name_sanitized': df_raw.columns[9] if len(df_raw.columns) > 9 else 'virus_name_sanitized',
-        'phase': df_raw.columns[11] if len(df_raw.columns) > 11 else 'phase',
-        'project': df_raw.columns[12] if len(df_raw.columns) > 12 else 'project',
-        'source_file': df_raw.columns[13] if len(df_raw.columns) > 13 else 'source_file'
+        'sample_id': [c for c in df_raw.columns if 'sample' in c][0] if any('sample' in c for c in df_raw.columns) else df_raw.columns[0],
+        'virus_accession': [c for c in df_raw.columns if 'accession' in c][0] if any('accession' in c for c in df_raw.columns) else df_raw.columns[1],
+        'virus_mapped_reads': [c for c in df_raw.columns if 'mapped_reads' in c][0] if any('mapped_reads' in c for c in df_raw.columns) else df_raw.columns[3],
+        'viral_copy_number': [c for c in df_raw.columns if 'copy_number' in c][0] if any('copy_number' in c for c in df_raw.columns) else df_raw.columns[8],
+        'virus_name_sanitized': [c for c in df_raw.columns if 'name_sanitized' in c or 'virus_name' in c][0] if any('name' in c for c in df_raw.columns) else df_raw.columns[9],
+        'source_file': [c for c in df_raw.columns if 'source_file' in c or 'source' in c][0] if any('source' in c for c in df_raw.columns) else df_raw.columns[10],
+        'phase': [c for c in df_raw.columns if 'phase' in c][0] if any('phase' in c for c in df_raw.columns) else df_raw.columns[11],
+        'project': [c for c in df_raw.columns if 'project' in c][0] if any('project' in c for c in df_raw.columns) else df_raw.columns[12]
     }
 
     df = pd.DataFrame()

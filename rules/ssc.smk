@@ -513,7 +513,16 @@ rule generate_coverage_job_file:
             .replace("{input_suffix}", str(config.get("input_suffix", "cram")))
             .replace("{coverage_out_dirname}", str(config.get("coverage_out_dirname", "DATASET_coverage")))
             .replace("{coverage_jobexec_dirname}", str(config.get("coverage_jobexec_dirname", "jobexec_coverage")))
-            .replace("{sample_metadata_path}", os.path.join(config["ref_dir"], config["sample_metadata_file"]))
+            .replace("{raw_metadata_path}", os.path.join(config["ref_dir"], config.get("raw_metadata_file", "")) if config.get("raw_metadata_file") else "")
+            .replace("{metadata_separator}", str(config.get("metadata_separator", "tab")).lower())
+            .replace("{sample_id_column}", str(config.get("sample_id_column", "sample")))
+            .replace("{enable_specimen}", str(config.get("enable_specimen", "on")).lower())
+            .replace("{enable_tissue}", str(config.get("enable_tissue", "off")).lower())
+            .replace("{enable_cell}", str(config.get("enable_cell", "off")).lower())
+            .replace("{enable_sex}", str(config.get("enable_sex", "off")).lower())
+            .replace("{enable_race}", str(config.get("enable_race", "off")).lower())
+            .replace("{enable_clinic_number}", str(config.get("enable_clinic_number", "off")).lower())
+            .replace("{enable_age}", str(config.get("enable_age", "off")).lower())
         )
         
         with open(output.job, "w") as f:
