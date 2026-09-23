@@ -350,13 +350,11 @@ def get_master_report_path(config):
     # Candidate paths to check in priority order:
     # 1. Local execution work_dir ({report_name})
     # 2. Output dir stats folder (/mnt/disks/staff/{ds}_{gb}_stats/{report_name})
-    # 3. Local execution work_dir stats folder (./{ds}_{gb}_stats/{report_name})
-    # 4. Output dir refs folder (/mnt/disks/staff/refs/{report_name})
-    # 5. Local execution refs folder (./refs/{report_name})
+    # 3. Output dir refs folder (/mnt/disks/staff/refs/{report_name})
+    # 4. Local execution refs folder (./refs/{report_name})
     candidate_paths = [
         os.path.join(config.get("work_dir", "."), report_name),
         os.path.join(config["output_dir"], stats_dir_name, report_name),
-        os.path.join(config.get("work_dir", "."), stats_dir_name, report_name),
         os.path.join(config.get("ref_dir", "/mnt/disks/staff/refs"), report_name),
         os.path.join(config.get("work_dir", "."), "refs", report_name)
     ]

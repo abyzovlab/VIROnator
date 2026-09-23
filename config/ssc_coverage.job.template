@@ -244,6 +244,18 @@ if [ -z "${CRAM}" ] || [ ! -f "${CRAM}" ]; then
     exit 1
 fi
 
+# Dynamically construct full CRAM_URL for provenance output
+if [ -n "${DATA_BUCKET}" ]; then
+    # Convert local mount path (/mnt/disks/lab/sub/path/file.cram) to GCS URL (gs://bucket/sub/path/file.cram)
+    REL_PATH="${CRAM#${DATA_DIR}/}"
+    REL_PATH="${REL_PATH#/}"
+    CRAM_URL="gs://${DATA_BUCKET}/${REL_PATH}"
+else
+    CRAM_URL="${CRAM}"
+fi
+
+echo "[DIAGNOSTIC] CRAM URL: ${CRAM_URL}"
+
 # 1. Attempt fast index query first via samtools idxstats (.crai / .bai)
 GENOME_SIZE=0
 MAPPED_READS=0
