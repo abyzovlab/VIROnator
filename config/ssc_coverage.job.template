@@ -191,13 +191,14 @@ try:
                     
                     is_match = (raw_val == target_sample) or (clean_r == clean_t)
                     
-                    # Special matching configuration for MCBiobank dataset: extract number after 'ST-' (e.g. s_3595-ST-0014 -> 14)
+                    # Special matching configuration for MCBiobank dataset: extract integer after 'ST' from target (e.g. s_3595-ST-0002 -> 2)
+                    # and compare against integer in the exact 'sample' column value (row[s_idx])
                     if not is_match and dataset_name.lower() == 'mcbiobank':
-                        st_match_t = re.search(r'st-(\d+)', target_sample.lower())
+                        st_match_t = re.search(r'st[-_]?(\d+)', target_sample.lower())
                         if st_match_t:
                             target_st_num = int(st_match_t.group(1))
-                            r_digits = re.findall(r'\d+', clean_r)
-                            if r_digits and int(r_digits[-1]) == target_st_num:
+                            r_digits = re.findall(r'\d+', raw_val)
+                            if r_digits and any(int(d) == target_st_num for d in r_digits):
                                 is_match = True
 
                     if is_match:
@@ -219,7 +220,7 @@ try:
 except Exception as e:
     pass
 
-def esc(v): return re.sub(r'[^A-Za-z0-9_.-]', '_', str(v))
+def esc(v): return re.sub(r'[^A-Za-z0-9_.\s-]', '_', str(v))
 print(f'SPECIMEN=\"{esc(spec)}\"; TISSUE=\"{esc(tissue)}\"; CELL=\"{esc(cell)}\"; SEX=\"{esc(sex)}\"; RACE=\"{esc(race)}\"; CLINIC_NUMBER=\"{esc(cn)}\"; AGE=\"{esc(age)}\";')
 ")
 fi
