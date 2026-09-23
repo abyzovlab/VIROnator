@@ -169,11 +169,15 @@ try:
             except Exception:
                 delim = '\t' if '\t' in sample_text else ','
         
+        sys.stderr.write(f'[PYTHON DIAGNOSTIC] Opening {raw_meta}, delim: \"{delim}\", target_sample: \"{target_sample}\", sample_col: \"{sample_col}\", dataset: \"{dataset_name}\"\n')
+        
         reader = csv.reader(f, delimiter=delim)
         header = next(reader, None)
         if header:
             header_clean = [c.strip().lower() for c in header]
+            sys.stderr.write(f'[PYTHON DIAGNOSTIC] Header columns: {header_clean}\n')
             s_idx = header_clean.index(sample_col) if sample_col in header_clean else 0
+            sys.stderr.write(f'[PYTHON DIAGNOSTIC] sample_col \"{sample_col}\" resolved to index: {s_idx}\n')
             
             spec_idx = header_clean.index('specimen') if 'specimen' in header_clean else -1
             tissue_idx = header_clean.index('tissue') if 'tissue' in header_clean else -1
@@ -182,8 +186,12 @@ try:
             race_idx = header_clean.index('race') if 'race' in header_clean else -1
             cn_idx = header_clean.index('clinic_number') if 'clinic_number' in header_clean else (-1 if 'clinic_no' not in header_clean else header_clean.index('clinic_no'))
             age_idx = header_clean.index('age') if 'age' in header_clean else -1
+            
+            sys.stderr.write(f'[PYTHON DIAGNOSTIC] Column indices -> spec: {spec_idx}, tissue: {tissue_idx}, sex: {sex_idx}, race: {race_idx}, cn: {cn_idx}, age: {age_idx}\n')
 
+            checked_count = 0
             for row in reader:
+                checked_count += 1
                 if len(row) > s_idx:
                     raw_val = row[s_idx].strip()
                     clean_r = re.sub(r'^(sample_|s_|mayo-clinic_)', '', raw_val.lower(), flags=re.IGNORECASE)
@@ -191,8 +199,6 @@ try:
                     
                     is_match = (raw_val == target_sample) or (clean_r == clean_t)
                     
-                    # Special matching configuration for MCBiobank dataset: extract integer after 'ST' from target (e.g. s_3595-ST-0002 -> 2)
-                    # and compare against integer in the exact 'sample' column value (row[s_idx])
                     if not is_match and dataset_name.lower() == 'mcbiobank':
                         st_match_t = re.search(r'st[-_]?(\d+)', target_sample.lower())
                         if st_match_t:
@@ -202,6 +208,7 @@ try:
                                 is_match = True
 
                     if is_match:
+                        sys.stderr.write(f'[PYTHON DIAGNOSTIC] MATCH FOUND on row {checked_count}! raw_val=\"{raw_val}\"\n')
                         if enable_spec and spec_idx != -1 and len(row) > spec_idx and row[spec_idx].strip():
                             spec = row[spec_idx].strip()
                         if enable_tissue and tissue_idx != -1 and len(row) > tissue_idx and row[tissue_idx].strip():
@@ -217,8 +224,10 @@ try:
                         if enable_age and age_idx != -1 and len(row) > age_idx and row[age_idx].strip():
                             age = row[age_idx].strip()
                         break
+            if not is_match:
+                sys.stderr.write(f'[PYTHON DIAGNOSTIC] Checked {checked_count} rows, NO MATCH found for target \"{target_sample}\"\n')
 except Exception as e:
-    pass
+    sys.stderr.write(f'[PYTHON DIAGNOSTIC ERROR] Exception occurred: {str(e)}\n')
 
 def esc(v): return re.sub(r'[^A-Za-z0-9_.\s-]', '_', str(v))
 print(f'SPECIMEN=\"{esc(spec)}\"; TISSUE=\"{esc(tissue)}\"; CELL=\"{esc(cell)}\"; SEX=\"{esc(sex)}\"; RACE=\"{esc(race)}\"; CLINIC_NUMBER=\"{esc(cn)}\"; AGE=\"{esc(age)}\";')
