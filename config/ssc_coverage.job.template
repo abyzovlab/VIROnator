@@ -114,6 +114,7 @@ echo "[DIAGNOSTIC] PROJECT: ${PROJECT:-base}"
 echo "[DIAGNOSTIC] OUTPUT DIRECTORY: ${COVERAGE_DIR}"
 echo "[DIAGNOSTIC] OUTPUT FILE: ${OUT_FILE}"
 
+DATASET="{dataset}"
 RAW_METADATA="{raw_metadata_path}"
 META_SEP="{metadata_separator}"
 SAMPLE_COL="{sample_id_column}"
@@ -142,6 +143,7 @@ raw_meta = '${RAW_METADATA}'
 sep_mode = '${META_SEP}'.strip().lower()
 target_sample = '${SAMPLE}'
 sample_col = '${SAMPLE_COL}'.strip().lower()
+dataset_name = '${DATASET}'.strip()
 
 enable_spec = '${ENABLE_SPECIMEN}' == 'on'
 enable_tissue = '${ENABLE_TISSUE}' == 'on'
@@ -183,9 +185,22 @@ try:
 
             for row in reader:
                 if len(row) > s_idx:
-                    row_smp = row[s_idx].strip()
-                    # Exact string match to end of line / token
-                    if row_smp == target_sample or row_smp.replace('.sorted', '').replace('Sample_', '') == target_sample:
+                    raw_val = row[s_idx].strip()
+                    clean_r = re.sub(r'^(sample_|s_|mayo-clinic_)', '', raw_val.lower(), flags=re.IGNORECASE)
+                    clean_t = re.sub(r'^(sample_|s_|mayo-clinic_)', '', target_sample.lower(), flags=re.IGNORECASE)
+                    
+                    is_match = (raw_val == target_sample) or (clean_r == clean_t)
+                    
+                    # Special matching configuration for MCBiobank dataset: extract number after 'ST-' (e.g. s_3595-ST-0014 -> 14)
+                    if not is_match and dataset_name.lower() == 'mcbiobank':
+                        st_match_t = re.search(r'st-(\d+)', target_sample.lower())
+                        if st_match_t:
+                            target_st_num = int(st_match_t.group(1))
+                            r_digits = re.findall(r'\d+', clean_r)
+                            if r_digits and int(r_digits[-1]) == target_st_num:
+                                is_match = True
+
+                    if is_match:
                         if enable_spec and spec_idx != -1 and len(row) > spec_idx and row[spec_idx].strip():
                             spec = row[spec_idx].strip()
                         if enable_tissue and tissue_idx != -1 and len(row) > tissue_idx and row[tissue_idx].strip():
