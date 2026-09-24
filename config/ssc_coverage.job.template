@@ -137,7 +137,7 @@ AGE="Unknown"
 if [ -f "${RAW_METADATA}" ]; then
     echo "[DIAGNOSTIC] Querying metadata from ${RAW_METADATA} (separator: ${META_SEP})..."
     cat << 'PYEOF' > /tmp/get_meta.py
-import sys, csv, re
+import sys, csv, re, os
 
 raw_meta = sys.argv[1]
 sep_mode = sys.argv[2].strip().lower()
