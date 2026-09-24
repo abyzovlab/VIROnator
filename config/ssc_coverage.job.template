@@ -155,7 +155,7 @@ enable_age = sys.argv[12] == 'on'
 
 spec, tissue, cell, sex, race, cn, age = 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown'
 
-try:
+if os.path.exists(raw_meta):
     with open(raw_meta, 'r', encoding='utf-8', errors='replace') as f:
         delim = '\t'
         if sep_mode in ['comma', ',']:
@@ -225,11 +225,6 @@ try:
                         if enable_age and age_idx != -1 and len(row) > age_idx and row[age_idx].strip():
                             age = row[age_idx].strip()
                         break
-            if not is_match:
-                print(f'[PYTHON DIAGNOSTIC] Checked {checked_count} rows, NO MATCH found for target "{target_sample}"')
-except Exception as e:
-    print(f'[PYTHON DIAGNOSTIC ERROR] Exception occurred: {str(e)}')
-
 def esc(v): return re.sub(r'[^A-Za-z0-9_.\s-]', '_', str(v))
 print(f'RESULT:SPECIMEN="{esc(spec)}"; TISSUE="{esc(tissue)}"; CELL="{esc(cell)}"; SEX="{esc(sex)}"; RACE="{esc(race)}"; CLINIC_NUMBER="{esc(cn)}"; AGE="{esc(age)}";')
 PYEOF
