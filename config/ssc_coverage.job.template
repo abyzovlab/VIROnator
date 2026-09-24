@@ -136,22 +136,23 @@ AGE="Unknown"
 
 if [ -f "${RAW_METADATA}" ]; then
     echo "[DIAGNOSTIC] Querying metadata from ${RAW_METADATA} (separator: ${META_SEP})..."
-    META_OUT=$(python3 -c "
-import sys, csv, re
+    export RAW_METADATA META_SEP SAMPLE SAMPLE_COL DATASET ENABLE_SPECIMEN ENABLE_TISSUE ENABLE_CELL ENABLE_SEX ENABLE_RACE ENABLE_CLINIC_NUMBER ENABLE_AGE
+    META_OUT=$(python3 - << 'EOF'
+import sys, csv, re, os
 
-raw_meta = '${RAW_METADATA}'
-sep_mode = '${META_SEP}'.strip().lower()
-target_sample = '${SAMPLE}'
-sample_col = '${SAMPLE_COL}'.strip().lower()
-dataset_name = '${DATASET}'.strip()
+raw_meta = os.environ.get('RAW_METADATA', '')
+sep_mode = os.environ.get('META_SEP', 'tab').strip().lower()
+target_sample = os.environ.get('SAMPLE', '')
+sample_col = os.environ.get('SAMPLE_COL', 'sample').strip().lower()
+dataset_name = os.environ.get('DATASET', '').strip()
 
-enable_spec = '${ENABLE_SPECIMEN}' == 'on'
-enable_tissue = '${ENABLE_TISSUE}' == 'on'
-enable_cell = '${ENABLE_CELL}' == 'on'
-enable_sex = '${ENABLE_SEX}' == 'on'
-enable_race = '${ENABLE_RACE}' == 'on'
-enable_cn = '${ENABLE_CLINIC_NUMBER}' == 'on'
-enable_age = '${ENABLE_AGE}' == 'on'
+enable_spec = os.environ.get('ENABLE_SPECIMEN', 'off') == 'on'
+enable_tissue = os.environ.get('ENABLE_TISSUE', 'off') == 'on'
+enable_cell = os.environ.get('ENABLE_CELL', 'off') == 'on'
+enable_sex = os.environ.get('ENABLE_SEX', 'off') == 'on'
+enable_race = os.environ.get('ENABLE_RACE', 'off') == 'on'
+enable_cn = os.environ.get('ENABLE_CLINIC_NUMBER', 'off') == 'on'
+enable_age = os.environ.get('ENABLE_AGE', 'off') == 'on'
 
 spec, tissue, cell, sex, race, cn, age = 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown'
 
@@ -231,8 +232,9 @@ except Exception as e:
     print(f'[PYTHON DIAGNOSTIC ERROR] Exception occurred: {str(e)}')
 
 def esc(v): return re.sub(r'[^A-Za-z0-9_.\s-]', '_', str(v))
-print(f'RESULT:SPECIMEN=\"{esc(spec)}\"; TISSUE=\"{esc(tissue)}\"; CELL=\"{esc(cell)}\"; SEX=\"{esc(sex)}\"; RACE=\"{esc(race)}\"; CLINIC_NUMBER=\"{esc(cn)}\"; AGE=\"{esc(age)}\";')
-")
+print(f'RESULT:SPECIMEN="{esc(spec)}"; TISSUE="{esc(tissue)}"; CELL="{esc(cell)}"; SEX="{esc(sex)}"; RACE="{esc(race)}"; CLINIC_NUMBER="{esc(cn)}"; AGE="{esc(age)}";')
+EOF
+)
 
     echo "${META_OUT}" | grep '\[PYTHON DIAGNOSTIC\]'
     ASSIGN_LINE=$(echo "${META_OUT}" | grep '^RESULT:' | sed 's/^RESULT://')
