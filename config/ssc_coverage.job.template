@@ -169,15 +169,15 @@ try:
             except Exception:
                 delim = '\t' if '\t' in sample_text else ','
         
-        print(f'# [PYTHON DIAGNOSTIC] Opening {raw_meta}, delim: \"{delim}\", target_sample: \"{target_sample}\", sample_col: \"{sample_col}\", dataset: \"{dataset_name}\"', file=sys.stderr)
+        print(f'# [PYTHON DIAGNOSTIC] Opening {raw_meta}, delim: \"{delim}\", target_sample: \"{target_sample}\", sample_col: \"{sample_col}\", dataset: \"{dataset_name}\"')
         
         reader = csv.reader(f, delimiter=delim)
         header = next(reader, None)
         if header:
             header_clean = [c.strip().lower() for c in header]
-            print(f'# [PYTHON DIAGNOSTIC] Header columns: {header_clean}', file=sys.stderr)
+            print(f'# [PYTHON DIAGNOSTIC] Header columns: {header_clean}')
             s_idx = header_clean.index(sample_col) if sample_col in header_clean else 0
-            print(f'# [PYTHON DIAGNOSTIC] sample_col \"{sample_col}\" resolved to index: {s_idx}', file=sys.stderr)
+            print(f'# [PYTHON DIAGNOSTIC] sample_col \"{sample_col}\" resolved to index: {s_idx}')
             
             spec_idx = header_clean.index('specimen') if 'specimen' in header_clean else -1
             tissue_idx = header_clean.index('tissue') if 'tissue' in header_clean else -1
@@ -187,7 +187,7 @@ try:
             cn_idx = header_clean.index('clinic_number') if 'clinic_number' in header_clean else (-1 if 'clinic_no' not in header_clean else header_clean.index('clinic_no'))
             age_idx = header_clean.index('age') if 'age' in header_clean else -1
             
-            print(f'# [PYTHON DIAGNOSTIC] Column indices -> spec: {spec_idx}, tissue: {tissue_idx}, sex: {sex_idx}, race: {race_idx}, cn: {cn_idx}, age: {age_idx}', file=sys.stderr)
+            print(f'# [PYTHON DIAGNOSTIC] Column indices -> spec: {spec_idx}, tissue: {tissue_idx}, sex: {sex_idx}, race: {race_idx}, cn: {cn_idx}, age: {age_idx}')
 
             checked_count = 0
             for row in reader:
@@ -208,7 +208,7 @@ try:
                                 is_match = True
 
                     if is_match:
-                        print(f'# [PYTHON DIAGNOSTIC] MATCH FOUND on row {checked_count}! raw_val=\"{raw_val}\"', file=sys.stderr)
+                        print(f'# [PYTHON DIAGNOSTIC] MATCH FOUND on row {checked_count}! raw_val=\"{raw_val}\"')
                         if enable_spec and spec_idx != -1 and len(row) > spec_idx and row[spec_idx].strip():
                             spec = row[spec_idx].strip()
                         if enable_tissue and tissue_idx != -1 and len(row) > tissue_idx and row[tissue_idx].strip():
@@ -225,9 +225,9 @@ try:
                             age = row[age_idx].strip()
                         break
             if not is_match:
-                print(f'# [PYTHON DIAGNOSTIC] Checked {checked_count} rows, NO MATCH found for target \"{target_sample}\"', file=sys.stderr)
+                print(f'# [PYTHON DIAGNOSTIC] Checked {checked_count} rows, NO MATCH found for target \"{target_sample}\"')
 except Exception as e:
-    print(f'# [PYTHON DIAGNOSTIC ERROR] Exception occurred: {str(e)}', file=sys.stderr)
+    print(f'# [PYTHON DIAGNOSTIC ERROR] Exception occurred: {str(e)}')
 
 def esc(v): return re.sub(r'[^A-Za-z0-9_.\s-]', '_', str(v))
 print(f'SPECIMEN=\"{esc(spec)}\"; TISSUE=\"{esc(tissue)}\"; CELL=\"{esc(cell)}\"; SEX=\"{esc(sex)}\"; RACE=\"{esc(race)}\"; CLINIC_NUMBER=\"{esc(cn)}\"; AGE=\"{esc(age)}\";')
