@@ -104,11 +104,11 @@ Before executing the script, download the latest NCBI taxonomy dump and accessio
 mkdir -p /tmp/ncbi_taxdump && cd /tmp/ncbi_taxdump
 
 # Download NCBI taxonomy nodes and names:
-wget -q ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz
+curl -sSL -o taxdump.tar.gz https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz
 tar -xzf taxdump.tar.gz nodes.dmp names.dmp
 
 # Download GenBank nucleotide accession-to-taxid mapping:
-wget -q ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz
+curl -sSL -o nucl_gb.accession2taxid.gz https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz
 gunzip nucl_gb.accession2taxid.gz
 ```
 

@@ -77,13 +77,13 @@ def download_ncbi_taxdump_if_needed(taxdump_dir):
     if not (os.path.exists(nodes_path) and os.path.exists(names_path)):
         print(f"[INFO] Downloading NCBI taxdump.tar.gz to {taxdump_dir} ...", flush=True)
         tar_path = os.path.join(taxdump_dir, "taxdump.tar.gz")
-        cmd_dl = f"wget -q -O \"{tar_path}\" ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz && tar -xzf \"{tar_path}\" -C \"{taxdump_dir}\" nodes.dmp names.dmp"
+        cmd_dl = f"curl -sSL -o \"{tar_path}\" https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz && tar -xzf \"{tar_path}\" -C \"{taxdump_dir}\" nodes.dmp names.dmp"
         subprocess.run(cmd_dl, shell=True, check=True)
 
     if not os.path.exists(acc_path):
         acc_gz_path = os.path.join(taxdump_dir, "nucl_gb.accession2taxid.gz")
         print(f"[INFO] Downloading NCBI nucl_gb.accession2taxid.gz to {taxdump_dir} ...", flush=True)
-        cmd_acc = f"wget -q -O \"{acc_gz_path}\" ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz && gunzip -f \"{acc_gz_path}\""
+        cmd_acc = f"curl -sSL -o \"{acc_gz_path}\" https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz && gunzip -f \"{acc_gz_path}\""
         subprocess.run(cmd_acc, shell=True, check=True)
 
     return nodes_path, names_path, acc_path
