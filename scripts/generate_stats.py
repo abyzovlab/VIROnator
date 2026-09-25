@@ -47,6 +47,8 @@ def parse_args():
                         help="Strategy filter for heatmap generation")
     parser.add_argument("--heatmap-min-reads-cutoff", type=int, default=3,
                         help="Minimum mapped reads threshold for heatmap inclusion (default: 3)")
+    parser.add_argument("--group-level", default="species", choices=["none", "species", "genus", "family", "realm"],
+                        help="Taxonomic grouping level for aggregated summary TSV and bar plots (default: species)")
     return parser.parse_args()
 
 
@@ -150,7 +152,12 @@ def generate_stats(args):
         'virus_name_sanitized': [c for c in df_raw.columns if 'name_sanitized' in c or 'virus_name' in c][0] if any('name' in c for c in df_raw.columns) else df_raw.columns[9],
         'source_file': [c for c in df_raw.columns if 'source_file' in c or 'source' in c][0] if any('source' in c for c in df_raw.columns) else df_raw.columns[10],
         'phase': [c for c in df_raw.columns if 'phase' in c][0] if any('phase' in c for c in df_raw.columns) else df_raw.columns[11],
-        'project': [c for c in df_raw.columns if 'project' in c][0] if any('project' in c for c in df_raw.columns) else df_raw.columns[12]
+        'project': [c for c in df_raw.columns if 'project' in c][0] if any('project' in c for c in df_raw.columns) else df_raw.columns[12],
+        'species_taxid': [c for c in df_raw.columns if 'species_taxid' in c][0] if any('species_taxid' in c for c in df_raw.columns) else '',
+        'species_name': [c for c in df_raw.columns if 'species_name' in c][0] if any('species_name' in c for c in df_raw.columns) else '',
+        'genus_name': [c for c in df_raw.columns if 'genus_name' in c][0] if any('genus_name' in c for c in df_raw.columns) else '',
+        'family_name': [c for c in df_raw.columns if 'family_name' in c][0] if any('family_name' in c for c in df_raw.columns) else '',
+        'realm_name': [c for c in df_raw.columns if 'realm_name' in c][0] if any('realm_name' in c for c in df_raw.columns) else ''
     }
 
     df = pd.DataFrame()
@@ -164,6 +171,12 @@ def generate_stats(args):
     df['project'] = df['project'].replace({'': 'base', 'none': 'base', '0': 'base'})
     df['source_file'] = df_raw[col_map['source_file']].fillna('unknown').astype(str).str.strip()
 
+    df['species_taxid'] = df_raw[col_map['species_taxid']].fillna('Unknown').astype(str).str.strip() if col_map['species_taxid'] else 'Unknown'
+    df['species_name'] = df_raw[col_map['species_name']].fillna('Unknown').astype(str).str.strip() if col_map['species_name'] else 'Unknown'
+    df['genus_name'] = df_raw[col_map['genus_name']].fillna('Unknown').astype(str).str.strip() if col_map['genus_name'] else 'Unknown'
+    df['family_name'] = df_raw[col_map['family_name']].fillna('Unknown').astype(str).str.strip() if col_map['family_name'] else 'Unknown'
+    df['realm_name'] = df_raw[col_map['realm_name']].fillna('Unknown').astype(str).str.strip() if col_map['realm_name'] else 'Unknown'
+
     if target_strategies:
         df = df[df['source_file'].isin(target_strategies)].copy()
 
@@ -176,6 +189,11 @@ def generate_stats(args):
     viral_pos_samples_map = collections.defaultdict(set)
     virus_data = collections.defaultdict(lambda: {
         "name": "",
+        "species_taxid": "Unknown",
+        "species_name": "Unknown",
+        "genus_name": "Unknown",
+        "family_name": "Unknown",
+        "realm_name": "Unknown",
         "samples": dict(),
         "copy_numbers": dict()
     })
@@ -215,6 +233,11 @@ def generate_stats(args):
                 v_key = (p_val, prj_val, strategy, virus_acc)
                 display_name = virus_name if virus_name and virus_name.lower() != "none" else virus_acc
                 virus_data[v_key]["name"] = display_name
+                virus_data[v_key]["species_taxid"] = row.species_taxid
+                virus_data[v_key]["species_name"] = row.species_name
+                virus_data[v_key]["genus_name"] = row.genus_name
+                virus_data[v_key]["family_name"] = row.family_name
+                virus_data[v_key]["realm_name"] = row.realm_name
                 virus_data[v_key]["samples"][sample_id] = mapped_reads
                 virus_data[v_key]["copy_numbers"][sample_id] = copy_num
 
@@ -310,6 +333,7 @@ def generate_stats(args):
 
         viruses_header = [
             "Phase", "Project", "Strategy", "Virus_Accession", "Virus_Name_Sanitized",
+            "Species_TaxID", "Species_Name", "Genus_Name", "Family_Name", "Realm_Name",
             "Positive_Samples_Count", "Total_Viral_Positive_Samples", "Total_Cohort_Samples",
             "Pct_Of_Viral_Positive_Samples", "Pct_Of_Total_Cohort_Samples",
             "Total_Reads_Assigned", "Mean_Mapped_Reads_Per_Positive_Sample",
@@ -324,7 +348,16 @@ def generate_stats(args):
             "virome": 0
         })
 
-        sorted_group_v_keys = sorted(group_v_keys, key=lambda x: len(virus_data[x]["samples"]), reverse=True)
+        # Pre-sort group_v_keys hierarchically by taxonomy: family -> genus -> species_taxid -> virus_accession
+        sorted_group_v_keys = sorted(
+            group_v_keys,
+            key=lambda x: (
+                virus_data[x]["family_name"],
+                virus_data[x]["genus_name"],
+                virus_data[x]["species_taxid"],
+                x[3]
+            )
+        )
 
         for v_key in sorted_group_v_keys:
             phase, project, strategy, virus_acc = v_key
@@ -347,6 +380,8 @@ def generate_stats(args):
 
             row = [
                 phase, project, short_strat, virus_acc, v_info["name"],
+                v_info["species_taxid"], v_info["species_name"], v_info["genus_name"],
+                v_info["family_name"], v_info["realm_name"],
                 str(pos_count), str(total_viral_pos), str(total_cohort),
                 f"{pct_viral_pos:.2f}", f"{pct_cohort:.2f}",
                 str(total_reads), f"{mean_reads_per_pos:.2f}", prelim_class
@@ -360,13 +395,79 @@ def generate_stats(args):
         print(f"[SUCCESS] Written VIRUSES stats summary TSV: {viruses_tsv_path}")
 
         # ----------------------------------------------------------------------
-        # 1b. VIRUSES_classes.tiff (Vertical bar plot of 4 classification categories ordered highest to lowest)
+        # 1b. Grouped Summary TSV & Group Counts Bar Plot (--group-level)
+        # ----------------------------------------------------------------------
+        grp_lvl = args.group_level.strip().lower()
+        if grp_lvl != "none":
+            grp_tsv_name = f"{fn_prefix}_virus_stats_grouped_{grp_lvl}.tsv"
+            grp_tsv_path = os.path.join(out_dir, grp_tsv_name)
+            
+            grp_counts = collections.defaultdict(lambda: {"pos_samples": set(), "total_reads": 0})
+            for v_key in sorted_group_v_keys:
+                v_info = virus_data[v_key]
+                if grp_lvl == "species":
+                    g_key = f"{v_info['species_taxid']}|{v_info['species_name']}"
+                elif grp_lvl == "genus":
+                    g_key = v_info["genus_name"]
+                elif grp_lvl == "family":
+                    g_key = v_info["family_name"]
+                elif grp_lvl == "realm":
+                    g_key = v_info["realm_name"]
+                else:
+                    g_key = f"{v_info['species_taxid']}|{v_info['species_name']}"
+
+                grp_counts[g_key]["pos_samples"].update(v_info["samples"].keys())
+                grp_counts[g_key]["total_reads"] += sum(v_info["samples"].values())
+
+            grp_rows = []
+            grp_header = [grp_lvl.capitalize() + "_Group", "Positive_Samples_Count", "Total_Reads_Assigned"]
+            for g_k, g_v in sorted(grp_counts.items(), key=lambda x: len(x[1]["pos_samples"]), reverse=True):
+                grp_rows.append([g_k, str(len(g_v["pos_samples"])), str(g_v["total_reads"])])
+
+            with open(grp_tsv_path, "w") as f:
+                f.write("\t".join(grp_header) + "\n")
+                for r in grp_rows:
+                    f.write("\t".join(r) + "\n")
+            print(f"[SUCCESS] Written grouped summary TSV: {grp_tsv_path}")
+
+            # Render Group Counts Bar Plot: {dataset}_{genome_build}_{phase}_{project}_stats_{group_level}_counts.tiff
+            grp_plot_name = f"{fn_prefix}_stats_{grp_lvl}_counts.tiff"
+            grp_plot_path = os.path.join(out_dir, grp_plot_name)
+
+            top_grp_items = sorted(grp_counts.items(), key=lambda x: len(x[1]["pos_samples"]), reverse=False)
+            g_labels = [x[0] for x in top_grp_items]
+            g_pos_counts = [len(x[1]["pos_samples"]) for x in top_grp_items]
+
+            if g_labels:
+                fig_h = max(7.0, len(g_labels) * 0.4 + 2.0)
+                fig, ax = plt.subplots(figsize=(10, fig_h), dpi=300)
+                bars = ax.barh(g_labels, g_pos_counts, height=0.88, color="#008fbf")
+                ax.set_xlabel("Positive Sample Detections", fontsize=14, labelpad=8)
+                ax.set_ylabel(f"Taxonomic Group ({grp_lvl.capitalize()})", fontsize=14, labelpad=8)
+                ax.tick_params(axis='x', labelsize=12)
+                ax.tick_params(axis='y', labelsize=12)
+                ax.set_title(f"{dataset} Cohort Positivity by Taxonomic {grp_lvl.capitalize()}\nPhase: {cur_phase_tag} | Project: {cur_proj_tag}", fontsize=16, pad=12)
+                
+                max_g = max(g_pos_counts) if g_pos_counts else 1
+                ax.set_xlim(0, max_g * 1.18)
+                for bar in bars:
+                    w = bar.get_width()
+                    ax.annotate(f"{int(w)}", xy=(w, bar.get_y() + bar.get_height() / 2), xytext=(5, 0), textcoords="offset points", ha='left', va='center', fontsize=12)
+                
+                ax.grid(False)
+                ax.spines['top'].set_visible(False)
+                ax.spines['right'].set_visible(False)
+                plt.savefig(grp_plot_path, format="tiff", dpi=300, bbox_inches="tight")
+                plt.close(fig)
+                print(f"[SUCCESS] Generated grouped counts bar plot: {grp_plot_path}")
+
+        # ----------------------------------------------------------------------
+        # 1c. VIRUSES_classes.tiff (Vertical bar plot of 4 classification categories ordered highest to lowest)
         # ----------------------------------------------------------------------
         classes_plot_name = f"{fn_prefix}_virus_stats_VIRUSES_classes.tiff"
         classes_plot_path = os.path.join(out_dir, classes_plot_name)
 
-        # Sort classes descending by count
-        sorted_classes = class_counts.most_common() # [(cat, count), ...]
+        sorted_classes = class_counts.most_common()
         cls_names = [c[0] for c in sorted_classes]
         cls_counts = [c[1] for c in sorted_classes]
 
@@ -400,47 +501,50 @@ def generate_stats(args):
 
         # ----------------------------------------------------------------------
         # 2. VIRUSES_percentages.tiff (Horizontal bar plot of positivity %)
+        # Format: Species_TaxID|Species_Name|Virus_Accession|Virus_Name_Sanitized
+        # Ordered by taxonomy: family -> genus -> species_taxid -> virus_accession
         # ----------------------------------------------------------------------
         pct_plot_name = f"{fn_prefix}_virus_stats_VIRUSES_percentages.tiff"
         pct_plot_path = os.path.join(out_dir, pct_plot_name)
 
         v_names_labels = []
         v_positivity_pcts = []
-        for v_key in group_v_keys:
+        v_reads_counts = []
+        for v_key in sorted_group_v_keys:
             v_info = virus_data[v_key]
             pos_c = len(v_info["samples"])
             ds_k = (v_key[0], v_key[1], v_key[2])
             tot_c = len(total_samples_map[ds_k])
             pct_c = (pos_c / float(tot_c) * 100.0) if tot_c > 0 else 0.0
-            lbl = f"{v_info['name']} ({v_key[3]})"
+            lbl = f"{v_info['species_taxid']}|{v_info['species_name']}|{v_key[3]}|{v_info['name']}"
             v_names_labels.append(lbl)
             v_positivity_pcts.append(pct_c)
+            v_reads_counts.append(sum(v_info["samples"].values()))
 
         if v_names_labels:
             df_pct = pd.DataFrame({'viruses': v_names_labels, 'positivity_pct': v_positivity_pcts})
-            df_pct_sorted = df_pct.sort_values(by='positivity_pct', ascending=True)
 
-            num_v = len(df_pct_sorted)
-            fig_height = max(8.0, num_v * 0.4 + 2.0)
-            fig, ax = plt.subplots(figsize=(10, fig_height), dpi=300)
-            bars = ax.barh(df_pct_sorted['viruses'], df_pct_sorted['positivity_pct'], height=0.98, color='#ff98ff')
+            num_v = len(df_pct)
+            fig_height = max(8.0, num_v * 0.45 + 2.0)
+            fig, ax = plt.subplots(figsize=(12, fig_height), dpi=300)
+            bars = ax.barh(df_pct['viruses'], df_pct['positivity_pct'], height=0.88, color='#ff98ff')
 
             ax.set_xlabel('Viral Prevalence (%)', fontsize=16, color='black', labelpad=8)
-            ax.set_ylabel('Virus', fontsize=16, color='black', labelpad=8)
-            ax.tick_params(axis='x', labelsize=16)
-            ax.tick_params(axis='y', labelsize=16)
+            ax.set_ylabel('Viral Reference (TaxID|Species|Accession|Name)', fontsize=16, color='black', labelpad=8)
+            ax.tick_params(axis='x', labelsize=12)
+            ax.tick_params(axis='y', labelsize=11)
             ax.set_title(
                 f"{dataset} Overall Viral Prevalence (% of Total Cohort Samples)\n"
                 f"Phase: {cur_phase_tag} | Project: {cur_proj_tag}",
-                fontsize=19, pad=14, color='black'
+                fontsize=18, pad=14, color='black'
             )
-            max_pct = df_pct_sorted['positivity_pct'].max() if not df_pct_sorted.empty else 1.0
+            max_pct = df_pct['positivity_pct'].max() if not df_pct.empty else 1.0
             ax.set_xlim(0, max_pct * 1.22)
 
             for bar in bars:
                 w = bar.get_width()
                 ax.annotate(f"{w:.2f}%", xy=(w, bar.get_y() + bar.get_height() / 2),
-                            xytext=(6, 0), textcoords="offset points", ha='left', va='center', fontsize=13, color='black')
+                            xytext=(6, 0), textcoords="offset points", ha='left', va='center', fontsize=11, color='black')
 
             ax.grid(False)
             ax.spines['top'].set_visible(False)
@@ -451,40 +555,35 @@ def generate_stats(args):
 
         # ----------------------------------------------------------------------
         # 3. VIRUSES_reads.tiff (Horizontal bar plot of total assigned reads)
+        # Format: Species_TaxID|Species_Name|Virus_Accession|Virus_Name_Sanitized
+        # Ordered by taxonomy: family -> genus -> species_taxid -> virus_accession
         # ----------------------------------------------------------------------
         reads_plot_name = f"{fn_prefix}_virus_stats_VIRUSES_reads.tiff"
         reads_plot_path = os.path.join(out_dir, reads_plot_name)
 
-        v_reads_counts = []
-        for v_key in group_v_keys:
-            v_info = virus_data[v_key]
-            tot_reads_val = sum(v_info["samples"].values())
-            v_reads_counts.append(tot_reads_val)
-
         if v_names_labels:
             df_reads = pd.DataFrame({'viruses': v_names_labels, 'total_reads': v_reads_counts})
-            df_reads_sorted = df_reads.sort_values(by='total_reads', ascending=True)
 
-            fig, ax = plt.subplots(figsize=(10, fig_height), dpi=300)
-            bars = ax.barh(df_reads_sorted['viruses'], df_reads_sorted['total_reads'], height=0.98, color='#ff98ff')
+            fig, ax = plt.subplots(figsize=(12, fig_height), dpi=300)
+            bars = ax.barh(df_reads['viruses'], df_reads['total_reads'], height=0.88, color='#ff98ff')
 
             ax.set_xlabel('Total Mapped Reads', fontsize=16, color='black', labelpad=8)
-            ax.set_ylabel('Virus', fontsize=16, color='black', labelpad=8)
+            ax.set_ylabel('Viral Reference (TaxID|Species|Accession|Name)', fontsize=16, color='black', labelpad=8)
             ax.xaxis.set_major_formatter(matplotlib.ticker.StrMethodFormatter('{x:,.0f}'))
-            ax.tick_params(axis='x', labelsize=16)
-            ax.tick_params(axis='y', labelsize=16)
+            ax.tick_params(axis='x', labelsize=12)
+            ax.tick_params(axis='y', labelsize=11)
             ax.set_title(
                 f"{dataset} Overall Mapped Read Count Across Cohort\n"
                 f"Phase: {cur_phase_tag} | Project: {cur_proj_tag}",
-                fontsize=19, pad=14, color='black'
+                fontsize=18, pad=14, color='black'
             )
-            max_r = df_reads_sorted['total_reads'].max() if not df_reads_sorted.empty else 1.0
+            max_r = df_reads['total_reads'].max() if not df_reads.empty else 1.0
             ax.set_xlim(0, max_r * 1.22)
 
             for bar in bars:
                 w = bar.get_width()
                 ax.annotate(f"{int(w):,}", xy=(w, bar.get_y() + bar.get_height() / 2),
-                            xytext=(6, 0), textcoords="offset points", ha='left', va='center', fontsize=13, color='black')
+                            xytext=(6, 0), textcoords="offset points", ha='left', va='center', fontsize=11, color='black')
 
             ax.grid(False)
             ax.spines['top'].set_visible(False)

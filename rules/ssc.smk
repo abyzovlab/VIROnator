@@ -2,13 +2,19 @@
 
 import os
 
-# Dynamically format string parameters in config using dataset and genome_build/build
+# Dynamically format string parameters in config using dataset, genome_build/build, and db_name
 _dataset_val = config.get("dataset", "DATASET")
 _build_val = config.get("genome_build", config.get("build", "hg38"))
 
+_viral_db_val = config.get("viral_database_file", "HumanViral_Reference_02-07-2022.fa")
+_db_name_val = os.path.splitext(os.path.basename(_viral_db_val))[0]
+if _db_name_val.endswith(".fa"):
+    _db_name_val = _db_name_val[:-3]
+config["db_name"] = _db_name_val
+
 for _k, _v in list(config.items()):
-    if isinstance(_v, str) and ("{dataset}" in _v or "{build}" in _v or "{genome_build}" in _v):
-        config[_k] = _v.format(dataset=_dataset_val, genome_build=_build_val, build=_build_val)
+    if isinstance(_v, str) and ("{dataset}" in _v or "{build}" in _v or "{genome_build}" in _v or "{db_name}" in _v):
+        config[_k] = _v.format(dataset=_dataset_val, genome_build=_build_val, build=_build_val, db_name=_db_name_val)
 
 phase_val = str(config.get("phase", "")).strip()
 phase_part = f"phase{phase_val}/" if phase_val and phase_val.lower() not in ["none", "0", ""] else ""
@@ -334,10 +340,10 @@ rule make_taxonomy_index:
         script="scripts/make_taxonomy_index.py",
         config_file="config/ssc_config.yaml"
     output:
-        tax_index=config.get("taxonomy_index_file", "config/db_metadata/viral_reference_taxonomy_index.tsv")
+        tax_index=os.path.join(config["ref_dir"], config.get("taxonomy_index_file", f"{config.get('db_name', 'HumanViral_Reference_02-07-2022')}_taxonomy_index.tsv"))
     run:
         import subprocess
-        db_fasta = os.path.join(config["ref_dir"], config.get("db_fasta_file", "HumanViral_Reference_02-07-2022.fa"))
+        db_fasta = os.path.join(config["ref_dir"], config.get("viral_database_file", config.get("db_fasta_file", "HumanViral_Reference_02-07-2022.fa")))
         taxdump_dir = config.get("ncbi_taxdump_dir", "/mnt/disks/staff/refs/ncbi_taxdump")
         cmd = f"python3 {input.script} --db-fasta \"{db_fasta}\" --taxdump-dir \"{taxdump_dir}\" --output \"{output.tax_index}\""
         subprocess.run(cmd, shell=True, check=True)
@@ -560,8 +566,9 @@ rule generate_stats:
         cn_switch = str(config.get("heatmap_copy_number", "off")).lower()
         hm_strategy = str(config.get("target_heatmap_strategy", "clean_flags"))
         hm_min_reads = int(config.get("heatmap_min_reads_cutoff", 3))
+        group_lvl = str(config.get("stats_taxonomic_group_level", "species")).lower()
         
-        cmd = f"python3 {input.script} --input-report \"{input.master_report}\" --out-dir \"{out_dir}\" --dataset \"{ds}\" --genome-build \"{gb}\" --target-phase \"{phase}\" --target-project \"{project}\" --strategies {strategies} --cohort-scope \"{cohort_scope}\" --reads-panel-a-loglog \"{reads_pa}\" --reads-panel-b-log-y \"{reads_pb}\" --copy-number-panel-a-loglog \"{cn_pa}\" --copy-number-panel-b-log-y \"{cn_pb}\" --log-scale-read-cutoff {cutoff} --log-scale-copy-number-cutoff {cn_cutoff} --prelim-prevalence-cutoff-pct {prev_cutoff} --prelim-mean-read-cutoff {mean_cutoff} --heatmap-read-counts \"{rc_switch}\" --heatmap-copy-number \"{cn_switch}\" --target-heatmap-strategy \"{hm_strategy}\" --heatmap-min-reads-cutoff {hm_min_reads}"
+        cmd = f"python3 {input.script} --input-report \"{input.master_report}\" --out-dir \"{out_dir}\" --dataset \"{ds}\" --genome-build \"{gb}\" --target-phase \"{phase}\" --target-project \"{project}\" --strategies {strategies} --cohort-scope \"{cohort_scope}\" --reads-panel-a-loglog \"{reads_pa}\" --reads-panel-b-log-y \"{reads_pb}\" --copy-number-panel-a-loglog \"{cn_pa}\" --copy-number-panel-b-log-y \"{cn_pb}\" --log-scale-read-cutoff {cutoff} --log-scale-copy-number-cutoff {cn_cutoff} --prelim-prevalence-cutoff-pct {prev_cutoff} --prelim-mean-read-cutoff {mean_cutoff} --heatmap-read-counts \"{rc_switch}\" --heatmap-copy-number \"{cn_switch}\" --target-heatmap-strategy \"{hm_strategy}\" --heatmap-min-reads-cutoff {hm_min_reads} --group-level \"{group_lvl}\""
         subprocess.run(cmd, shell=True, check=True)
 
         # Copy local outputs to GCS bucket if output_bucket is configured

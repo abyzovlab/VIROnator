@@ -184,6 +184,11 @@ def main():
             raw_phase = row.get("phase", parts[11] if len(parts) > 11 else "unknown").strip()
             raw_project = row.get("project", parts[12] if len(parts) > 12 else "base").strip()
 
+            sp_taxid = row.get("species_taxid", "Unknown").strip()
+            sp_name = row.get("species_name", "Unknown").strip()
+            genus_name = row.get("genus_name", "Unknown").strip()
+            family_name = row.get("family_name", "Unknown").strip()
+
             # Filter by requested target strategies if specified
             if target_strategies and strategy not in target_strategies:
                 continue
@@ -221,6 +226,10 @@ def main():
                     v_key = (p_val, prj_val, strategy, virus_acc)
                     display_name = virus_name if virus_name and virus_name.lower() != "none" else virus_acc
                     virus_data[v_key]["name"] = display_name
+                    virus_data[v_key]["species_taxid"] = sp_taxid
+                    virus_data[v_key]["species_name"] = sp_name
+                    virus_data[v_key]["genus_name"] = genus_name
+                    virus_data[v_key]["family_name"] = family_name
                     virus_data[v_key]["samples"][sample_id] = mapped_reads
 
     # --------------------------------------------------------------------------
@@ -475,41 +484,48 @@ def main():
         positivity_plot_name = f"{cur_phase_tag}_{cur_proj_tag}_{cur_strat_clean}_VIRAL_POSITIVITY_RATES.tiff"
         positivity_plot_path = os.path.join(plots_dir, positivity_plot_name)
 
-        # Sort ascending for horizontal barh plot so highest positivity is at the TOP
-        sorted_group_v_keys = sorted(group_v_keys, key=lambda x: len(virus_data[x]["samples"]), reverse=False)
+        # Sort hierarchically by taxonomy: family -> genus -> species_taxid -> virus_accession
+        sorted_group_v_keys = sorted(
+            group_v_keys,
+            key=lambda x: (
+                virus_data[x].get("family_name", "Unknown"),
+                virus_data[x].get("genus_name", "Unknown"),
+                virus_data[x].get("species_taxid", "Unknown"),
+                x[3]
+            )
+        )
 
         import pandas as pd
 
         v_names_labels = []
         v_positivity_pcts = []
 
-        for v_key in group_v_keys:
+        for v_key in sorted_group_v_keys:
             v_info = virus_data[v_key]
             pos_c = len(v_info["samples"])
             ds_k = (v_key[0], v_key[1], v_key[2])
             tot_c = len(total_samples_map[ds_k])
             pct_c = (pos_c / float(tot_c) * 100.0) if tot_c > 0 else 0.0
             
-            lbl = f"{v_info['name']} ({v_key[3]})"
+            lbl = f"{v_info.get('species_taxid', 'Unknown')}|{v_info.get('species_name', 'Unknown')}|{v_key[3]}|{v_info['name']}"
             v_names_labels.append(lbl)
             v_positivity_pcts.append(pct_c)
 
         if v_names_labels:
-            df = pd.DataFrame({
+            df_sorted = pd.DataFrame({
                 'viruses': v_names_labels,
                 'positivity_pct': v_positivity_pcts
             })
-            df_sorted = df.sort_values(by='positivity_pct', ascending=True)
 
             num_v = len(df_sorted)
-            fig_height = max(8.0, num_v * 0.4 + 2.0)
-            fig, ax = plt.subplots(figsize=(10, fig_height), dpi=300)
+            fig_height = max(8.0, num_v * 0.45 + 2.0)
+            fig, ax = plt.subplots(figsize=(12, fig_height), dpi=300)
 
-            bar_height = 0.98
+            bar_height = 0.88
             bars = ax.barh(df_sorted['viruses'], df_sorted['positivity_pct'], height=bar_height, color='#ff98ff')
 
             ax.set_xlabel('Viral Prevalence (%)', fontsize=16, color='black', labelpad=8)
-            ax.set_ylabel('Virus', fontsize=16, color='black', labelpad=8)
+            ax.set_ylabel('Viral Reference (TaxID|Species|Accession|Name)', fontsize=16, color='black', labelpad=8)
             ax.tick_params(axis='x', labelsize=16)
             ax.tick_params(axis='y', labelsize=16)
             ax.set_title(

@@ -36,6 +36,8 @@ def parse_args():
                         help="Value type to plot: 'read_counts' or 'copy_number'")
     parser.add_argument("--min-reads-cutoff", type=int, default=3,
                         help="Minimum mapped reads threshold for sample inclusion in heatmap (default: 3)")
+    parser.add_argument("--group-level", default="none", choices=["none", "species", "genus", "family", "realm"],
+                        help="Taxonomic grouping level for aggregated heatmap (default: none)")
     return parser.parse_args()
 
 
@@ -56,6 +58,60 @@ def get_short_strategy(fname):
     return fname.strip()
 
 
+def render_and_save_heatmap(pivot_df, out_path, title_text, value_type, phase, project, strategy):
+    """Helper function to log-transform, hierarchically cluster, and save a heatmap."""
+    if pivot_df.empty or pivot_df.shape[1] == 0:
+        return
+
+    # Log10 transform positive values; zero/negative -> NaN
+    log_df = pivot_df.replace(0.0, np.nan)
+    log_df = np.log10(log_df)
+
+    num_samples = log_df.shape[0]
+    num_viruses = log_df.shape[1]
+
+    # Fill NaNs with 0 for clustering calculation only
+    log_df_cluster = log_df.fillna(0.0)
+    if num_viruses > 1:
+        linkage_matrix = linkage(log_df_cluster.T, method='average')
+        ordered_indices = leaves_list(linkage_matrix)
+        # Keep taxonomy pre-sorted order by preserving original column index order if clustering is secondary
+        sorted_column_names = [log_df.columns[i] for i in ordered_indices]
+        sorted_log_df = log_df[sorted_column_names]
+    else:
+        sorted_log_df = log_df
+
+    calc_height = max(8.0, min(35.0, num_samples * 0.15 + 4.0))
+    calc_width = max(6.0, min(30.0, num_viruses * 0.28 + 3.0))
+
+    plt.figure(figsize=(calc_width, calc_height), dpi=300)
+
+    current_cmap = matplotlib.cm.get_cmap('viridis').copy()
+    current_cmap.set_bad(color='#e0e0e0')
+
+    ax = sns.heatmap(sorted_log_df, cmap=current_cmap, linewidths=0.5, linecolor='white', mask=sorted_log_df.isna())
+
+    plt.title(title_text, fontsize=18, pad=15)
+    plt.xlabel('Viral Reference / Taxonomy Group', fontsize=14, labelpad=10)
+    plt.ylabel('Sample', fontsize=14, labelpad=10)
+
+    xtick_size = max(7, min(12, int(240 / max(1, num_viruses))))
+    ytick_size = min(14, max(1, int(300 / max(1, num_samples))))
+
+    plt.xticks(fontsize=xtick_size, rotation=90)
+    ax.set_yticks(np.arange(num_samples) + 0.5)
+    ax.set_yticklabels(sorted_log_df.index, fontsize=ytick_size, rotation=0)
+
+    colorbar = ax.collections[0].colorbar
+    colorbar.ax.tick_params(labelsize=11)
+    for label in colorbar.ax.get_yticklabels():
+        label.set_rotation(0)
+
+    plt.savefig(out_path, format="tiff", dpi=300, bbox_inches="tight")
+    plt.close()
+    print(f"[SUCCESS] Heatmap saved to: {out_path}")
+
+
 def main():
     args = parse_args()
 
@@ -65,25 +121,16 @@ def main():
 
     os.makedirs(args.out_dir, exist_ok=True)
 
-    # 1. Filter Criteria Setup
-    # YAML phase: empty -> "phase" in master TSV
     raw_phase = str(args.phase).strip()
     target_phase = raw_phase if raw_phase and raw_phase.lower() not in ["none", "0"] else "phase"
 
-    # YAML project: empty -> "base" in master TSV
     raw_project = str(args.project).strip()
     target_project = raw_project if raw_project and raw_project.lower() not in ["none", "0"] else "base"
 
     target_strategy = args.strategy.strip()
 
-    # 2. Read Master TSV Report
-    # Standard columns:
-    # Sample_ID, Virus_Accession, Virus_Length, Virus_Mapped_Reads, Normalized_Coverage,
-    # Physical_Coverage, Human_Genome_Size, Sample_Read_Depth, Viral_Copy_Number,
-    # Virus_Name_Sanitized, Specimen, phase, project, Source_File
-    df = pd.read_csv(args.input_report, sep="\t")
+    df = pd.read_csv(args.input_report, sep="\t", dtype=str)
 
-    # Lowercase column names for robust lookup
     df.columns = [c.strip() for c in df.columns]
     col_map = {c.lower(): c for c in df.columns}
 
@@ -96,7 +143,11 @@ def main():
     phase_col = col_map.get("phase", df.columns[11] if len(df.columns) > 11 else None)
     proj_col = col_map.get("project", df.columns[12] if len(df.columns) > 12 else None)
 
-    # 3. Apply Filtering
+    sp_taxid_col = col_map.get("species_taxid", "")
+    sp_name_col = col_map.get("species_name", "")
+    genus_col = col_map.get("genus_name", "")
+    family_col = col_map.get("family_name", "")
+
     # Match phase
     if phase_col:
         df_phase = df[phase_col].astype(str).str.strip()
@@ -122,7 +173,6 @@ def main():
             mask_strat = df_source.str.lower().str.contains(target_strategy.lower())
         df = df[mask_strat]
 
-    # Filter out hits below min_reads_cutoff (skips <= 2 reads / 1 read pair noise)
     if reads_col in df.columns:
         df_reads_num = pd.to_numeric(df[reads_col], errors='coerce').fillna(0)
         df = df[df_reads_num >= args.min_reads_cutoff].copy()
@@ -131,72 +181,38 @@ def main():
         print(f"[WARNING] No records found with reads >= {args.min_reads_cutoff} for strategy '{target_strategy}'. Skipping heatmap.")
         sys.exit(0)
 
-    # 4. Construct Pivot Table
     value_col = reads_col if args.value_type == "read_counts" else cn_col
+    df[value_col] = pd.to_numeric(df[value_col], errors='coerce').fillna(0.0)
 
-    # Format Column Names: <Virus_Accession>, <Virus_Name_Sanitized>
-    df["Virus_Display"] = df[acc_col].astype(str) + ", " + df[name_col].astype(str)
+    # Build taxonomy attributes for sorting and labeling
+    df["tax_family"] = df[family_col].fillna("Unknown").astype(str).str.strip() if family_col else "Unknown"
+    df["tax_genus"] = df[genus_col].fillna("Unknown").astype(str).str.strip() if genus_col else "Unknown"
+    df["tax_sp_taxid"] = df[sp_taxid_col].fillna("Unknown").astype(str).str.strip() if sp_taxid_col else "Unknown"
+    df["tax_sp_name"] = df[sp_name_col].fillna("Unknown").astype(str).str.strip() if sp_name_col else "Unknown"
+    df["acc_clean"] = df[acc_col].fillna("Unknown").astype(str).str.strip()
+    df["name_clean"] = df[name_col].fillna("Unknown").astype(str).str.strip()
 
-    # Pivot matrix: Index = Sample_ID, Columns = Virus_Display
+    # Pre-sort df hierarchically by: family_name -> genus_name -> species_taxid -> virus_accession
+    df = df.sort_values(by=["tax_family", "tax_genus", "tax_sp_taxid", "acc_clean"])
+
+    # Construct Enhanced Accession-Level Column Display Label:
+    # Species_TaxID|Species_Name|Virus_Accession|Virus_Name_Sanitized
+    df["Virus_Display"] = (
+        df["tax_sp_taxid"] + "|" +
+        df["tax_sp_name"] + "|" +
+        df["acc_clean"] + "|" +
+        df["name_clean"]
+    )
+
+    # Preserve sorted unique column order
+    unique_cols = list(dict.fromkeys(df["Virus_Display"]))
+
     pivot_df = df.pivot_table(index=sample_col, columns="Virus_Display", values=value_col, aggfunc="max", fill_value=0.0)
+    # Reindex columns to maintain exact hierarchical pre-sorted taxonomic order
+    pivot_df = pivot_df.reindex(columns=unique_cols, fill_value=0.0)
 
-    # Drop sample rows that are completely 0 across all viruses
     if args.value_type == "copy_number":
-        row_max = pivot_df.max(axis=1)
-        pivot_df = pivot_df[row_max > 0.0]
-
-    if pivot_df.empty or pivot_df.shape[1] == 0:
-        print(f"[WARNING] Matrix is empty after pivot for {args.value_type}. Skipping heatmap.")
-        sys.exit(0)
-
-    # 5. Transform log10(df) for positive values only; mask 0.0 values as NaN
-    log_df = pivot_df.replace(0.0, np.nan)
-    log_df = np.log10(log_df)
-
-    # 6. Hierarchical Clustering (average linkage)
-    num_samples = log_df.shape[0]
-    num_viruses = log_df.shape[1]
-
-    # Fill NaNs with 0 for clustering calculation only
-    log_df_cluster = log_df.fillna(0.0)
-    if num_viruses > 1:
-        linkage_matrix = linkage(log_df_cluster.T, method='average')
-        ordered_columns = leaves_list(linkage_matrix)
-        sorted_column_names = sorted(log_df.columns[ordered_columns])
-        sorted_log_df = log_df[sorted_column_names]
-        sorted_log_df = sorted_log_df.loc[:, sorted_column_names]
-    else:
-        sorted_log_df = log_df
-
-    # Proportional figure dimensions capped for high performance & clean rendering
-    calc_height = max(8.0, min(35.0, num_samples * 0.15 + 4.0))
-    calc_width = max(6.0, min(20.0, num_viruses * 0.22 + 3.0))
-
-    plt.figure(figsize=(calc_width, calc_height), dpi=300)
-
-    # Set light gray background color for zero/NaN entries
-    current_cmap = matplotlib.cm.get_cmap('viridis').copy()
-    current_cmap.set_bad(color='#e0e0e0')
-
-    # 7. Render Heatmap (linewidths=0.5 for clean cell separation)
-    ax = sns.heatmap(sorted_log_df, cmap=current_cmap, linewidths=0.5, linecolor='white', mask=sorted_log_df.isna())
-
-    title_text = 'Virus Read Counts Heatmap' if args.value_type == "read_counts" else 'Virus Copy Number Heatmap'
-    plt.title(title_text, fontsize=20, pad=15)
-    plt.xlabel('Virus', fontsize=16, labelpad=10)
-    plt.ylabel('Sample', fontsize=16, labelpad=10)
-
-    xtick_size = max(8, min(14, int(220 / max(1, num_viruses))))
-    ytick_size = min(14, max(1, int(300 / max(1, num_samples))))
-
-    plt.xticks(fontsize=xtick_size, rotation=90)
-    ax.set_yticks(np.arange(num_samples) + 0.5)
-    ax.set_yticklabels(sorted_log_df.index, fontsize=ytick_size, rotation=0)
-
-    colorbar = ax.collections[0].colorbar
-    colorbar.ax.tick_params(labelsize=12)
-    for label in colorbar.ax.get_yticklabels():
-        label.set_rotation(0)
+        pivot_df = pivot_df[pivot_df.max(axis=1) > 0.0]
 
     p_val = str(args.phase).strip() if args.phase else ""
     prj_val = str(args.project).strip() if args.project else ""
@@ -204,7 +220,6 @@ def main():
     is_phase_empty = not p_val or p_val.lower() in ["none", "0", "", "all_cohorts"]
     is_proj_empty = not prj_val or prj_val.lower() in ["none", "0", "", "base", "combined"]
 
-    # Short strategy tag
     strat_raw = args.strategy or "clean_flags"
     if "clean_filtered.sorted.flags" in strat_raw or strat_raw == "clean_flags":
         strat_tag = "clean_flags"
@@ -214,17 +229,41 @@ def main():
         strat_tag = strat_raw.replace(".cram", "").replace(".bam", "").replace(".", "_")
 
     if is_phase_empty and is_proj_empty:
-        out_filename = f"{args.dataset}_{args.genome_build}_{strat_tag}_heatmap_{args.value_type}.tiff"
+        base_out_name = f"{args.dataset}_{args.genome_build}_{strat_tag}_heatmap_{args.value_type}"
     else:
         p_tag = "all" if is_phase_empty else p_val if p_val.startswith("phase") else f"phase{p_val}"
         prj_tag = "base" if is_proj_empty else prj_val
-        out_filename = f"{args.dataset}_{args.genome_build}_{p_tag}_{prj_tag}_{strat_tag}_heatmap_{args.value_type}.tiff"
+        base_out_name = f"{args.dataset}_{args.genome_build}_{p_tag}_{prj_tag}_{strat_tag}_heatmap_{args.value_type}"
 
-    out_path = os.path.join(args.out_dir, out_filename)
-    plt.savefig(out_path, format="tiff", dpi=300, bbox_inches="tight")
-    plt.close()
+    # 1. Render Accession-Level Heatmap
+    out_path_acc = os.path.join(args.out_dir, f"{base_out_name}.tiff")
+    title_acc = "Virus Read Counts Heatmap" if args.value_type == "read_counts" else "Virus Copy Number Heatmap"
+    render_and_save_heatmap(pivot_df, out_path_acc, title_acc, args.value_type, p_val, prj_val, strat_raw)
 
-    print(f"[SUCCESS] Heatmap successfully generated and saved to: {out_path}")
+    # 2. Grouped Heatmap (if --group-level is set to species, genus, family, or realm)
+    grp_level = args.group_level.strip().lower()
+    if grp_level != "none":
+        col_group_map = {
+            "species": df["tax_sp_taxid"] + "|" + df["tax_sp_name"],
+            "genus": df["tax_genus"],
+            "family": df["tax_family"],
+            "realm": df[col_map.get("realm_name", "")].fillna("Unknown").astype(str).str.strip() if "realm_name" in col_map else df["tax_family"]
+        }
+        group_series = col_group_map.get(grp_level, df["tax_sp_taxid"] + "|" + df["tax_sp_name"])
+        df["Group_Display"] = group_series
+
+        unique_groups = list(dict.fromkeys(df["Group_Display"]))
+        agg_func = "sum" if args.value_type == "read_counts" else "max"
+        
+        pivot_grp = df.pivot_table(index=sample_col, columns="Group_Display", values=value_col, aggfunc=agg_func, fill_value=0.0)
+        pivot_grp = pivot_grp.reindex(columns=unique_groups, fill_value=0.0)
+
+        if args.value_type == "copy_number":
+            pivot_grp = pivot_grp[pivot_grp.max(axis=1) > 0.0]
+
+        out_path_grp = os.path.join(args.out_dir, f"{base_out_name}_grouped_{grp_level}.tiff")
+        title_grp = f"Grouped ({grp_level.capitalize()}) Viral {title_acc}"
+        render_and_save_heatmap(pivot_grp, out_path_grp, title_grp, args.value_type, p_val, prj_val, strat_raw)
 
 
 if __name__ == "__main__":
