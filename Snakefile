@@ -4,11 +4,11 @@ configfile: "config/ssc_config.yaml"
 
 include: "rules/ssc.smk"
 
-# Validate samples_list file only if batch job modules are active
+# Validate samples_list file only if batch job modules requiring samples are active
 batch_modules_active = any([
     config.get("unmapped_extraction", "off") == "on",
     config.get("viral_db_alignment", "off") == "on",
-    config.get("reporting_module", "off") == "on",
+    (config.get("reporting_module", "off") == "on" and config.get("generate_report_submodule", "off") == "on"),
     config.get("coverage_module", "off") == "on"
 ])
 
@@ -55,10 +55,14 @@ if config.get("viral_db_alignment", "off") == "on":
     targets.append("config/vironator_dir.created")
     targets.append("config/ssc_alignment.job")
 
-# Module 3: Reporting
+# Module 3: Reporting (Module 4)
 if config.get("reporting_module", "off") == "on":
-    targets.append("config/reports_dir.created")
-    targets.append("config/ssc_reporting.job")
+    if config.get("make_taxonomy_index_submodule", "off") == "on":
+        tax_idx = os.path.join(config["ref_dir"], config.get("taxonomy_index_file", "HumanViral_Reference_02-07-2022_taxonomy_index.tsv"))
+        targets.append(tax_idx)
+    if config.get("generate_report_submodule", "off") == "on":
+        targets.append("config/reports_dir.created")
+        targets.append("config/ssc_reporting.job")
 
 # Module 5: Stats Summary & Plots
 if config.get("stats_module", "off") == "on":

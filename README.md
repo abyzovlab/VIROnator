@@ -103,20 +103,34 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
 * **`ref_dir`**: Directory path where reference genomes and database files are stored (`/mnt/disks/staff/refs`).
 * **`scripts_dir`**: Repository folder path containing helper scripts (`/mnt/disks/staff/scripts`).
 
-#### 2. Module Execution Switches & Module-Specific Settings
-To execute specific pipeline stages, turn `"on"` or `"off"` the switches for the features and modules you want to execute in `config/ssc_config.yaml` (e.g. `coverage_module: "on"`, `unmapped_extraction: "on"`, `viral_db_alignment: "on"`, `reporting_module: "on"`, `stats_module: "on"`, `distributions_module: "on"`, `flag_comparison_module: "on"`, or `refinement_module: "on"`).
+#### 4. Module 4: Reporting Module Sub-Switches & Execution
 
-> [!NOTE]
-> **Module Parameters**: In addition to the Common / Joint Variables defined above, each active module relies on module-specific parameters configured in `config/ssc_config.yaml` (such as dedicated output directory names, reference genome paths, tool binary locations, and metadata files). All parameters under an enabled module are mandatory for that stage to execute and complete successfully.
+Module 4 handles viral quantification, taxonomy annotation, and master report generation. It contains **two independent submodules** controlled via sub-switches in `config/ssc_config.yaml`:
 
-#### 3. Compile Job and Resource Configuration Files
-Whenever you modify configuration variables or switch any pipeline module on or off in `config/ssc_config.yaml`, you must run Snakemake on the head node while located inside the root `VIROnator` directory in order to compile properly into active job execution scripts. This command reads your current configuration settings and dynamically generates all required cluster `.job` scripts and `.config` resource definitions.
+```yaml
+reporting_module: "off"                # Master switch for Module 4 (default: off)
 
+# Submodule 4A: Database Taxonomy Index Builder
+# IMPORTANT: Run ONCE per reference database release. Generates the 14-column taxonomic lookup TSV.
+make_taxonomy_index_submodule: "off"    # "on" or "off" (default: off)
+
+# Submodule 4B: Master Sample Report Generator
+# Generates per-sample reports and iterates over sample lists via cluster batch execution.
+generate_report_submodule: "off"       # "on" or "off" (default: off)
+```
+
+##### Submodule 4A Execution (Taxonomy Index Construction):
+When `make_taxonomy_index_submodule: "on"` is set, running Snakemake compiles the 14-column taxonomy index for the whole viral database directly on the head node. **This submodule does not require a sample list file.**
 ```bash
 snakemake --cores 1
 ```
+*Comment / Note*: This step is to be created **only once** per reference database release as it indexes all accession IDs for the entire database used.
 
-### Phase 3: Execute the Workflow
+##### Submodule 4B Execution (Master Sample Reporting):
+When `generate_report_submodule: "on"` is set, Snakemake compiles `ssc_reporting.job` and checks the `samples_list`. You can submit the sample batch execution to the cluster using:
+```bash
+batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
+```
 
 #### Module 1: Coverage Calculation Module (`ssc_coverage.job`)
 

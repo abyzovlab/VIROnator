@@ -217,9 +217,33 @@ batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_vironator.config
 ```
 
 #### Module 4: Reporting Module (`ssc_reporting.job`)
-```bash
-batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
+
+Module 4 consists of **two submodules** that can be independently configured via sub-switches in `config/ssc_config.yaml`:
+
+```yaml
+reporting_module: "off"                # Master switch for Module 4 (default: off)
+
+# Submodule 4A: Database Taxonomy Index Builder (run ONCE per database release)
+make_taxonomy_index_submodule: "off"    # "on" or "off" (default: off)
+
+# Submodule 4B: Master Sample Report Generator (iterates over sample list)
+generate_report_submodule: "off"       # "on" or "off" (default: off)
 ```
+
+##### 1. Submodule 4A: Taxonomy Index Builder (`make_taxonomy_index_submodule`)
+- **Execution Mode**: Local / head node execution (does not require `samples_list`).
+- **Command**:
+  ```bash
+  snakemake --cores 1
+  ```
+- **Note**: This step generates `HumanViral_Reference_02-07-2022_taxonomy_index.tsv` directly in `/mnt/disks/staff/refs/`. It is created **only once** per reference database release as it indexes all accession IDs for the entire database used.
+
+##### 2. Submodule 4B: Master Sample Report Generator (`generate_report_submodule`)
+- **Execution Mode**: Parallel cloud batch execution over sample list.
+- **Command**:
+  ```bash
+  batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
+  ```
 - **Generated Per-Sample File**: `<sample_id>_viral_report.tsv`
 - **Combined Master Output File**: Once all parallel cloud batch jobs finish, combine all individual sample reports into one master file named `{dataset}_{genome_build}_master_report.tsv` and place it in `/mnt/disks/staff/refs/` (used as input for Module 5 Stats, Module 6 Distributions, and Module 8 Refinement).
 

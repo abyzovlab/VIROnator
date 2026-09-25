@@ -51,6 +51,7 @@ REF_HUMAN_FULL="{ref_human_full}"
 
 VIRAL_RENAME_MAP="{viral_rename_map_path}"
 VIRAL_BED="{viral_bed_path}"
+TAXONOMY_INDEX="{taxonomy_index_path}"
 SAMPLE_METADATA="{sample_metadata_path}"
 
 BWA_BIN="{bwa_bin}"
@@ -133,6 +134,7 @@ PYTHONUNBUFFERED=1 "${PYTHON_BIN}" "${REPORT_SCRIPT}" \
     --human-ref-fai "${REF_HUMAN_FULL}.fai" \
     --rename-map "${VIRAL_RENAME_MAP}" \
     --viral-bed "${VIRAL_BED}" \
+    --taxonomy-index "${TAXONOMY_INDEX}" \
     --metadata "${SAMPLE_METADATA}" 2>&1
 
 echo "Reporting Completed Successfully for ${SAMPLE}"

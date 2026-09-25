@@ -307,9 +307,11 @@ fi
 
 echo "[DIAGNOSTIC] CALCULATED COVERAGE: ${COVERAGE}"
 
+READ_SIZE=150
+
 # Dynamically assemble TSV header and row values based on active metadata switches
-HEADER_COLS=("sample" "coverage")
-ROW_COLS=("${SAMPLE}" "${COVERAGE}")
+HEADER_COLS=("sample" "coverage" "mapped_reads" "read_size" "human_genome_size")
+ROW_COLS=("${SAMPLE}" "${COVERAGE}" "${MAPPED_READS}" "${READ_SIZE}" "${GENOME_SIZE}")
 
 if [ "${ENABLE_SPECIMEN}" = "on" ]; then
     HEADER_COLS+=("specimen")

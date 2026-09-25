@@ -310,6 +310,7 @@ rule generate_reporting_job_file:
             .replace("{ref_vir_cont}", os.path.join(config["ref_dir"], config.get("ref_vir_cont", config.get("ref_viral", "HumanViral_Reference_02-07-2022_SnapGene_plasmids_modified_mm39_ms_modified.fa"))))
             .replace("{viral_rename_map_path}", os.path.join(config["ref_dir"], config.get("viral_rename_map_file", "HumanViral_Reference_02-07-2022_modified.rename_map.tsv")))
             .replace("{viral_bed_path}", os.path.join(config["ref_dir"], config["viral_bed_file"]))
+            .replace("{taxonomy_index_path}", os.path.join(config["ref_dir"], config.get("taxonomy_index_file", "HumanViral_Reference_02-07-2022_taxonomy_index.tsv")))
             .replace("{sample_metadata_path}", os.path.join(config["ref_dir"], config["sample_metadata_file"]))
             .replace("{bwa_bin}", str(config["bwa_bin"]))
             .replace("{python_bin}", str(config.get("python_bin", "python3")))

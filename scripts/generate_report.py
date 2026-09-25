@@ -44,8 +44,41 @@ def parse_args():
     parser.add_argument("--human-ref-fai", required=True, help="Path to human reference FASTA .fai index")
     parser.add_argument("--rename-map", required=True, help="Path to viral rename_map.tsv file")
     parser.add_argument("--viral-bed", required=True, help="Path to viral BED file")
+    parser.add_argument("--taxonomy-index", default="", help="Path to viral taxonomy index TSV file")
     parser.add_argument("--metadata", required=True, help="Path to SSC_sample_metadata.tsv")
     return parser.parse_args()
+
+
+def load_taxonomy_index(tax_filepath):
+    """
+    Loads 14-column viral taxonomy lookup index into dictionary keyed by accession.
+    Columns mapped:
+    [accession_version, accession_taxid, accession_name, species_taxid, species_name,
+     genus_taxid, genus_name, family_taxid, family_name, order_taxid, order_name,
+     realm_taxid, realm_name]
+    """
+    tax_dict = {}
+    if not tax_filepath or not os.path.exists(tax_filepath):
+        return tax_dict
+    
+    with open(tax_filepath, "r", encoding="utf-8", errors="replace") as f:
+        header = None
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split("\t")
+            if header is None:
+                header = [p.lower() for p in parts]
+                continue
+            if len(parts) >= 2:
+                acc = parts[0].strip()
+                tax_values = parts[1:]
+                # Standardize to 13 fields
+                while len(tax_values) < 13:
+                    tax_values.append("Unknown")
+                tax_dict[acc] = tax_values[:13]
+    return tax_dict
 
 
 def load_viral_lengths(bed_filepath, fai_filepath=""):
@@ -126,9 +159,10 @@ def calculate_human_genome_size(fai_filepath):
 
 def load_metadata(filepath, sample_id, phase, project):
     """
-    Loads sample read depth and dynamic metadata attributes from master coverage TSV.
+    Loads sample read depth, human genome size, and dynamic metadata attributes from master coverage TSV.
     """
     default_depth = 30.0
+    default_genome_size = 3099734149
     meta_dict = {}
     
     project_key = project.strip().lower() if project.strip() else "base"
@@ -141,7 +175,7 @@ def load_metadata(filepath, sample_id, phase, project):
         target_phase_alt = target_phase.replace("phase", "")
 
     if not os.path.exists(filepath):
-        return default_depth, meta_dict
+        return default_depth, default_genome_size, meta_dict
 
     with open(filepath, "r") as f:
         header = None
@@ -183,6 +217,12 @@ def load_metadata(filepath, sample_id, phase, project):
                     cov_val = row[k]
                     break
 
+            gsz_val = None
+            for k in ["human_genome_size", "genome_size", "ref_len", "total_ref_length"]:
+                if k in row and row[k]:
+                    gsz_val = row[k]
+                    break
+
             phase_match = (row_phase == target_phase or row_phase == target_phase_alt or not row_phase or row_phase in ["phase", "none", "base", "0", "", "all"])
             project_match = (row_project == project_key or not row_project or row_project in ["phase", "none", "base", "0", "", "all"])
 
@@ -192,16 +232,21 @@ def load_metadata(filepath, sample_id, phase, project):
                     depth = float(cov_val) if cov_val is not None else 30.0
                 except (ValueError, TypeError):
                     depth = 30.0
+
+                try:
+                    genome_sz = int(gsz_val) if gsz_val is not None else 3099734149
+                except (ValueError, TypeError):
+                    genome_sz = 3099734149
                 
                 # Extract all extra metadata attributes present in header
-                ignore_keys = {"sample", "sample_id", "specimen_id", "id", "coverage", "mean_coverage", "depth", "read_depth", "mean_depth", "wgs_coverage", "phase", "project", "cram_url"}
+                ignore_keys = {"sample", "sample_id", "specimen_id", "id", "coverage", "mean_coverage", "depth", "read_depth", "mean_depth", "wgs_coverage", "human_genome_size", "genome_size", "phase", "project", "cram_url"}
                 for h_raw, val in zip(header, parts):
                     if h_raw not in ignore_keys:
                         meta_dict[h_raw] = val if val and val != "NONE" else "Unknown"
                 
-                return depth, meta_dict
+                return depth, genome_sz, meta_dict
 
-    return default_depth, meta_dict
+    return default_depth, default_genome_size, meta_dict
 
 
 def audit_intermediate_files(vironator_dir):
@@ -340,6 +385,9 @@ def main():
     read_depth, meta_dict = load_metadata(args.metadata, args.sample_id, args.phase, args.project)
     print(f"Metadata Lookup Result -> Read Depth: {read_depth}, Metadata Attributes: {meta_dict}")
 
+    taxonomy_dict = load_taxonomy_index(args.taxonomy_index)
+    print(f"Loaded {len(taxonomy_dict)} viral taxonomy index records from {args.taxonomy_index}.")
+
     audit_intermediate_files(args.vironator_dir)
 
     target_files = [
@@ -353,26 +401,47 @@ def main():
 
     os.makedirs(os.path.dirname(args.out_file), exist_ok=True)
 
-    # Base columns before dynamic metadata
-    base_header = [
-        "Sample_ID",
-        "Virus_Accession",
-        "Virus_Length",
-        "Virus_Mapped_Reads",
-        "Normalized_Coverage",
-        "Physical_Coverage",
-        "Human_Genome_Size",
-        "Sample_Read_Depth",
-        "Viral_Copy_Number",
-        "Virus_Name_Sanitized",
-        "Source_File",
-        "Phase",
-        "Project",
+    # All-lowercase base columns before taxonomy and source metadata
+    prefix_header = [
+        "sample_id",
+        "virus_accession",
+        "virus_length",
+        "virus_mapped_reads",
+        "normalized_coverage",
+        "physical_coverage",
+        "human_genome_size",
+        "sample_read_depth",
+        "viral_copy_number",
+        "virus_name_sanitized",
     ]
 
-    # Dynamic metadata columns (capitalized headers for report)
-    meta_headers = [k.capitalize() for k in meta_dict.keys()]
-    header = base_header + meta_headers
+    taxonomy_header = [
+        "accession_version",
+        "accession_taxid",
+        "accession_name",
+        "species_taxid",
+        "species_name",
+        "genus_taxid",
+        "genus_name",
+        "family_taxid",
+        "family_name",
+        "order_taxid",
+        "order_name",
+        "realm_taxid",
+        "realm_name",
+    ]
+
+    suffix_header = [
+        "source_file",
+        "phase",
+        "project",
+    ]
+
+    # Dynamic metadata columns (all-lowercase for report)
+    meta_headers = [k.lower().strip() for k in meta_dict.keys()]
+    header = prefix_header + taxonomy_header + suffix_header + meta_headers
+
+    default_tax = ["Unknown"] * 13
 
     rows = []
     print("\n--- Evaluating CRAM Files ---")
@@ -389,7 +458,7 @@ def main():
 
         if not positive_hits:
             print(f"  -> No viral read pairs detected in {fname} (Adding baseline negative record)")
-            base_row = [
+            prefix_row = [
                 str(args.sample_id),
                 "None",
                 "0",
@@ -400,12 +469,15 @@ def main():
                 f"{read_depth:.2f}",
                 "0.000000",
                 "None",
+            ]
+            tax_row = default_tax
+            suffix_row = [
                 fname,
                 phase_label,
                 project_label,
             ]
             meta_row = [str(meta_dict.get(k, "Unknown")) for k in meta_dict.keys()]
-            rows.append(base_row + meta_row)
+            rows.append(prefix_row + tax_row + suffix_row + meta_row)
         else:
             print(f"  -> POSITIVE FINDINGS: {len(positive_hits)} viral contigs with mapped read pairs in {fname}")
             for virus_accession, read_count in positive_hits.items():
@@ -416,9 +488,10 @@ def main():
                 denom = (read_depth / 2.0) if read_depth > 0 else 15.0
                 copy_number = norm_cov * (1.0 / denom)
                 virus_name = viral_names.get(virus_accession, virus_accession)
+                tax_row = taxonomy_dict.get(virus_accession, default_tax)
                 print(f"     + {virus_accession} ({virus_name}): {read_count} read pairs | PhysCov: {phys_cov}%")
 
-                base_row = [
+                prefix_row = [
                     str(args.sample_id),
                     str(virus_accession),
                     str(virus_length),
@@ -429,12 +502,14 @@ def main():
                     f"{read_depth:.2f}",
                     f"{copy_number:.6f}",
                     str(virus_name),
+                ]
+                suffix_row = [
                     fname,
                     phase_label,
                     project_label,
                 ]
                 meta_row = [str(meta_dict.get(k, "Unknown")) for k in meta_dict.keys()]
-                rows.append(base_row + meta_row)
+                rows.append(prefix_row + tax_row + suffix_row + meta_row)
 
     if os.path.exists(args.out_file):
         try:
