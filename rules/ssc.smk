@@ -340,13 +340,40 @@ rule make_taxonomy_index:
         script="scripts/make_taxonomy_index.py",
         config_file="config/ssc_config.yaml"
     output:
-        tax_index=os.path.join(config["ref_dir"], config.get("taxonomy_index_file", f"{config.get('db_name', 'HumanViral_Reference_02-07-2022')}_taxonomy_index.tsv"))
+        tax_index=os.path.join("config/db_metadata", f"{config.get('db_name', 'HumanViral_Reference_02-07-2022')}_taxonomy_index.tsv")
     run:
-        import subprocess
-        db_fasta = os.path.join(config["ref_dir"], config.get("viral_database_file", config.get("db_fasta_file", "HumanViral_Reference_02-07-2022.fa")))
-        taxdump_dir = config.get("ncbi_taxdump_dir", "/mnt/disks/staff/refs/ncbi_taxdump")
-        cmd = f"python3 {input.script} --db-fasta \"{db_fasta}\" --taxdump-dir \"{taxdump_dir}\" --output \"{output.tax_index}\""
+        import os, subprocess
+        db_file = config.get("viral_database_file", "HumanViral_Reference_02-07-2022_modified.renamed.fa")
+        ref_dir = config.get("ref_dir", "/mnt/disks/staff/refs")
+        output_bucket = config.get("output_bucket", "")
+
+        local_db_fasta = os.path.join(ref_dir, db_file)
+        if not os.path.exists(local_db_fasta):
+            if os.path.exists(db_file):
+                local_db_fasta = db_file
+            elif output_bucket:
+                gcs_fa = f"gs://{output_bucket}/refs/{db_file}"
+                print(f"[INFO] Reference FASTA not found locally, fetching from {gcs_fa} via gsutil...")
+                subprocess.run(f"gsutil -q cp \"{gcs_fa}\" .", shell=True)
+                if os.path.exists(db_file):
+                    local_db_fasta = db_file
+
+        taxdump_dir = config.get("ncbi_taxdump_dir", os.path.join(ref_dir, "ncbi_taxdump"))
+        if not os.path.exists(taxdump_dir):
+            taxdump_dir = "ncbi_taxdump"
+
+        os.makedirs("config/db_metadata", exist_ok=True)
+        cmd = f"python3 {input.script} --db-fasta \"{local_db_fasta}\" --taxdump-dir \"{taxdump_dir}\" --output \"{output.tax_index}\""
         subprocess.run(cmd, shell=True, check=True)
+
+        if output_bucket:
+            gcs_dest = f"gs://{output_bucket}/refs/{os.path.basename(output.tax_index)}"
+            print(f"[INFO] Uploading generated taxonomy index to GCS staff bucket: {gcs_dest}")
+            subprocess.run(f"gsutil -q cp \"{output.tax_index}\" \"{gcs_dest}\" 2>/dev/null || true", shell=True)
+
+        if os.path.exists(ref_dir) and os.access(ref_dir, os.W_OK):
+            target_ref = os.path.join(ref_dir, os.path.basename(output.tax_index))
+            subprocess.run(f"cp \"{output.tax_index}\" \"{target_ref}\" 2>/dev/null || true", shell=True)
 
 def get_master_report_path(config):
     ds = config.get("dataset", "DATASET")

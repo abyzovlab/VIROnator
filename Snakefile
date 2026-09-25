@@ -55,10 +55,9 @@ if config.get("viral_db_alignment", "off") == "on":
     targets.append("config/vironator_dir.created")
     targets.append("config/ssc_alignment.job")
 
-# Module 3: Reporting (Module 4)
 if config.get("reporting_module", "off") == "on":
     if config.get("make_taxonomy_index_submodule", "off") == "on":
-        tax_idx = os.path.join(config["ref_dir"], config.get("taxonomy_index_file", "HumanViral_Reference_02-07-2022_taxonomy_index.tsv"))
+        tax_idx = os.path.join("config/db_metadata", f"{config.get('db_name', 'HumanViral_Reference_02-07-2022')}_taxonomy_index.tsv")
         targets.append(tax_idx)
     if config.get("generate_report_submodule", "off") == "on":
         targets.append("config/reports_dir.created")

@@ -152,7 +152,7 @@ reporting_module: "off"  # Switch: "on" or "off" master switch for reporting mod
 # Note: Run ONCE per reference database release (indexes all accessions for the database; no sample list required).
 # ------------------------------------------------------------------------------
 make_taxonomy_index_submodule: "off"                      # Switch: "on" or "off"
-viral_database_file: "HumanViral_Reference_02-07-2022.fa" # Target Viral Reference Database FASTA file (in ref_dir)
+viral_database_file: "HumanViral_Reference_02-07-2022_modified.renamed.fa" # Target Viral Reference Database FASTA file (in ref_dir)
 # Note: {db_name} is dynamically derived by trimming .fa / .fasta extension from viral_database_file above.
 taxonomy_index_file: "{db_name}_taxonomy_index.tsv"        # Generated 14-column taxonomy index TSV file name
 

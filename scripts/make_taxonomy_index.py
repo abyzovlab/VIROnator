@@ -71,6 +71,10 @@ def download_ncbi_taxdump_if_needed(taxdump_dir):
     acc_path = os.path.join(taxdump_dir, "nucl_gb.accession2taxid")
 
     if not (os.path.exists(nodes_path) and os.path.exists(names_path)):
+        # Try fetching from GCS staff bucket if available
+        subprocess.run(f"gsutil -q cp gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/ncbi_taxdump/* \"{taxdump_dir}/\" 2>/dev/null || true", shell=True)
+
+    if not (os.path.exists(nodes_path) and os.path.exists(names_path)):
         print(f"[INFO] Downloading NCBI taxdump.tar.gz to {taxdump_dir} ...", flush=True)
         tar_path = os.path.join(taxdump_dir, "taxdump.tar.gz")
         cmd_dl = f"wget -q -O \"{tar_path}\" ftp://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz && tar -xzf \"{tar_path}\" -C \"{taxdump_dir}\" nodes.dmp names.dmp"
