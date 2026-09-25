@@ -136,111 +136,93 @@ AGE="Unknown"
 
 if [ -f "${RAW_METADATA}" ]; then
     echo "[DIAGNOSTIC] Querying metadata from ${RAW_METADATA} (separator: ${META_SEP})..."
-    cat << 'PYEOF' > /tmp/get_meta.py
-import sys, csv, re, os
-
-raw_meta = sys.argv[1]
-sep_mode = sys.argv[2].strip().lower()
-target_sample = sys.argv[3]
-sample_col = sys.argv[4].strip().lower()
-dataset_name = sys.argv[5].strip()
-
-enable_spec = sys.argv[6] == 'on'
-enable_tissue = sys.argv[7] == 'on'
-enable_cell = sys.argv[8] == 'on'
-enable_sex = sys.argv[9] == 'on'
-enable_race = sys.argv[10] == 'on'
-enable_cn = sys.argv[11] == 'on'
-enable_age = sys.argv[12] == 'on'
-
-spec, tissue, cell, sex, race, cn, age = 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown'
-
-if os.path.exists(raw_meta):
-    with open(raw_meta, 'r', encoding='utf-8', errors='replace') as f:
-        delim = '\t'
-        if sep_mode in ['comma', ',']:
-            delim = ','
-        elif sep_mode == 'auto':
-            sample_text = f.read(4096)
-            f.seek(0)
-            try:
-                dialect = csv.Sniffer().sniff(sample_text)
-                delim = dialect.delimiter
-            except Exception:
-                delim = '\t' if '\t' in sample_text else ','
-        
-        print(f'[PYTHON DIAGNOSTIC] Opening {raw_meta}, delim: "{delim}", target_sample: "{target_sample}", sample_col: "{sample_col}", dataset: "{dataset_name}"')
-        
-        reader = csv.reader(f, delimiter=delim)
-        header = next(reader, None)
-        if header:
-            header_clean = [c.strip().lower() for c in header]
-            print(f'[PYTHON DIAGNOSTIC] Header columns: {header_clean}')
-            s_idx = header_clean.index(sample_col) if sample_col in header_clean else 0
-            print(f'[PYTHON DIAGNOSTIC] sample_col "{sample_col}" resolved to index: {s_idx}')
-            
-            spec_idx = header_clean.index('specimen') if 'specimen' in header_clean else -1
-            tissue_idx = header_clean.index('tissue') if 'tissue' in header_clean else -1
-            cell_idx = header_clean.index('cell') if 'cell' in header_clean else (-1 if 'cell_line' not in header_clean else header_clean.index('cell_line'))
-            sex_idx = header_clean.index('sex') if 'sex' in header_clean else -1
-            race_idx = header_clean.index('race') if 'race' in header_clean else -1
-            cn_idx = header_clean.index('clinic_number') if 'clinic_number' in header_clean else (-1 if 'clinic_no' not in header_clean else header_clean.index('clinic_no'))
-            age_idx = header_clean.index('age') if 'age' in header_clean else -1
-            
-            print(f'[PYTHON DIAGNOSTIC] Column indices -> spec: {spec_idx}, tissue: {tissue_idx}, sex: {sex_idx}, race: {race_idx}, cn: {cn_idx}, age: {age_idx}')
-
-            checked_count = 0
-            is_match = False
-            for row in reader:
-                checked_count += 1
-                if len(row) > s_idx:
-                    raw_val = row[s_idx].strip()
-                    clean_r = re.sub(r'^(sample_|s_|mayo-clinic_)', '', raw_val.lower(), flags=re.IGNORECASE)
-                    clean_t = re.sub(r'^(sample_|s_|mayo-clinic_)', '', target_sample.lower(), flags=re.IGNORECASE)
-                    
-                    is_match = (raw_val == target_sample) or (clean_r == clean_t)
-                    
-                    if not is_match and dataset_name.lower() == 'mcbiobank':
-                        st_match_t = re.search(r'st[-_]?(\d+)', target_sample.lower())
-                        if st_match_t:
-                            target_st_num = int(st_match_t.group(1))
-                            r_digits = re.findall(r'\d+', raw_val)
-                            if r_digits and any(int(d) == target_st_num for d in r_digits):
-                                is_match = True
-
-                    if is_match:
-                        print(f'[PYTHON DIAGNOSTIC] MATCH FOUND on row {checked_count}! raw_val="{raw_val}"')
-                        if enable_spec and spec_idx != -1 and len(row) > spec_idx and row[spec_idx].strip():
-                            spec = row[spec_idx].strip()
-                        if enable_tissue and tissue_idx != -1 and len(row) > tissue_idx and row[tissue_idx].strip():
-                            tissue = row[tissue_idx].strip()
-                        if enable_cell and cell_idx != -1 and len(row) > cell_idx and row[cell_idx].strip():
-                            cell = row[cell_idx].strip()
-                        if enable_sex and sex_idx != -1 and len(row) > sex_idx and row[sex_idx].strip():
-                            sex = row[sex_idx].strip()
-                        if enable_race and race_idx != -1 and len(row) > race_idx and row[race_idx].strip():
-                            race = row[race_idx].strip()
-                        if enable_cn and cn_idx != -1 and len(row) > cn_idx and row[cn_idx].strip():
-                            cn = row[cn_idx].strip()
-                        if enable_age and age_idx != -1 and len(row) > age_idx and row[age_idx].strip():
-                            age = row[age_idx].strip()
-                        break
-def esc(v): return re.sub(r'[^A-Za-z0-9_.\s-]', '_', str(v))
-print(f'RESULT:SPECIMEN="{esc(spec)}"; TISSUE="{esc(tissue)}"; CELL="{esc(cell)}"; SEX="{esc(sex)}"; RACE="{esc(race)}"; CLINIC_NUMBER="{esc(cn)}"; AGE="{esc(age)}";')
-PYEOF
-
-    META_OUT=$(python3 /tmp/get_meta.py "${RAW_METADATA}" "${META_SEP}" "${SAMPLE}" "${SAMPLE_COL}" "${DATASET}" "${ENABLE_SPECIMEN}" "${ENABLE_TISSUE}" "${ENABLE_CELL}" "${ENABLE_SEX}" "${ENABLE_RACE}" "${ENABLE_CLINIC_NUMBER}" "${ENABLE_AGE}")
-    echo "${META_OUT}" | grep '\[PYTHON DIAGNOSTIC\]'
-    ASSIGN_LINE=$(echo "${META_OUT}" | grep '^RESULT:' | sed 's/^RESULT://')
-    if [ -n "${ASSIGN_LINE}" ]; then
-        eval "${ASSIGN_LINE}"
+    
+    # Standardize target sample ID lookup key
+    LOOKUP_KEY="${SAMPLE}"
+    if [ "${DATASET}" = "MCBiobank" ] || [ "${DATASET}" = "mcbiobank" ]; then
+        # Extract number after 'ST' and strip leading zeros (e.g. s_3595-ST-0002 -> 2)
+        ST_NUM=$(echo "${SAMPLE}" | grep -o -i -E 'st[-_]?[0-9]+' | grep -o -E '[0-9]+' | sed 's/^0*//')
+        if [ -n "${ST_NUM}" ]; then
+            LOOKUP_KEY="${ST_NUM}"
+        fi
     fi
-    rm -f /tmp/get_meta.py
+    echo "[DIAGNOSTIC] Metadata lookup key resolved to: '${LOOKUP_KEY}'"
+
+    # Determine delimiter for awk (-F)
+    DELIM=","
+    if [ "${META_SEP}" = "tab" ] || [ "${META_SEP}" = "\t" ]; then
+        DELIM="\t"
+    elif [ "${META_SEP}" = "auto" ]; then
+        head -n 1 "${RAW_METADATA}" | grep -q $'\t' && DELIM="\t" || DELIM=","
+    fi
+
+    # Parse metadata using awk
+    READ_VARS=$(awk -F "${DELIM}" -v key="${LOOKUP_KEY}" -v raw_s="${SAMPLE}" -v s_col="${SAMPLE_COL}" \
+        -v e_spec="${ENABLE_SPECIMEN}" -v e_tissue="${ENABLE_TISSUE}" -v e_cell="${ENABLE_CELL}" \
+        -v e_sex="${ENABLE_SEX}" -v e_race="${ENABLE_RACE}" -v e_cn="${ENABLE_CLINIC_NUMBER}" -v e_age="${ENABLE_AGE}" '
+        function clean(val) {
+            gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", val)
+            return val
+        }
+        function esc(val) {
+            gsub(/[^A-Za-z0-9_.\ -]/, "_", val)
+            return val
+        }
+        NR == 1 {
+            for (i=1; i<=NF; i++) {
+                h = tolower(clean($i))
+                if (h == tolower(s_col)) s_idx = i
+                if (h == "specimen") spec_idx = i
+                if (h == "tissue") tissue_idx = i
+                if (h == "cell" || h == "cell_line") cell_idx = i
+                if (h == "sex") sex_idx = i
+                if (h == "race") race_idx = i
+                if (h == "clinic_number" || h == "clinic_no") cn_idx = i
+                if (h == "age") age_idx = i
+            }
+            if (!s_idx) s_idx = 1
+            print "[AWK DIAGNOSTIC] Header parsed. Indices -> sample(" s_col "):" s_idx ", specimen:" spec_idx ", tissue:" tissue_idx ", cell:" cell_idx ", sex:" sex_idx ", race:" race_idx ", clinic_number:" cn_idx ", age:" age_idx > "/dev/stderr"
+            next
+        }
+        {
+            r_val = clean($s_idx)
+            m_val = r_val
+            sub(/^0+/, "", m_val)
+            
+            if (r_val == raw_s || r_val == key || m_val == key) {
+                spec = (e_spec == "on" && spec_idx && clean($spec_idx) != "") ? clean($spec_idx) : "Unknown"
+                tissue = (e_tissue == "on" && tissue_idx && clean($tissue_idx) != "") ? clean($tissue_idx) : "Unknown"
+                cell = (e_cell == "on" && cell_idx && clean($cell_idx) != "") ? clean($cell_idx) : "Unknown"
+                sex = (e_sex == "on" && sex_idx && clean($sex_idx) != "") ? clean($sex_idx) : "Unknown"
+                race = (e_race == "on" && race_idx && clean($race_idx) != "") ? clean($race_idx) : "Unknown"
+                cn = (e_cn == "on" && cn_idx && clean($cn_idx) != "") ? clean($cn_idx) : "Unknown"
+                age = (e_age == "on" && age_idx && clean($age_idx) != "") ? clean($age_idx) : "Unknown"
+
+                print "[AWK DIAGNOSTIC] MATCH FOUND on row " NR "! sample_val=\"" r_val "\"" > "/dev/stderr"
+                print "[AWK DIAGNOSTIC] EXTRACTED -> SPECIMEN: " spec " | TISSUE: " tissue " | CELL: " cell " | SEX: " sex " | RACE: " race " | CLINIC_NUMBER: " cn " | AGE: " age > "/dev/stderr"
+
+                print "SPECIMEN=\"" esc(spec) "\"; TISSUE=\"" esc(tissue) "\"; CELL=\"" esc(cell) "\"; SEX=\"" esc(sex) "\"; RACE=\"" esc(race) "\"; CLINIC_NUMBER=\"" esc(cn) "\"; AGE=\"" esc(age) "\";"
+                found = 1
+                exit
+            }
+        }
+        END {
+            if (!found) {
+                print "[AWK DIAGNOSTIC] Checked " NR " rows. NO MATCH FOUND for key \"" key "\"" > "/dev/stderr"
+            }
+        }
+    ' "${RAW_METADATA}")
+
+    if [ -n "${READ_VARS}" ]; then
+        eval "${READ_VARS}"
+    else
+        echo "[DIAGNOSTIC] No row matching sample '${LOOKUP_KEY}' found in ${RAW_METADATA}"
+    fi
 else
     echo "[DIAGNOSTIC WARNING] Metadata file not found on worker node: '${RAW_METADATA}'"
 fi
 
-echo "[DIAGNOSTIC] METADATA -> SPECIMEN: ${SPECIMEN} | TISSUE: ${TISSUE} | CELL: ${CELL} | SEX: ${SEX} | RACE: ${RACE} | CLINIC_NUMBER: ${CLINIC_NUMBER} | AGE: ${AGE}"
+echo "[DIAGNOSTIC] FINAL ASSIGNED METADATA -> SPECIMEN: ${SPECIMEN} | TISSUE: ${TISSUE} | CELL: ${CELL} | SEX: ${SEX} | RACE: ${RACE} | CLINIC_NUMBER: ${CLINIC_NUMBER} | AGE: ${AGE}"
 
 # Locating human CRAM on mounted filesystem (/mnt/disks/lab)
 echo "[DIAGNOSTIC] Locating human CRAM file on mounted filesystem (${DATA_DIR})..."
