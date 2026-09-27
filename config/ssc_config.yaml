@@ -94,6 +94,9 @@ enable_sex: "off"                        # Switch: "on" or "off" to include 'sex
 enable_race: "off"                       # Switch: "on" or "off" to include 'race' column
 enable_clinic_number: "off"              # Switch: "on" or "off" to include 'clinic_number' column
 enable_age: "off"                        # Switch: "on" or "off" to include 'age' column
+enable_phenotype: "off"                  # Switch: "on" or "off" to include 'phenotype' column
+enable_contamination_status: "off"       # Switch: "on" or "off" to include 'contamination_status' column
+enable_collection_id: "off"              # Switch: "on" or "off" to include 'collection_id' column
 
 
 # ==============================================================================

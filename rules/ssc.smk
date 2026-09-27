@@ -555,6 +555,9 @@ rule generate_coverage_job_file:
             .replace("{enable_race}", str(config.get("enable_race", "off")).lower())
             .replace("{enable_clinic_number}", str(config.get("enable_clinic_number", "off")).lower())
             .replace("{enable_age}", str(config.get("enable_age", "off")).lower())
+            .replace("{enable_phenotype}", str(config.get("enable_phenotype", "off")).lower())
+            .replace("{enable_contamination_status}", str(config.get("enable_contamination_status", "off")).lower())
+            .replace("{enable_collection_id}", str(config.get("enable_collection_id", "off")).lower())
         )
         
         with open(output.job, "w") as f:
