@@ -153,15 +153,12 @@ def get_rank_taxid(taxid, target_rank, parent, rank):
     return ""
 
 
-def sanitize_name(val):
-    if not val:
-        return ""
-    return "_".join(val.strip().split())
+def taxid_or_missing(taxid, label):
+    return taxid if taxid else f"NO_{label}_RANK"
 
 
 def name_or_missing(taxid, label, names):
-    raw_name = names.get(taxid, f"NO_{label}_NAME") if taxid else f"NO_{label}_NAME"
-    return sanitize_name(raw_name)
+    return names.get(taxid, f"NO_{label}_NAME") if taxid else f"NO_{label}_NAME"
 
 
 def main():

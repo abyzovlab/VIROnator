@@ -128,6 +128,7 @@ ENABLE_AGE="{enable_age}"
 ENABLE_PHENOTYPE="{enable_phenotype}"
 ENABLE_CONTAMINATION_STATUS="{enable_contamination_status}"
 ENABLE_COLLECTION_ID="{enable_collection_id}"
+ENABLE_PRINCIPAL_INVESTIGATOR="{enable_principal_investigator}"
 
 SPECIMEN="Unknown"
 TISSUE="Unknown"
@@ -139,6 +140,7 @@ AGE="Unknown"
 PHENOTYPE="Unknown"
 CONTAMINATION_STATUS="Unknown"
 COLLECTION_ID="Unknown"
+PRINCIPAL_INVESTIGATOR="Unknown"
 
 if [ -f "${RAW_METADATA}" ]; then
     echo "[DIAGNOSTIC] Querying metadata from ${RAW_METADATA} (separator: ${META_SEP})..."
@@ -166,7 +168,8 @@ if [ -f "${RAW_METADATA}" ]; then
     READ_VARS=$(awk -F "${DELIM}" -v key="${LOOKUP_KEY}" -v raw_s="${SAMPLE}" -v s_col="${SAMPLE_COL}" \
         -v e_spec="${ENABLE_SPECIMEN}" -v e_tissue="${ENABLE_TISSUE}" -v e_cell="${ENABLE_CELL}" \
         -v e_sex="${ENABLE_SEX}" -v e_race="${ENABLE_RACE}" -v e_cn="${ENABLE_CLINIC_NUMBER}" -v e_age="${ENABLE_AGE}" \
-        -v e_pheno="${ENABLE_PHENOTYPE}" -v e_contam="${ENABLE_CONTAMINATION_STATUS}" -v e_coll="${ENABLE_COLLECTION_ID}" '
+        -v e_pheno="${ENABLE_PHENOTYPE}" -v e_contam="${ENABLE_CONTAMINATION_STATUS}" -v e_coll="${ENABLE_COLLECTION_ID}" \
+        -v e_pi="${ENABLE_PRINCIPAL_INVESTIGATOR}" '
         function clean(val) {
             gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", val)
             return val
@@ -189,9 +192,10 @@ if [ -f "${RAW_METADATA}" ]; then
                 if (h == "phenotype") pheno_idx = i
                 if (h == "contamination_status" || h == "contamination") contam_idx = i
                 if (h == "collection_id" || h == "collection") coll_idx = i
+                if (h == "principal_investigator" || h == "pi") pi_idx = i
             }
             if (!s_idx) s_idx = 1
-            print "[AWK DIAGNOSTIC] Header parsed. Indices -> sample(" s_col "):" s_idx ", specimen:" spec_idx ", tissue:" tissue_idx ", cell:" cell_idx ", sex:" sex_idx ", race:" race_idx ", clinic_number:" cn_idx ", age:" age_idx ", phenotype:" pheno_idx ", contamination_status:" contam_idx ", collection_id:" coll_idx > "/dev/stderr"
+            print "[AWK DIAGNOSTIC] Header parsed. Indices -> sample(" s_col "):" s_idx ", specimen:" spec_idx ", tissue:" tissue_idx ", cell:" cell_idx ", sex:" sex_idx ", race:" race_idx ", clinic_number:" cn_idx ", age:" age_idx ", phenotype:" pheno_idx ", contamination_status:" contam_idx ", collection_id:" coll_idx ", principal_investigator:" pi_idx > "/dev/stderr"
             next
         }
         {
@@ -210,11 +214,12 @@ if [ -f "${RAW_METADATA}" ]; then
                 pheno = (e_pheno == "on" && pheno_idx && clean($pheno_idx) != "") ? clean($pheno_idx) : "Unknown"
                 contam = (e_contam == "on" && contam_idx && clean($contam_idx) != "") ? clean($contam_idx) : "Unknown"
                 coll = (e_coll == "on" && coll_idx && clean($coll_idx) != "") ? clean($coll_idx) : "Unknown"
+                pi_val = (e_pi == "on" && pi_idx && clean($pi_idx) != "") ? clean($pi_idx) : "Unknown"
 
                 print "[AWK DIAGNOSTIC] MATCH FOUND on row " NR "! sample_val=\"" r_val "\"" > "/dev/stderr"
-                print "[AWK DIAGNOSTIC] EXTRACTED -> SPECIMEN: " spec " | TISSUE: " tissue " | CELL: " cell " | SEX: " sex " | RACE: " race " | CLINIC_NUMBER: " cn " | AGE: " age " | PHENOTYPE: " pheno " | CONTAMINATION_STATUS: " contam " | COLLECTION_ID: " coll > "/dev/stderr"
+                print "[AWK DIAGNOSTIC] EXTRACTED -> SPECIMEN: " spec " | TISSUE: " tissue " | CELL: " cell " | SEX: " sex " | RACE: " race " | CLINIC_NUMBER: " cn " | AGE: " age " | PHENOTYPE: " pheno " | CONTAMINATION_STATUS: " contam " | COLLECTION_ID: " coll " | PRINCIPAL_INVESTIGATOR: " pi_val > "/dev/stderr"
 
-                print "SPECIMEN=\"" esc(spec) "\"; TISSUE=\"" esc(tissue) "\"; CELL=\"" esc(cell) "\"; SEX=\"" esc(sex) "\"; RACE=\"" esc(race) "\"; CLINIC_NUMBER=\"" esc(cn) "\"; AGE=\"" esc(age) "\"; PHENOTYPE=\"" esc(pheno) "\"; CONTAMINATION_STATUS=\"" esc(contam) "\"; COLLECTION_ID=\"" esc(coll) "\";"
+                print "SPECIMEN=\"" esc(spec) "\"; TISSUE=\"" esc(tissue) "\"; CELL=\"" esc(cell) "\"; SEX=\"" esc(sex) "\"; RACE=\"" esc(race) "\"; CLINIC_NUMBER=\"" esc(cn) "\"; AGE=\"" esc(age) "\"; PHENOTYPE=\"" esc(pheno) "\"; CONTAMINATION_STATUS=\"" esc(contam) "\"; COLLECTION_ID=\"" esc(coll) "\"; PRINCIPAL_INVESTIGATOR=\"" esc(pi_val) "\";"
                 found = 1
                 exit
             }
@@ -235,7 +240,7 @@ else
     echo "[DIAGNOSTIC WARNING] Metadata file not found on worker node: '${RAW_METADATA}'"
 fi
 
-echo "[DIAGNOSTIC] FINAL ASSIGNED METADATA -> SPECIMEN: ${SPECIMEN} | TISSUE: ${TISSUE} | CELL: ${CELL} | SEX: ${SEX} | RACE: ${RACE} | CLINIC_NUMBER: ${CLINIC_NUMBER} | AGE: ${AGE} | PHENOTYPE: ${PHENOTYPE} | CONTAMINATION_STATUS: ${CONTAMINATION_STATUS} | COLLECTION_ID: ${COLLECTION_ID}"
+echo "[DIAGNOSTIC] FINAL ASSIGNED METADATA -> SPECIMEN: ${SPECIMEN} | TISSUE: ${TISSUE} | CELL: ${CELL} | SEX: ${SEX} | RACE: ${RACE} | CLINIC_NUMBER: ${CLINIC_NUMBER} | AGE: ${AGE} | PHENOTYPE: ${PHENOTYPE} | CONTAMINATION_STATUS: ${CONTAMINATION_STATUS} | COLLECTION_ID: ${COLLECTION_ID} | PRINCIPAL_INVESTIGATOR: ${PRINCIPAL_INVESTIGATOR}"
 
 # Locating human CRAM on mounted filesystem (/mnt/disks/lab)
 echo "[DIAGNOSTIC] Locating human CRAM file on mounted filesystem (${DATA_DIR})..."
@@ -365,6 +370,10 @@ fi
 if [ "${ENABLE_COLLECTION_ID}" = "on" ]; then
     HEADER_COLS+=("collection_id")
     ROW_COLS+=("${COLLECTION_ID}")
+fi
+if [ "${ENABLE_PRINCIPAL_INVESTIGATOR}" = "on" ]; then
+    HEADER_COLS+=("principal_investigator")
+    ROW_COLS+=("${PRINCIPAL_INVESTIGATOR}")
 fi
 
 HEADER_COLS+=("phase" "project" "cram_url")
