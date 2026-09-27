@@ -80,13 +80,14 @@ def download_ncbi_taxdump_if_needed(taxdump_dir):
         cmd_dl = f"curl -sSL -o \"{tar_path}\" https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz && tar -xzf \"{tar_path}\" -C \"{taxdump_dir}\" nodes.dmp names.dmp"
         subprocess.run(cmd_dl, shell=True, check=True)
 
-    if not os.path.exists(acc_path):
-        acc_gz_path = os.path.join(taxdump_dir, "nucl_gb.accession2taxid.gz")
+    acc_gz_path = os.path.join(taxdump_dir, "nucl_gb.accession2taxid.gz")
+    if not (os.path.exists(acc_path) or os.path.exists(acc_gz_path)):
         print(f"[INFO] Downloading NCBI nucl_gb.accession2taxid.gz to {taxdump_dir} ...", flush=True)
-        cmd_acc = f"curl -sSL -o \"{acc_gz_path}\" https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz && gunzip -f \"{acc_gz_path}\""
+        cmd_acc = f"curl -sSL -o \"{acc_gz_path}\" https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz"
         subprocess.run(cmd_acc, shell=True, check=True)
 
-    return nodes_path, names_path, acc_path
+    target_acc_file = acc_path if os.path.exists(acc_path) else acc_gz_path
+    return nodes_path, names_path, target_acc_file
 
 
 def extract_fasta_accessions(db_fasta_path):
@@ -190,7 +191,8 @@ def main():
     ]
 
     count = 0
-    with open(acc_file, "r", encoding="utf-8", errors="replace") as inp, \
+    open_acc = gzip.open if acc_file.endswith(".gz") else open
+    with open_acc(acc_file, "rt", encoding="utf-8", errors="replace") as inp, \
          open(args.output, "w", encoding="utf-8") as out:
         
         out.write("\t".join(header) + "\n")
