@@ -98,6 +98,8 @@ enable_phenotype: "off"                  # Switch: "on" or "off" to include 'phe
 enable_contamination_status: "off"       # Switch: "on" or "off" to include 'contamination_status' column
 enable_collection_id: "off"              # Switch: "on" or "off" to include 'collection_id' column
 enable_principal_investigator: "off"     # Switch: "on" or "off" to include 'principal_investigator' column
+enable_coverage_suppl: "off"             # Switch: "on" or "off" to include 'coverage_suppl' column
+enable_phenotype_suppl: "off"            # Switch: "on" or "off" to include 'phenotype_suppl' column
 
 
 # ==============================================================================

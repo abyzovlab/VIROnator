@@ -559,6 +559,8 @@ rule generate_coverage_job_file:
             .replace("{enable_contamination_status}", str(config.get("enable_contamination_status", "off")).lower())
             .replace("{enable_collection_id}", str(config.get("enable_collection_id", "off")).lower())
             .replace("{enable_principal_investigator}", str(config.get("enable_principal_investigator", "off")).lower())
+            .replace("{enable_coverage_suppl}", str(config.get("enable_coverage_suppl", "off")).lower())
+            .replace("{enable_phenotype_suppl}", str(config.get("enable_phenotype_suppl", "off")).lower())
         )
         
         with open(output.job, "w") as f:

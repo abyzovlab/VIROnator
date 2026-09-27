@@ -129,6 +129,8 @@ ENABLE_PHENOTYPE="{enable_phenotype}"
 ENABLE_CONTAMINATION_STATUS="{enable_contamination_status}"
 ENABLE_COLLECTION_ID="{enable_collection_id}"
 ENABLE_PRINCIPAL_INVESTIGATOR="{enable_principal_investigator}"
+ENABLE_COVERAGE_SUPPL="{enable_coverage_suppl}"
+ENABLE_PHENOTYPE_SUPPL="{enable_phenotype_suppl}"
 
 SPECIMEN="Unknown"
 TISSUE="Unknown"
@@ -141,6 +143,8 @@ PHENOTYPE="Unknown"
 CONTAMINATION_STATUS="Unknown"
 COLLECTION_ID="Unknown"
 PRINCIPAL_INVESTIGATOR="Unknown"
+COVERAGE_SUPPL="Unknown"
+PHENOTYPE_SUPPL="Unknown"
 
 if [ -f "${RAW_METADATA}" ]; then
     echo "[DIAGNOSTIC] Querying metadata from ${RAW_METADATA} (separator: ${META_SEP})..."
@@ -169,7 +173,7 @@ if [ -f "${RAW_METADATA}" ]; then
         -v e_spec="${ENABLE_SPECIMEN}" -v e_tissue="${ENABLE_TISSUE}" -v e_cell="${ENABLE_CELL}" \
         -v e_sex="${ENABLE_SEX}" -v e_race="${ENABLE_RACE}" -v e_cn="${ENABLE_CLINIC_NUMBER}" -v e_age="${ENABLE_AGE}" \
         -v e_pheno="${ENABLE_PHENOTYPE}" -v e_contam="${ENABLE_CONTAMINATION_STATUS}" -v e_coll="${ENABLE_COLLECTION_ID}" \
-        -v e_pi="${ENABLE_PRINCIPAL_INVESTIGATOR}" '
+        -v e_pi="${ENABLE_PRINCIPAL_INVESTIGATOR}" -v e_cov_suppl="${ENABLE_COVERAGE_SUPPL}" -v e_pheno_suppl="${ENABLE_PHENOTYPE_SUPPL}" '
         function clean(val) {
             gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", val)
             return val
@@ -193,9 +197,11 @@ if [ -f "${RAW_METADATA}" ]; then
                 if (h == "contamination_status" || h == "contamination") contam_idx = i
                 if (h == "collection_id" || h == "collection") coll_idx = i
                 if (h == "principal_investigator" || h == "pi") pi_idx = i
+                if (h == "coverage_suppl" || h == "coverage_supplementary" || h == "suppl_coverage") cov_suppl_idx = i
+                if (h == "phenotype_suppl" || h == "phenotype_supplementary" || h == "suppl_phenotype") pheno_suppl_idx = i
             }
             if (!s_idx) s_idx = 1
-            print "[AWK DIAGNOSTIC] Header parsed. Indices -> sample(" s_col "):" s_idx ", specimen:" spec_idx ", tissue:" tissue_idx ", cell:" cell_idx ", sex:" sex_idx ", race:" race_idx ", clinic_number:" cn_idx ", age:" age_idx ", phenotype:" pheno_idx ", contamination_status:" contam_idx ", collection_id:" coll_idx ", principal_investigator:" pi_idx > "/dev/stderr"
+            print "[AWK DIAGNOSTIC] Header parsed. Indices -> sample(" s_col "):" s_idx ", specimen:" spec_idx ", tissue:" tissue_idx ", cell:" cell_idx ", sex:" sex_idx ", race:" race_idx ", clinic_number:" cn_idx ", age:" age_idx ", phenotype:" pheno_idx ", contamination_status:" contam_idx ", collection_id:" coll_idx ", principal_investigator:" pi_idx ", coverage_suppl:" cov_suppl_idx ", phenotype_suppl:" pheno_suppl_idx > "/dev/stderr"
             next
         }
         {
@@ -215,11 +221,13 @@ if [ -f "${RAW_METADATA}" ]; then
                 contam = (e_contam == "on" && contam_idx && clean($contam_idx) != "") ? clean($contam_idx) : "Unknown"
                 coll = (e_coll == "on" && coll_idx && clean($coll_idx) != "") ? clean($coll_idx) : "Unknown"
                 pi_val = (e_pi == "on" && pi_idx && clean($pi_idx) != "") ? clean($pi_idx) : "Unknown"
+                cov_suppl = (e_cov_suppl == "on" && cov_suppl_idx && clean($cov_suppl_idx) != "") ? clean($cov_suppl_idx) : "Unknown"
+                pheno_suppl = (e_pheno_suppl == "on" && pheno_suppl_idx && clean($pheno_suppl_idx) != "") ? clean($pheno_suppl_idx) : "Unknown"
 
                 print "[AWK DIAGNOSTIC] MATCH FOUND on row " NR "! sample_val=\"" r_val "\"" > "/dev/stderr"
-                print "[AWK DIAGNOSTIC] EXTRACTED -> SPECIMEN: " spec " | TISSUE: " tissue " | CELL: " cell " | SEX: " sex " | RACE: " race " | CLINIC_NUMBER: " cn " | AGE: " age " | PHENOTYPE: " pheno " | CONTAMINATION_STATUS: " contam " | COLLECTION_ID: " coll " | PRINCIPAL_INVESTIGATOR: " pi_val > "/dev/stderr"
+                print "[AWK DIAGNOSTIC] EXTRACTED -> SPECIMEN: " spec " | TISSUE: " tissue " | CELL: " cell " | SEX: " sex " | RACE: " race " | CLINIC_NUMBER: " cn " | AGE: " age " | PHENOTYPE: " pheno " | CONTAMINATION_STATUS: " contam " | COLLECTION_ID: " coll " | PRINCIPAL_INVESTIGATOR: " pi_val " | COVERAGE_SUPPL: " cov_suppl " | PHENOTYPE_SUPPL: " pheno_suppl > "/dev/stderr"
 
-                print "SPECIMEN=\"" esc(spec) "\"; TISSUE=\"" esc(tissue) "\"; CELL=\"" esc(cell) "\"; SEX=\"" esc(sex) "\"; RACE=\"" esc(race) "\"; CLINIC_NUMBER=\"" esc(cn) "\"; AGE=\"" esc(age) "\"; PHENOTYPE=\"" esc(pheno) "\"; CONTAMINATION_STATUS=\"" esc(contam) "\"; COLLECTION_ID=\"" esc(coll) "\"; PRINCIPAL_INVESTIGATOR=\"" esc(pi_val) "\";"
+                print "SPECIMEN=\"" esc(spec) "\"; TISSUE=\"" esc(tissue) "\"; CELL=\"" esc(cell) "\"; SEX=\"" esc(sex) "\"; RACE=\"" esc(race) "\"; CLINIC_NUMBER=\"" esc(cn) "\"; AGE=\"" esc(age) "\"; PHENOTYPE=\"" esc(pheno) "\"; CONTAMINATION_STATUS=\"" esc(contam) "\"; COLLECTION_ID=\"" esc(coll) "\"; PRINCIPAL_INVESTIGATOR=\"" esc(pi_val) "\"; COVERAGE_SUPPL=\"" esc(cov_suppl) "\"; PHENOTYPE_SUPPL=\"" esc(pheno_suppl) "\";"
                 found = 1
                 exit
             }
@@ -240,7 +248,7 @@ else
     echo "[DIAGNOSTIC WARNING] Metadata file not found on worker node: '${RAW_METADATA}'"
 fi
 
-echo "[DIAGNOSTIC] FINAL ASSIGNED METADATA -> SPECIMEN: ${SPECIMEN} | TISSUE: ${TISSUE} | CELL: ${CELL} | SEX: ${SEX} | RACE: ${RACE} | CLINIC_NUMBER: ${CLINIC_NUMBER} | AGE: ${AGE} | PHENOTYPE: ${PHENOTYPE} | CONTAMINATION_STATUS: ${CONTAMINATION_STATUS} | COLLECTION_ID: ${COLLECTION_ID} | PRINCIPAL_INVESTIGATOR: ${PRINCIPAL_INVESTIGATOR}"
+echo "[DIAGNOSTIC] FINAL ASSIGNED METADATA -> SPECIMEN: ${SPECIMEN} | TISSUE: ${TISSUE} | CELL: ${CELL} | SEX: ${SEX} | RACE: ${RACE} | CLINIC_NUMBER: ${CLINIC_NUMBER} | AGE: ${AGE} | PHENOTYPE: ${PHENOTYPE} | CONTAMINATION_STATUS: ${CONTAMINATION_STATUS} | COLLECTION_ID: ${COLLECTION_ID} | PRINCIPAL_INVESTIGATOR: ${PRINCIPAL_INVESTIGATOR} | COVERAGE_SUPPL: ${COVERAGE_SUPPL} | PHENOTYPE_SUPPL: ${PHENOTYPE_SUPPL}"
 
 # Locating human CRAM on mounted filesystem (/mnt/disks/lab)
 echo "[DIAGNOSTIC] Locating human CRAM file on mounted filesystem (${DATA_DIR})..."
@@ -374,6 +382,14 @@ fi
 if [ "${ENABLE_PRINCIPAL_INVESTIGATOR}" = "on" ]; then
     HEADER_COLS+=("principal_investigator")
     ROW_COLS+=("${PRINCIPAL_INVESTIGATOR}")
+fi
+if [ "${ENABLE_COVERAGE_SUPPL}" = "on" ]; then
+    HEADER_COLS+=("coverage_suppl")
+    ROW_COLS+=("${COVERAGE_SUPPL}")
+fi
+if [ "${ENABLE_PHENOTYPE_SUPPL}" = "on" ]; then
+    HEADER_COLS+=("phenotype_suppl")
+    ROW_COLS+=("${PHENOTYPE_SUPPL}")
 fi
 
 HEADER_COLS+=("phase" "project" "cram_url")
