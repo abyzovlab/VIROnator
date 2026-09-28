@@ -196,7 +196,7 @@ if [ -f "${RAW_METADATA}" ]; then
                 if (h == "cell" || h == "cell_line") cell_idx = i
                 if (h == "sex") sex_idx = i
                 if (h == "race") race_idx = i
-                if (h == "clinic_number" || h == "clinic_no") cn_idx = i
+                if (h == "clinic_number" || h == "clinic_no" || h == "clinical_number") cn_idx = i
                 if (h == "age") age_idx = i
                 if (h == "phenotype") pheno_idx = i
                 if (h == "contamination_status" || h == "contamination") contam_idx = i
