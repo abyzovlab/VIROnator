@@ -100,6 +100,8 @@ enable_collection_id: "off"              # Switch: "on" or "off" to include 'col
 enable_principal_investigator: "off"     # Switch: "on" or "off" to include 'principal_investigator' column
 enable_coverage_suppl: "off"             # Switch: "on" or "off" to include 'coverage_suppl' column
 enable_phenotype_suppl: "off"            # Switch: "on" or "off" to include 'phenotype_suppl' column
+enable_case: "off"                       # Switch: "on" or "off" to include 'case' column
+enable_principal_investigator_suppl: "off"  # Switch: "on" or "off" to include 'principal_investigator_suppl' column
 
 
 # ==============================================================================

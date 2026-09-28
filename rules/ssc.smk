@@ -561,6 +561,8 @@ rule generate_coverage_job_file:
             .replace("{enable_principal_investigator}", str(config.get("enable_principal_investigator", "off")).lower())
             .replace("{enable_coverage_suppl}", str(config.get("enable_coverage_suppl", "off")).lower())
             .replace("{enable_phenotype_suppl}", str(config.get("enable_phenotype_suppl", "off")).lower())
+            .replace("{enable_case}", str(config.get("enable_case", "off")).lower())
+            .replace("{enable_principal_investigator_suppl}", str(config.get("enable_principal_investigator_suppl", "off")).lower())
         )
         
         with open(output.job, "w") as f:
