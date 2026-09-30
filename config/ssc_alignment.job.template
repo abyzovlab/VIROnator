@@ -166,6 +166,16 @@ else
     OUT_DIR="{output_dir}/{vironator_out_dirname}/${SAMPLE}"
 fi
 
+# Smart fallback lookup if exact INPUT_CRAM is missing
+if [ ! -f "${INPUT_CRAM}" ]; then
+    UNMAPPED_BASE="{output_dir}/{unmapped_out_dirname}"
+    FOUND_CRAM=$(find "${UNMAPPED_BASE}" -name "${SAMPLE}.unmapped.cram" 2>/dev/null | head -n 1)
+    if [ -n "${FOUND_CRAM}" ] && [ -f "${FOUND_CRAM}" ]; then
+        echo "[DIAGNOSTIC] Exact path not found (${INPUT_CRAM}), found via smart lookup: ${FOUND_CRAM}"
+        INPUT_CRAM="${FOUND_CRAM}"
+    fi
+fi
+
 # Configure REF_PATH so samtools can resolve CRAM references in ref_dir
 export REF_PATH="/mnt/disks/staff/refs/%s:/mnt/disks/staff/refs/%s.fa"
 

@@ -382,8 +382,8 @@ def main():
     human_genome_size = calculate_human_genome_size(args.human_ref_fai)
     print(f"Human Genome Size: {human_genome_size} bp")
     
-    read_depth, meta_dict = load_metadata(args.metadata, args.sample_id, args.phase, args.project)
-    print(f"Metadata Lookup Result -> Read Depth: {read_depth}, Metadata Attributes: {meta_dict}")
+    read_depth, genome_sz, meta_dict = load_metadata(args.metadata, args.sample_id, args.phase, args.project)
+    print(f"Metadata Lookup Result -> Read Depth: {read_depth}, Genome Size: {genome_sz}, Metadata Attributes: {meta_dict}")
 
     taxonomy_dict = load_taxonomy_index(args.taxonomy_index)
     print(f"Loaded {len(taxonomy_dict)} viral taxonomy index records from {args.taxonomy_index}.")
