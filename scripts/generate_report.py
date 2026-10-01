@@ -178,11 +178,9 @@ def load_metadata(filepath, sample_id, phase, project):
     project_key = project.strip().lower() if project.strip() else "base"
     clean_sample = sample_id.replace(".sorted", "").replace("Sample_", "").strip().lower()
     
-    target_phase = str(phase).strip().lower()
-    if not target_phase.startswith("phase") and target_phase.isdigit():
-        target_phase_alt = f"phase{target_phase}"
-    else:
-        target_phase_alt = target_phase.replace("phase", "")
+    target_phase_clean = str(phase).strip().lower()
+    if target_phase_clean.startswith("phase"):
+        target_phase_clean = target_phase_clean[5:]
 
     if not os.path.exists(filepath):
         return default_depth, default_genome_size, meta_dict
@@ -217,6 +215,8 @@ def load_metadata(filepath, sample_id, phase, project):
                 continue
 
             row_phase = str(row.get("phase", "")).strip().lower()
+            row_phase_clean = row_phase[5:] if row_phase.startswith("phase") else row_phase
+
             row_project = str(row.get("project", "")).strip().lower()
             if not row_project:
                 row_project = "base"
@@ -233,7 +233,7 @@ def load_metadata(filepath, sample_id, phase, project):
                     gsz_val = row[k]
                     break
 
-            phase_match = (row_phase == target_phase or row_phase == target_phase_alt or not row_phase or row_phase in ["phase", "none", "base", "0", "", "all"])
+            phase_match = (row_phase_clean == target_phase_clean or not row_phase or row_phase in ["phase", "none", "base", "0", "", "all"])
             project_match = (row_project == project_key or not row_project or row_project in ["phase", "none", "base", "0", "", "all"])
 
             # Exact sample match
