@@ -489,7 +489,7 @@ rule generate_refinement_job_file:
             .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{output_dir}", str(config["output_dir"]))
             .replace("{refinement_combined_ref_path}", os.path.join(config["ref_dir"], config.get("refinement_combined_ref_file", "combined_human_mouse_plasmids_refinement_viral_2026-08-29.fa")))
-            .replace("{taxonomy_index_path}", os.path.join(config["ref_dir"], config.get("taxonomy_index_file", "config/db_metadata/viral_reference_taxonomy_index.tsv")))
+            .replace("{taxonomy_index_path}", os.path.join(config["ref_dir"], config.get("taxonomy_index_file", f"{config.get('db_name', 'HumanViral_Reference_02-07-2022')}_taxonomy_index.tsv")))
             .replace("{python_bin}", str(config.get("python_bin", "python3")))
             .replace("{bowtie2_bin}", str(config.get("bowtie2_bin", "bowtie2")))
             .replace("{refinement_script_path}", os.path.join(config["scripts_dir"], config.get("refinement_script", "run_refinement_alignment.py")))

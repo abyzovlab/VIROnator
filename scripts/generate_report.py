@@ -208,7 +208,7 @@ def load_metadata(filepath, sample_id, phase, project):
             row = dict(zip(header, parts))
             
             row_sample = ""
-            for k in ["sample", "sample_id", "specimen_id", "id"]:
+            for k in ["sample", "sample_id", "id"]:
                 if k in row and row[k]:
                     row_sample = row[k].replace(".sorted", "").replace("Sample_", "").strip().lower()
                     break

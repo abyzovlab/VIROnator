@@ -290,7 +290,7 @@ refinement_alignment_stage: "off"        # Stage 4: Run Bowtie2 alignment, filte
 # Input Files & Output Locations:
 db_fasta_file: "HumanViral_Reference_02-07-2022.fa"   # Source viral database FASTA for taxonomy index
 master_report_file: "{dataset}_{genome_build}_master_report.tsv"
-taxonomy_index_file: "config/db_metadata/viral_reference_taxonomy_index.tsv"
+taxonomy_index_file: "{db_name}_taxonomy_index.tsv"        # 14-column taxonomy index TSV file in ref_dir
 refinement_samples_list: "config/refinement_samples.tsv" # Sample list TSV (sample, phase, project)
 
 # Reference & Output Storage Paths (under /mnt/disks/staff/refs/):
