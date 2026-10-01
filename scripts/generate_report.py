@@ -73,11 +73,21 @@ def load_taxonomy_index(tax_filepath):
                 continue
             if len(parts) >= 2:
                 acc = parts[0].strip()
+                acc_version = parts[1].strip() if len(parts) > 1 else acc
                 tax_values = parts[1:]
                 # Standardize to 13 fields
                 while len(tax_values) < 13:
                     tax_values.append("Unknown")
                 tax_dict[acc] = tax_values[:13]
+                if acc_version:
+                    tax_dict[acc_version] = tax_values[:13]
+                # Also strip any version suffix if present for fallback indexing (e.g. AB027020.1 -> AB027020)
+                if "." in acc:
+                    acc_base = acc.split(".")[0]
+                    tax_dict[acc_base] = tax_values[:13]
+                if "." in acc_version:
+                    acc_version_base = acc_version.split(".")[0]
+                    tax_dict[acc_version_base] = tax_values[:13]
     return tax_dict
 
 
