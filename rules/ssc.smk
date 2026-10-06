@@ -67,6 +67,9 @@ rule generate_job_file:
             .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{unmapped_out_dirname}", str(config["unmapped_out_dirname"]))
             .replace("{unmapped_jobexec_dirname}", str(config["unmapped_jobexec_dirname"]))
+            .replace("{machine_type}", str(config.get("machine_type", "n2-standard-16")))
+            .replace("{cpus}", str(config.get("cpus", 16)))
+            .replace("{memory}", str(config.get("memory", "64GB")))
         )
         
         with open(output.job, "w") as f:
@@ -232,6 +235,9 @@ rule generate_align_job_file:
             .replace("{vironator_out_dirname}", str(config["vironator_out_dirname"]))
             .replace("{unmapped_jobexec_dirname}", str(config["unmapped_jobexec_dirname"]))
             .replace("{vironator_jobexec_dirname}", str(config["vironator_jobexec_dirname"]))
+            .replace("{machine_type}", str(config.get("machine_type", "n2-standard-16")))
+            .replace("{cpus}", str(config.get("cpus", 16)))
+            .replace("{memory}", str(config.get("memory", "64GB")))
         )
         
         with open(output.job, "w") as f:
@@ -330,6 +336,9 @@ rule generate_reporting_job_file:
             .replace("{min_genome_length_for_binning}", str(config.get("min_genome_length_for_binning", 1000)))
             .replace("{coverage_breadth_bin_threshold}", str(config.get("coverage_breadth_bin_threshold", 0.10)))
             .replace("{coverage_flat_bin_threshold}", str(config.get("coverage_flat_bin_threshold", 10.0)))
+            .replace("{machine_type}", str(config.get("machine_type", "n2-standard-16")))
+            .replace("{cpus}", str(config.get("cpus", 16)))
+            .replace("{memory}", str(config.get("memory", "64GB")))
         )
         
         with open(output.job, "w") as f:
@@ -503,6 +512,9 @@ rule generate_refinement_job_file:
             .replace("{refinement_out_dirname}", str(config.get("refinement_out_dirname", "DATASET_refinement")))
             .replace("{vironator_jobexec_dirname}", str(config["vironator_jobexec_dirname"]))
             .replace("{refinement_jobexec_dirname}", str(config.get("refinement_jobexec_dirname", "jobexec_refinement")))
+            .replace("{machine_type}", str(config.get("machine_type", "n2-standard-16")))
+            .replace("{cpus}", str(config.get("cpus", 16)))
+            .replace("{memory}", str(config.get("memory", "64GB")))
         )
         
         with open(output.job, "w") as f:
@@ -567,6 +579,9 @@ rule generate_coverage_job_file:
             .replace("{enable_phenotype_suppl}", str(config.get("enable_phenotype_suppl", "off")).lower())
             .replace("{enable_case}", str(config.get("enable_case", "off")).lower())
             .replace("{enable_principal_investigator_suppl}", str(config.get("enable_principal_investigator_suppl", "off")).lower())
+            .replace("{machine_type}", str(config.get("machine_type", "n2-standard-16")))
+            .replace("{cpus}", str(config.get("cpus", 16)))
+            .replace("{memory}", str(config.get("memory", "64GB")))
         )
         
         with open(output.job, "w") as f:

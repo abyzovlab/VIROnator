@@ -42,6 +42,8 @@ pi: "MDJ"
 pau: 0
 task_name: "mdj_test"
 machine_type: "n2-standard-16"  # GCP Instance type (e.g. n2-standard-8, n2-standard-16, n2-standard-32)
+cpus: 16                        # Number of vCPUs per worker node
+memory: "64GB"                  # Memory (RAM) per worker node (e.g. 32GB, 64GB, 128GB)
 
 # GCS output folder names (located inside output_dir)
 unmapped_out_dirname: "{dataset}_{genome_build}_unmapped"
