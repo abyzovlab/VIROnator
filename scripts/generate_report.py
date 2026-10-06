@@ -46,6 +46,11 @@ def parse_args():
     parser.add_argument("--viral-bed", required=True, help="Path to viral BED file")
     parser.add_argument("--taxonomy-index", default="", help="Path to viral taxonomy index TSV file")
     parser.add_argument("--metadata", required=True, help="Path to SSC_sample_metadata.tsv")
+    parser.add_argument("--enable-spatial-metrics", default="on", help="Switch: 'on' or 'off'")
+    parser.add_argument("--coverage-nbins", type=int, default=10, help="Number of spatial percentile bins per virus")
+    parser.add_argument("--min-genome-length-for-binning", type=int, default=1000, help="Minimum viral length in bp required to split into bins")
+    parser.add_argument("--coverage-breadth-bin-threshold", type=float, default=0.10, help="Mean depth threshold for viral_breadth_bin_frac")
+    parser.add_argument("--coverage-flat-bin-threshold", type=float, default=10.0, help="Percentage threshold of bases covered per bin for viral_flat_bin_frac")
     return parser.parse_args()
 
 
@@ -366,6 +371,143 @@ def calculate_physical_coverage(cram_path, combined_ref, virus, virus_size):
     return f"{pct:05.2f}"
 
 
+def compute_spatial_coverage_and_bins(cram_path, combined_ref, virus, virus_size, nbins=10, min_genome_len=1000, breadth_threshold=0.10, flat_threshold=10.0):
+    """
+    Computes spatial coverage statistics and detailed per-bin metrics for a virus.
+    Returns:
+      metrics_dict: {
+        'h': float or 'NA',
+        'j': float or 'NA',
+        'breadth_thresh': float,
+        'breadth_frac': float or 'NA',
+        'flat_thresh': float,
+        'flat_frac': float or 'NA'
+      },
+      breadth_rows: list of tuples for companion breadth file,
+      flat_rows: list of tuples for companion flat file
+    """
+    if virus_size < min_genome_len or nbins <= 0:
+        metrics_dict = {
+            "h": "NA",
+            "j": "NA",
+            "breadth_thresh": f"{breadth_threshold:.2f}",
+            "breadth_frac": "NA",
+            "flat_thresh": f"{flat_threshold:.1f}",
+            "flat_frac": "NA"
+        }
+        b_row = (1, 1, virus_size, virus_size, 100.0, 0, 0.0, False)
+        f_row = (1, 1, virus_size, virus_size, 100.0, 0, 0.0, False)
+        return metrics_dict, [b_row], [f_row]
+
+    # Calculate 10 percentile bin boundaries
+    bin_bounds = []
+    for i in range(nbins):
+        s = int(round((i * virus_size) / float(nbins))) + 1
+        e = int(round(((i + 1) * virus_size) / float(nbins)))
+        if e < s:
+            e = s
+        bin_bounds.append((s, e))
+
+    # Fetch per-base depth for virus using samtools depth
+    depth_map = {}
+    cmd_depth = f"samtools depth -r '{virus}' '{cram_path}' 2>/dev/null"
+    try:
+        res_depth = subprocess.check_output(cmd_depth, shell=True, text=True)
+        for line in res_depth.strip().split("\n"):
+            if not line:
+                continue
+            parts = line.split("\t")
+            if len(parts) >= 3:
+                pos = int(parts[1])
+                dep = float(parts[2])
+                depth_map[pos] = dep
+    except Exception:
+        pass
+
+    # Count reads per bin based on alignment start position (1 read pair = 1 count)
+    read_counts = [0] * nbins
+    cmd_reads = f"samtools view -F 4 '{cram_path}' 2>/dev/null | awk -v v='{virus}' '$3==v {{print $4}}'"
+    try:
+        res_reads = subprocess.check_output(cmd_reads, shell=True, text=True)
+        for line in res_reads.strip().split("\n"):
+            if line and line.isdigit():
+                pos = int(line)
+                for b_idx, (s, e) in enumerate(bin_bounds):
+                    if s <= pos <= e:
+                        read_counts[b_idx] += 1
+                        break
+    except Exception:
+        pass
+
+    bin_mean_depths = []
+    bin_bases_covered = []
+    bin_flat_cov_pcts = []
+    breadth_passing_count = 0
+    flat_passing_count = 0
+
+    breadth_rows = []
+    flat_rows = []
+
+    total_mean_depth_sum = 0.0
+
+    for b_idx, (s, e) in enumerate(bin_bounds):
+        b_len = e - s + 1
+        pct_genome = (b_len / float(virus_size)) * 100.0
+        
+        sum_depth = sum(depth_map.get(pos, 0.0) for pos in range(s, e + 1))
+        b_depth = sum_depth / float(b_len)
+        bin_mean_depths.append(b_depth)
+        total_mean_depth_sum += b_depth
+
+        cov_count = sum(1 for pos in range(s, e + 1) if depth_map.get(pos, 0.0) > 0)
+        bin_bases_covered.append(cov_count)
+
+        b_flat_pct = (cov_count / float(b_len)) * 100.0
+        bin_flat_cov_pcts.append(b_flat_pct)
+
+        passes_breadth = b_depth >= breadth_threshold
+        if passes_breadth:
+            breadth_passing_count += 1
+
+        passes_flat = b_flat_pct >= flat_threshold
+        if passes_flat:
+            flat_passing_count += 1
+
+        r_cnt = read_counts[b_idx]
+
+        breadth_rows.append((b_idx + 1, s, e, b_len, pct_genome, r_cnt, b_depth, passes_breadth))
+        flat_rows.append((b_idx + 1, s, e, b_len, pct_genome, cov_count, b_flat_pct, passes_flat))
+
+    # Compute Shannon Diversity (H) and Pielou's Evenness (J)
+    import math
+    if total_mean_depth_sum > 0:
+        h_val = 0.0
+        for b_depth in bin_mean_depths:
+            if b_depth > 0:
+                p = b_depth / total_mean_depth_sum
+                h_val += -p * math.log(p)
+        j_val = h_val / math.log(nbins) if nbins > 1 else 0.0
+        h_str = f"{h_val:.6f}"
+        j_str = f"{j_val:.6f}"
+    else:
+        h_str = "0.000000"
+        j_str = "0.000000"
+
+    breadth_frac_str = f"{(breadth_passing_count / float(nbins)):.6f}"
+    flat_frac_str = f"{(flat_passing_count / float(nbins)):.6f}"
+
+    metrics_dict = {
+        "h": h_str,
+        "j": j_str,
+        "breadth_thresh": f"{breadth_threshold:.2f}",
+        "breadth_frac": breadth_frac_str,
+        "flat_thresh": f"{flat_threshold:.1f}",
+        "flat_frac": flat_frac_str
+    }
+
+    return metrics_dict, breadth_rows, flat_rows
+
+
 def main():
     args = parse_args()
     
@@ -411,7 +553,7 @@ def main():
 
     os.makedirs(os.path.dirname(args.out_file), exist_ok=True)
 
-    # All-lowercase base columns before taxonomy and source metadata
+    # Base columns before taxonomy and source metadata
     prefix_header = [
         "sample_id",
         "virus_accession",
@@ -419,6 +561,20 @@ def main():
         "virus_mapped_reads",
         "normalized_coverage",
         "physical_coverage",
+    ]
+
+    spatial_header = []
+    if args.enable_spatial_metrics == "on":
+        spatial_header = [
+            "viral_shannon_entropy_h",
+            "viral_shannon_evenness_j",
+            "viral_breadth_bin_threshold",
+            "viral_breadth_bin_frac",
+            "viral_flat_bin_threshold",
+            "viral_flat_bin_frac",
+        ]
+
+    mid_header = [
         "human_genome_size",
         "sample_read_depth",
         "viral_copy_number",
@@ -449,9 +605,17 @@ def main():
 
     # Dynamic metadata columns (all-lowercase for report)
     meta_headers = [k.lower().strip() for k in meta_dict.keys()]
-    header = prefix_header + taxonomy_header + suffix_header + meta_headers
+    header = prefix_header + spatial_header + mid_header + taxonomy_header + suffix_header + meta_headers
 
     default_tax = ["Unknown"] * 13
+
+    # Paths for companion files
+    report_base = args.out_file[:-4] if args.out_file.endswith(".tsv") else args.out_file
+    breadth_companion_file = f"{report_base}_viral_breadth_bins.tsv"
+    flat_companion_file = f"{report_base}_viral_flat_bins.tsv"
+
+    all_breadth_bin_records = []
+    all_flat_bin_records = []
 
     rows = []
     print("\n--- Evaluating CRAM Files ---")
@@ -475,6 +639,18 @@ def main():
                 "0",
                 "0.000000",
                 "00.00",
+            ]
+            spatial_row = []
+            if args.enable_spatial_metrics == "on":
+                spatial_row = [
+                    "0.000000",
+                    "0.000000",
+                    f"{args.coverage_breadth_bin_threshold:.2f}",
+                    "0.000000",
+                    f"{args.coverage_flat_bin_threshold:.1f}",
+                    "0.000000",
+                ]
+            mid_row = [
                 str(human_genome_size),
                 f"{read_depth:.2f}",
                 "0.000000",
@@ -487,7 +663,7 @@ def main():
                 project_label,
             ]
             meta_row = [str(meta_dict.get(k, "Unknown")) for k in meta_dict.keys()]
-            rows.append(prefix_row + tax_row + suffix_row + meta_row)
+            rows.append(prefix_row + spatial_row + mid_row + tax_row + suffix_row + meta_row)
         else:
             print(f"  -> POSITIVE FINDINGS: {len(positive_hits)} viral contigs with mapped read pairs in {fname}")
             for virus_accession, read_count in positive_hits.items():
@@ -499,6 +675,32 @@ def main():
                 copy_number = norm_cov * (1.0 / denom)
                 virus_name = viral_names.get(virus_accession, virus_accession)
                 tax_row = taxonomy_dict.get(virus_accession, default_tax)
+
+                spatial_row = []
+                if args.enable_spatial_metrics == "on":
+                    s_metrics, b_rows, f_rows = compute_spatial_coverage_and_bins(
+                        fpath,
+                        args.combined_ref,
+                        virus_accession,
+                        virus_length,
+                        nbins=args.coverage_nbins,
+                        min_genome_len=args.min_genome_length_for_binning,
+                        breadth_threshold=args.coverage_breadth_bin_threshold,
+                        flat_threshold=args.coverage_flat_bin_threshold
+                    )
+                    spatial_row = [
+                        s_metrics["h"],
+                        s_metrics["j"],
+                        s_metrics["breadth_thresh"],
+                        s_metrics["breadth_frac"],
+                        s_metrics["flat_thresh"],
+                        s_metrics["flat_frac"],
+                    ]
+                    for b in b_rows:
+                        all_breadth_bin_records.append((args.sample_id, virus_accession, fname) + b)
+                    for f_item in f_rows:
+                        all_flat_bin_records.append((args.sample_id, virus_accession, fname) + f_item)
+
                 print(f"     + {virus_accession} ({virus_name}): {read_count} read pairs | PhysCov: {phys_cov}%")
 
                 prefix_row = [
@@ -508,6 +710,8 @@ def main():
                     str(read_count),
                     f"{norm_cov:.6f}",
                     str(phys_cov),
+                ]
+                mid_row = [
                     str(human_genome_size),
                     f"{read_depth:.2f}",
                     f"{copy_number:.6f}",
@@ -519,7 +723,7 @@ def main():
                     project_label,
                 ]
                 meta_row = [str(meta_dict.get(k, "Unknown")) for k in meta_dict.keys()]
-                rows.append(prefix_row + tax_row + suffix_row + meta_row)
+                rows.append(prefix_row + spatial_row + mid_row + tax_row + suffix_row + meta_row)
 
     if os.path.exists(args.out_file):
         try:
@@ -532,6 +736,24 @@ def main():
         out.write("\t".join(header) + "\n")
         for r in rows:
             out.write("\t".join(r) + "\n")
+
+    # Export companion breadth bin profiles
+    if args.enable_spatial_metrics == "on" and all_breadth_bin_records:
+        breadth_hdr = ["sample", "virus", "source_file", "bin_index", "start_coord", "end_coord", "bin_size_bp", "genome_pct", "read_counts", "bin_mean_depth", "passes_breadth_threshold"]
+        with open(breadth_companion_file, "w") as out_b:
+            out_b.write("\t".join(breadth_hdr) + "\n")
+            for rec in all_breadth_bin_records:
+                out_b.write("\t".join(str(x) for x in rec) + "\n")
+        print(f"Companion breadth bin profiles generated: {breadth_companion_file} ({len(all_breadth_bin_records)} bin rows)")
+
+    # Export companion flat bin profiles
+    if args.enable_spatial_metrics == "on" and all_flat_bin_records:
+        flat_hdr = ["sample", "virus", "source_file", "bin_index", "start_coord", "end_coord", "bin_size_bp", "genome_pct", "bin_bases_covered", "bin_flat_cov_pct", "passes_flat_threshold"]
+        with open(flat_companion_file, "w") as out_f:
+            out_f.write("\t".join(flat_hdr) + "\n")
+            for rec in all_flat_bin_records:
+                out_f.write("\t".join(str(x) for x in rec) + "\n")
+        print(f"Companion flat bin profiles generated: {flat_companion_file} ({len(all_flat_bin_records)} bin rows)")
 
     print(f"\nReport generated successfully: {args.out_file} ({len(rows)} entries)")
 

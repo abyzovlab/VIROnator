@@ -3,6 +3,7 @@
 
 job_name={dataset}_REPORTING
 job_identifier={dataset}_[SAMPLE]
+machine_type={machine_type}
 
 
 ####
@@ -123,6 +124,12 @@ if [ ! -d "${VIRONATOR_DIR}" ]; then
     echo "[WARNING] VIRONATOR INPUT DIR does not exist: ${VIRONATOR_DIR}"
 fi
 
+ENABLE_SPATIAL_METRICS="{enable_spatial_coverage_metrics}"
+COVERAGE_NBINS="{coverage_nbins}"
+MIN_GENOME_LENGTH_FOR_BINNING="{min_genome_length_for_binning}"
+COVERAGE_BREADTH_BIN_THRESHOLD="{coverage_breadth_bin_threshold}"
+COVERAGE_FLAT_BIN_THRESHOLD="{coverage_flat_bin_threshold}"
+
 # Run consolidated Python reporting script (unbuffered live diagnostic logging)
 PYTHONUNBUFFERED=1 "${PYTHON_BIN}" "${REPORT_SCRIPT}" \
     --sample-id "${SAMPLE}" \
@@ -135,7 +142,12 @@ PYTHONUNBUFFERED=1 "${PYTHON_BIN}" "${REPORT_SCRIPT}" \
     --rename-map "${VIRAL_RENAME_MAP}" \
     --viral-bed "${VIRAL_BED}" \
     --taxonomy-index "${TAXONOMY_INDEX}" \
-    --metadata "${SAMPLE_METADATA}" 2>&1
+    --metadata "${SAMPLE_METADATA}" \
+    --enable-spatial-metrics "${ENABLE_SPATIAL_METRICS}" \
+    --coverage-nbins "${COVERAGE_NBINS}" \
+    --min-genome-length-for-binning "${MIN_GENOME_LENGTH_FOR_BINNING}" \
+    --coverage-breadth-bin-threshold "${COVERAGE_BREADTH_BIN_THRESHOLD}" \
+    --coverage-flat-bin-threshold "${COVERAGE_FLAT_BIN_THRESHOLD}" 2>&1
 
 echo "Reporting Completed Successfully for ${SAMPLE}"
 echo "End: $(date)"

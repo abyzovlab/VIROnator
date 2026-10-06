@@ -325,6 +325,11 @@ rule generate_reporting_job_file:
             .replace("{reports_out_dirname}", str(config["reports_out_dirname"]))
             .replace("{vironator_jobexec_dirname}", str(config["vironator_jobexec_dirname"]))
             .replace("{reporting_jobexec_dirname}", str(config.get("reporting_jobexec_dirname", "jobexec_reporting")))
+            .replace("{enable_spatial_coverage_metrics}", str(config.get("enable_spatial_coverage_metrics", "on")))
+            .replace("{coverage_nbins}", str(config.get("coverage_nbins", 10)))
+            .replace("{min_genome_length_for_binning}", str(config.get("min_genome_length_for_binning", 1000)))
+            .replace("{coverage_breadth_bin_threshold}", str(config.get("coverage_breadth_bin_threshold", 0.10)))
+            .replace("{coverage_flat_bin_threshold}", str(config.get("coverage_flat_bin_threshold", 10.0)))
         )
         
         with open(output.job, "w") as f:

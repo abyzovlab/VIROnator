@@ -3,6 +3,7 @@
 
 job_name={dataset}_ALIGN
 job_identifier={dataset}_[SAMPLE]
+machine_type={machine_type}
 
 
 ####

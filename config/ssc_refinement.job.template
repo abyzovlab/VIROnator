@@ -4,6 +4,7 @@
 
 job_name={dataset}_REFINEMENT
 job_identifier={dataset}_[SAMPLE]
+machine_type={machine_type}
 
 
 ####
