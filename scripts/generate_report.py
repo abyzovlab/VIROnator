@@ -598,9 +598,9 @@ def main():
     ]
 
     suffix_header = [
-        "source_file",
         "phase",
         "project",
+        "source_file",
     ]
 
     # Dynamic metadata columns (all-lowercase for report)
@@ -658,9 +658,9 @@ def main():
             ]
             tax_row = default_tax
             suffix_row = [
-                fname,
                 phase_label,
                 project_label,
+                fpath,
             ]
             meta_row = [str(meta_dict.get(k, "Unknown")) for k in meta_dict.keys()]
             rows.append(prefix_row + spatial_row + mid_row + tax_row + suffix_row + meta_row)
@@ -697,9 +697,9 @@ def main():
                         s_metrics["flat_frac"],
                     ]
                     for b in b_rows:
-                        all_breadth_bin_records.append((args.sample_id, virus_accession, fname) + b)
+                        all_breadth_bin_records.append((args.sample_id, virus_accession) + b + (phase_label, project_label, fpath))
                     for f_item in f_rows:
-                        all_flat_bin_records.append((args.sample_id, virus_accession, fname) + f_item)
+                        all_flat_bin_records.append((args.sample_id, virus_accession) + f_item + (phase_label, project_label, fpath))
 
                 print(f"     + {virus_accession} ({virus_name}): {read_count} read pairs | PhysCov: {phys_cov}%")
 
@@ -718,9 +718,9 @@ def main():
                     str(virus_name),
                 ]
                 suffix_row = [
-                    fname,
                     phase_label,
                     project_label,
+                    fpath,
                 ]
                 meta_row = [str(meta_dict.get(k, "Unknown")) for k in meta_dict.keys()]
                 rows.append(prefix_row + spatial_row + mid_row + tax_row + suffix_row + meta_row)
@@ -739,7 +739,7 @@ def main():
 
     # Export companion breadth bin profiles
     if args.enable_spatial_metrics == "on" and all_breadth_bin_records:
-        breadth_hdr = ["sample", "virus", "source_file", "bin_index", "start_coord", "end_coord", "bin_size_bp", "genome_pct", "read_counts", "bin_mean_depth", "passes_breadth_threshold"]
+        breadth_hdr = ["sample", "virus", "bin_index", "start_coord", "end_coord", "bin_size_bp", "genome_pct", "read_counts", "bin_mean_depth", "passes_breadth_threshold", "phase", "project", "source_file"]
         with open(breadth_companion_file, "w") as out_b:
             out_b.write("\t".join(breadth_hdr) + "\n")
             for rec in all_breadth_bin_records:
@@ -748,7 +748,7 @@ def main():
 
     # Export companion flat bin profiles
     if args.enable_spatial_metrics == "on" and all_flat_bin_records:
-        flat_hdr = ["sample", "virus", "source_file", "bin_index", "start_coord", "end_coord", "bin_size_bp", "genome_pct", "bin_bases_covered", "bin_flat_cov_pct", "passes_flat_threshold"]
+        flat_hdr = ["sample", "virus", "bin_index", "start_coord", "end_coord", "bin_size_bp", "genome_pct", "bin_bases_covered", "bin_flat_cov_pct", "passes_flat_threshold", "phase", "project", "source_file"]
         with open(flat_companion_file, "w") as out_f:
             out_f.write("\t".join(flat_hdr) + "\n")
             for rec in all_flat_bin_records:

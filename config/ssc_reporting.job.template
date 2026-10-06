@@ -4,8 +4,6 @@
 job_name={dataset}_REPORTING
 job_identifier={dataset}_[SAMPLE]
 machine_type={machine_type}
-cpus={cpus}
-memory={memory}
 
 
 ####
