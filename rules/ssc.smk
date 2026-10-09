@@ -227,6 +227,7 @@ rule generate_align_job_file:
             .replace("{mouse_contigs_path}", os.path.join(config["ref_dir"], config.get("mouse_contigs_file", "mm39_modified.renamed.contigs.txt")))
             .replace("{contamination_quantification}", str(config.get("contamination_quantification", "off")))
             .replace("{bwa_bin}", str(config["bwa_bin"]))
+            .replace("{bwa_threads}", str(config.get("bwa_threads", 20)))
             .replace("{python_bin}", str(config.get("python_bin", "python3")))
             .replace("{exogene_python_dir}", str(config["scripts_dir"]))
             .replace("{init_ref_script_path}", os.path.join(config["scripts_dir"], config["init_ref_script"]))
@@ -600,9 +601,10 @@ rule generate_stats:
         gb = config.get("genome_build", "hg38")
         out_dir = "."
         
-        phase = str(config.get("phase", ""))
-        project = str(config.get("project", ""))
-        strategies = " ".join(config.get("target_strategies", ["exogeneSR_viral_clean_filtered.sorted.flags.cram"]))
+        phase = str(config.get("stats_target_phase", config.get("phase", "")))
+        project = str(config.get("stats_target_project", config.get("project", "")))
+        target_strat = str(config.get("stats_target_strategy", "exogeneSR_viral_clean_filtered.sorted.flags.cram"))
+        strategies = target_strat
         cohort_scope = str(config.get("cohort_scope", "combined_all"))
         reads_pa = str(config.get("reads_panel_a_loglog", "on"))
         reads_pb = str(config.get("reads_panel_b_log_y", "on"))
@@ -614,11 +616,11 @@ rule generate_stats:
         mean_cutoff = float(config.get("prelim_mean_read_cutoff", 6.0))
         rc_switch = str(config.get("heatmap_read_counts", "off")).lower()
         cn_switch = str(config.get("heatmap_copy_number", "off")).lower()
-        hm_strategy = str(config.get("target_heatmap_strategy", "clean_flags"))
         hm_min_reads = int(config.get("heatmap_min_reads_cutoff", 3))
+        hm_stratify = str(config.get("heatmap_stratify_by", ""))
         group_lvl = str(config.get("stats_taxonomic_group_level", "species")).lower()
         
-        cmd = f"python3 {input.script} --input-report \"{input.master_report}\" --out-dir \"{out_dir}\" --dataset \"{ds}\" --genome-build \"{gb}\" --target-phase \"{phase}\" --target-project \"{project}\" --strategies {strategies} --cohort-scope \"{cohort_scope}\" --reads-panel-a-loglog \"{reads_pa}\" --reads-panel-b-log-y \"{reads_pb}\" --copy-number-panel-a-loglog \"{cn_pa}\" --copy-number-panel-b-log-y \"{cn_pb}\" --log-scale-read-cutoff {cutoff} --log-scale-copy-number-cutoff {cn_cutoff} --prelim-prevalence-cutoff-pct {prev_cutoff} --prelim-mean-read-cutoff {mean_cutoff} --heatmap-read-counts \"{rc_switch}\" --heatmap-copy-number \"{cn_switch}\" --target-heatmap-strategy \"{hm_strategy}\" --heatmap-min-reads-cutoff {hm_min_reads} --group-level \"{group_lvl}\""
+        cmd = f"python3 {input.script} --input-report \"{input.master_report}\" --out-dir \"{out_dir}\" --dataset \"{ds}\" --genome-build \"{gb}\" --target-phase \"{phase}\" --target-project \"{project}\" --strategies {strategies} --cohort-scope \"{cohort_scope}\" --reads-panel-a-loglog \"{reads_pa}\" --reads-panel-b-log-y \"{reads_pb}\" --copy-number-panel-a-loglog \"{cn_pa}\" --copy-number-panel-b-log-y \"{cn_pb}\" --log-scale-read-cutoff {cutoff} --log-scale-copy-number-cutoff {cn_cutoff} --prelim-prevalence-cutoff-pct {prev_cutoff} --prelim-mean-read-cutoff {mean_cutoff} --heatmap-read-counts \"{rc_switch}\" --heatmap-copy-number \"{cn_switch}\" --heatmap-min-reads-cutoff {hm_min_reads} --heatmap-stratify-by \"{hm_stratify}\" --group-level \"{group_lvl}\""
         subprocess.run(cmd, shell=True, check=True)
 
         # Copy local outputs to GCS bucket if output_bucket is configured

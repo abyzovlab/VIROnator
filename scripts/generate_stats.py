@@ -43,10 +43,10 @@ def parse_args():
                         help="Generate read counts heatmap in stats directory")
     parser.add_argument("--heatmap-copy-number", default="off", choices=["on", "off"],
                         help="Generate copy number heatmap in stats directory")
-    parser.add_argument("--target-heatmap-strategy", default="clean_flags",
-                        help="Strategy filter for heatmap generation")
     parser.add_argument("--heatmap-min-reads-cutoff", type=int, default=3,
                         help="Minimum mapped reads threshold for heatmap inclusion (default: 3)")
+    parser.add_argument("--heatmap-stratify-by", default="",
+                        help="Demographics column to split heatmaps by (e.g., sex, phenotype)")
     parser.add_argument("--group-level", default="species", choices=["none", "species", "genus", "family", "realm"],
                         help="Taxonomic grouping level for aggregated summary TSV and bar plots (default: species)")
     return parser.parse_args()
@@ -297,31 +297,13 @@ def generate_stats(args):
 
         strat_tag = get_short_strategy(group_v_keys[0][2]) if group_v_keys else "clean_flags"
 
-        if is_phase_empty and is_proj_empty:
-            p_file_tag = ""
-            prj_file_tag = ""
-            cur_phase_tag = "all"
-            cur_proj_tag = "all"
-            fn_prefix = f"{dataset}_{genome_build}_{strat_tag}"
-        else:
-            if is_phase_empty:
-                p_file_tag = "all" if str(cur_phase).lower() == "all_cohorts" else "phase"
-                cur_phase_tag = "all"
-            elif str(cur_phase).startswith("phase"):
-                p_file_tag = str(cur_phase)
-                cur_phase_tag = str(cur_phase)
-            else:
-                p_file_tag = f"phase{cur_phase}"
-                cur_phase_tag = f"phase{cur_phase}"
+        p_clean = str(cur_phase)[5:] if str(cur_phase).lower().startswith("phase") else str(cur_phase)
+        p_tag = "ALL" if is_phase_empty or not p_clean else p_clean
+        prj_tag = "ALL" if is_proj_empty else str(cur_proj)
+        cur_phase_tag = p_tag
+        cur_proj_tag = prj_tag
 
-            if is_proj_empty:
-                prj_file_tag = "combined" if str(cur_proj).lower() == "combined" else "base"
-                cur_proj_tag = "base"
-            else:
-                prj_file_tag = str(cur_proj)
-                cur_proj_tag = str(cur_proj)
-
-            fn_prefix = f"{dataset}_{genome_build}_{p_file_tag}_{prj_file_tag}_{strat_tag}"
+        fn_prefix = f"{dataset}_{genome_build}_{p_tag}_{prj_tag}_{strat_tag}"
 
         # ----------------------------------------------------------------------
         # 1. Generate VIRUSES TSV & VIRUSES_classes.tsv
@@ -739,12 +721,303 @@ def generate_stats(args):
             print(f"[SUCCESS] Generated overall copy number TIFF plot: {cn_overall_path}")
 
     # --------------------------------------------------------------------------
+    # 5. Taxonomy & Demographics Plots Integration (from OLD/taxonomy_demographics_plots.py)
+    # --------------------------------------------------------------------------
+    import matplotlib.patches as mpatches
+    import matplotlib.ticker as mtick
+
+    PARENT_GROUP = {
+        "Accession": "species_name",
+        "Species":   "genus_name",
+        "Genus":     "family_name",
+        "Family":    "order_name",
+        "Order":     "realm_name",
+        "Realm":     "realm_name",
+    }
+
+    PALETTE = [
+        "#0072B2", "#E69F00", "#009E73", "#D55E00", "#7570B3", "#56B4E9", "#E7298A", "#66A61E",
+        "#1B9E77", "#CC79A7", "#A6761D", "#4B0082", "#FC8D62", "#8DA0CB", "#666666", "#E78AC3",
+        "#A6D854", "#984EA3", "#377EB8", "#FFD92F", "#E5C494", "#B3DE69", "#BC80BD", "#FB8072",
+        "#80B1D3", "#B3B3B3"
+    ]
+
+    # Run taxonomy level and demographics plots for filtered df
+    df_plot_filt = df[df["virus_accession"].notna() & (df["virus_accession"] != "None") & (df["virus_accession"] != "")].copy()
+    
+    # Rescue unclassified taxonomy names
+    mask_pap = df_plot_filt["virus_name_sanitized"].str.contains("papilloma", case=False, na=False)
+    df_plot_filt.loc[mask_pap & (df_plot_filt["family_name"] == "Unknown"), "family_name"] = "Papillomaviridae"
+    df_plot_filt.loc[mask_pap & (df_plot_filt["genus_name"] == "Unknown"), "genus_name"] = "Betapapillomavirus"
+    df_plot_filt.loc[mask_pap & (df_plot_filt["order_name"] == "Unknown"), "order_name"] = "Zurhausenvirales"
+    df_plot_filt.loc[mask_pap & (df_plot_filt["realm_name"] == "Unknown"), "realm_name"] = "Floreoviria"
+
+    mask_herpes = df_plot_filt["virus_name_sanitized"].str.contains("herpes", case=False, na=False)
+    df_plot_filt.loc[mask_herpes & (df_plot_filt["family_name"] == "Unknown"), "family_name"] = "Orthoherpesviridae"
+    df_plot_filt.loc[mask_herpes & (df_plot_filt["order_name"] == "Unknown"), "order_name"] = "Herpesvirales"
+    df_plot_filt.loc[mask_herpes & (df_plot_filt["realm_name"] == "Unknown"), "realm_name"] = "Duplodnaviria"
+
+    mask_ttv = df_plot_filt["virus_name_sanitized"].str.contains("torque teno|anellovir", case=False, na=False)
+    df_plot_filt.loc[mask_ttv & (df_plot_filt["family_name"] == "Unknown"), "family_name"] = "Anelloviridae"
+
+    if not df_plot_filt.empty:
+        n_tot = df_plot_filt["sample_id"].nunique()
+
+        # 5a. Taxonomy Horizontal Bar Plots at 6 levels
+        tax_levels = [
+            ("virus_accession",  "virus_name_sanitized", "Accession",  "accession"),
+            ("species_taxid",    "species_name",         "Species",    "species"),
+            ("genus_taxid",      "genus_name",           "Genus",      "genus"),
+            ("family_taxid",     "family_name",          "Family",     "family"),
+            ("order_taxid",      "order_name",           "Order",      "order"),
+            ("realm_taxid",      "realm_name",           "Realm",      "realm"),
+        ]
+
+        for taxid_c, name_c, lvl_lbl, lvl_fname in tax_levels:
+            if taxid_c not in df_plot_filt.columns or name_c not in df_plot_filt.columns:
+                continue
+
+            p_data = df_plot_filt.copy()
+            if lvl_lbl != "Accession":
+                p_data = p_data[p_data[name_c] != "Unknown"]
+
+            parent_c = PARENT_GROUP[lvl_lbl]
+            above_ranks = []
+            if lvl_lbl == "Accession":
+                above_ranks = ["family_name", "genus_name", "species_name"]
+            elif lvl_lbl == "Species":
+                above_ranks = ["family_name", "genus_name"]
+            elif lvl_lbl == "Genus":
+                above_ranks = ["family_name"]
+
+            grp_c = [taxid_c, name_c]
+            for c in above_ranks:
+                if c not in grp_c and c in p_data.columns:
+                    grp_c.append(c)
+            if parent_c not in grp_c and parent_c in p_data.columns:
+                grp_c.append(parent_c)
+
+            if p_data.empty:
+                continue
+
+            grp = p_data.groupby(grp_c).agg(
+                n_positive_samples=("sample_id", "nunique"),
+                total_reads=("virus_mapped_reads", "sum")
+            ).reset_index()
+
+            grp["pct_positive"] = grp["n_positive_samples"] / n_tot * 100.0
+            grp["label"] = grp[taxid_c].astype(str) + " – " + grp[name_c].astype(str)
+
+            s_cols = []
+            s_asc = []
+            for c in above_ranks:
+                if c in p_data.columns:
+                    c_tot = p_data.groupby(c)["sample_id"].nunique().to_dict()
+                    grp[c + "_tot"] = grp[c].map(c_tot)
+                    grp[c + "_unk"] = grp[c] == "Unknown"
+                    s_cols.extend([c + "_unk", c + "_tot", c])
+                    s_asc.extend([True, False, True])
+
+            s_cols.extend(["n_positive_samples", "total_reads"])
+            s_asc.extend([False, False])
+            grp = grp.sort_values(by=s_cols, ascending=s_asc).reset_index(drop=True)
+
+            uniq_grps = list(dict.fromkeys(grp[parent_c])) if parent_c in grp.columns else ["Unknown"]
+            color_m = {g: PALETTE[i % len(PALETTE)] for i, g in enumerate(uniq_grps)}
+            bar_cols = [color_m.get(g, PALETTE[0]) for g in (grp[parent_c] if parent_c in grp.columns else ["Unknown"]*len(grp))]
+
+            fig_h = max(3.5, len(grp) * 0.35)
+            fig, ax = plt.subplots(figsize=(10.5, fig_h))
+            bars = ax.barh(grp["label"], grp["pct_positive"], color=bar_cols, edgecolor="none", height=0.90)
+            ax.invert_yaxis()
+
+            max_v = grp["pct_positive"].max() if len(grp) else 1
+            for bar, reads in zip(bars, grp["total_reads"]):
+                w = bar.get_width()
+                if w > max_v * 0.25:
+                    ax.text(w - max_v * 0.015, bar.get_y() + bar.get_height()/2, f"{int(reads):,} reads", va="center", ha="right", fontsize=8.5, color="white")
+                else:
+                    ax.text(w + max_v * 0.015, bar.get_y() + bar.get_height()/2, f"{int(reads):,} reads", va="center", ha="left", fontsize=8.5, color="black")
+
+            handles = [mpatches.Patch(facecolor=color_m[g], edgecolor="none", label=g) for g in uniq_grps]
+            ax.legend(handles=handles, title=parent_c.replace("_name", "").title(), fontsize=8, title_fontsize=8.5, bbox_to_anchor=(1.01, 0.5), loc="center left", frameon=False)
+            ax.set_xlabel(f"% positive samples (n = {n_tot})", fontsize=10)
+            ax.set_title(f"Distribution of Viruses – {lvl_lbl} Level\nPhase: {cur_phase_tag} | Project: {cur_proj_tag}", fontsize=10.5)
+            ax.xaxis.set_major_formatter(mtick.PercentFormatter(decimals=1))
+            ax.tick_params(axis="x", labelsize=9)
+            ax.tick_params(axis="y", labelsize=8.5)
+            fig.text(0.5, 0.005, f"source: {strat_tag}", ha="center", fontsize=9.5, color="black")
+            plt.tight_layout(rect=[0, 0.04, 1, 1])
+
+            t_out_name = f"{fn_prefix}_taxonomy_{lvl_fname}.tiff"
+            t_out_path = os.path.join(out_dir, t_out_name)
+            fig.savefig(t_out_path, dpi=300, bbox_inches="tight", pil_kwargs={"compression": "tiff_lzw"})
+            plt.close(fig)
+            print(f"[SUCCESS] Saved taxonomy bar plot: {t_out_path}")
+
+        # 5b. Accession Plot with Family Overlay
+        above = ["family_name", "genus_name", "species_name"]
+        grp_c = ["virus_accession", "virus_name_sanitized"] + [c for c in above if c in df_plot_filt.columns]
+        grp = df_plot_filt.groupby(grp_c).agg(n_positive_samples=("sample_id", "nunique"), total_reads=("virus_mapped_reads", "sum")).reset_index()
+        grp["pct_positive"] = grp["n_positive_samples"] / n_tot * 100.0
+        grp["label"] = grp["virus_accession"].astype(str) + " – " + grp["virus_name_sanitized"].astype(str)
+
+        s_cols, s_asc = [], []
+        for c in above:
+            if c in df_plot_filt.columns:
+                c_tot = df_plot_filt.groupby(c)["sample_id"].nunique().to_dict()
+                grp[c + "_tot"] = grp[c].map(c_tot)
+                grp[c + "_unk"] = grp[c] == "Unknown"
+                s_cols.extend([c + "_unk", c + "_tot", c])
+                s_asc.extend([True, False, True])
+        s_cols.extend(["n_positive_samples", "total_reads"])
+        s_asc.extend([False, False])
+        grp = grp.sort_values(by=s_cols, ascending=s_asc).reset_index(drop=True)
+
+        if not grp.empty and "genus_name" in grp.columns and "family_name" in grp.columns:
+            genus_order = list(dict.fromkeys(grp["genus_name"]))
+            genus_color_map = {g: PALETTE[i % len(PALETTE)] for i, g in enumerate(genus_order)}
+            acc_bar_colors = [genus_color_map[g] for g in grp["genus_name"]]
+
+            fam_order = list(dict.fromkeys(grp["family_name"]))
+            fam_samples = df_plot_filt.groupby("family_name")["sample_id"].nunique().to_dict()
+            fam_reads = df_plot_filt.groupby("family_name")["virus_mapped_reads"].sum().to_dict()
+
+            fam_palette = ["#C6D8EF", "#FEE8C8", "#E7D4E8", "#FDDBC7", "#E0ECF4", "#E5F5E0"]
+            fam_tint_map = {f: fam_palette[i % len(fam_palette)] for i, f in enumerate(fam_order)}
+
+            fig_h = max(4.8, len(grp) * 0.36)
+            fig, ax = plt.subplots(figsize=(11.5, fig_h))
+            y_positions = list(range(len(grp)))
+
+            for fam in fam_order:
+                idx_list = grp.index[grp["family_name"] == fam].tolist()
+                if not idx_list:
+                    continue
+                y_min = min(idx_list) - 0.46
+                y_max = max(idx_list) + 0.46
+                pct = fam_samples[fam] / n_tot * 100.0
+                tint = fam_tint_map[fam]
+                rect = plt.Rectangle((0, y_min), pct, y_max - y_min, facecolor=tint, alpha=0.6, edgecolor="none", zorder=1)
+                ax.add_patch(rect)
+                fam_label = f"Family {fam}: {fam_samples[fam]} samples ({pct:.1f}%), {int(fam_reads[fam]):,} reads"
+                x_pos = pct + 1.0 if pct > 10 else 13.0
+                ax.text(x_pos, (y_min + y_max) / 2, fam_label, va="center", ha="left", fontsize=8.5, color="#1A252F", zorder=2)
+
+            bars = ax.barh(y_positions, grp["pct_positive"], height=0.88, color=acc_bar_colors, edgecolor="none", zorder=3)
+            ax.set_yticks(y_positions)
+            ax.set_yticklabels(grp["label"], fontsize=8.5)
+            ax.invert_yaxis()
+
+            for bar, reads in zip(bars, grp["total_reads"]):
+                w = bar.get_width()
+                if w > 12:
+                    ax.text(w - 1, bar.get_y() + bar.get_height() / 2, f"{int(reads):,} reads", va="center", ha="right", fontsize=8.5, color="white", zorder=4)
+                else:
+                    ax.text(w + 0.25, bar.get_y() + bar.get_height() / 2, f"{int(reads):,} reads", va="center", ha="left", fontsize=8.5, color="black", zorder=4)
+
+            handles = [mpatches.Patch(facecolor=genus_color_map[g], edgecolor="none", label=g) for g in genus_order]
+            ax.legend(handles=handles, title="Genus", fontsize=8, title_fontsize=8.5, bbox_to_anchor=(1.01, 0.5), loc="center left", frameon=False)
+            ax.set_xlabel(f"% positive samples (n = {n_tot})", fontsize=10)
+            ax.set_title(f"Distribution of Viruses – Accession Level with Family Overlay\nPhase: {cur_phase_tag} | Project: {cur_proj_tag}", fontsize=10.5)
+            ax.xaxis.set_major_formatter(mtick.PercentFormatter(decimals=1))
+            ax.tick_params(axis="x", labelsize=9)
+            ax.tick_params(axis="y", labelsize=8.5)
+            max_v_fam = max(fam_samples.values()) / n_tot * 100.0 if fam_samples else 10.0
+            ax.set_xlim(0, max_v_fam * 1.55)
+            fig.text(0.5, 0.005, f"source: {strat_tag}", ha="center", fontsize=9.5, color="black")
+            plt.tight_layout(rect=[0, 0.04, 1, 1])
+
+            overlay_out_name = f"{fn_prefix}_taxonomy_accession_family_overlay.tiff"
+            overlay_out_path = os.path.join(out_dir, overlay_out_name)
+            fig.savefig(overlay_out_path, dpi=300, bbox_inches="tight", pil_kwargs={"compression": "tiff_lzw"})
+            plt.close(fig)
+            print(f"[SUCCESS] Saved accession family overlay plot: {overlay_out_path}")
+
+        # 5c. Demographics Plots (Histograms & Vertical Bar Charts)
+        demo_cols = [
+            ("sex",               "Sex",        "sex",       False),
+            ("age",               "Age",        "age",       True),
+            ("tissue",            "Tissue",     "tissue",    False),
+            ("cell",              "Cell Type",  "cell",      False),
+            ("race",              "Race",       "race",      False),
+            ("phenotype",         "Phenotype",  "phenotype", False),
+            ("sample_read_depth", "Coverage",   "coverage",  True),
+        ]
+
+        sample_df = df_plot_filt.drop_duplicates(subset="sample_id")
+
+        for col, label, var_fname, is_num in demo_cols:
+            matching_cols = [c for c in sample_df.columns if c.lower().strip() == col]
+            if not matching_cols:
+                continue
+
+            col_name = matching_cols[0]
+            fig, ax = plt.subplots(figsize=(5, 5))
+
+            if is_num:
+                vals = pd.to_numeric(sample_df[col_name], errors="coerce").dropna()
+                if vals.empty or vals.nunique() <= 1:
+                    plt.close(fig)
+                    continue
+                n_bins = min(20, max(8, int(np.sqrt(len(vals)))))
+                ax.hist(vals, bins=n_bins, color="#4472C4", edgecolor="none", rwidth=0.85)
+                ax.set_xlabel(label, fontsize=10)
+                ax.set_ylabel("Number of samples", fontsize=10)
+                ax.tick_params(axis="x", labelsize=9)
+            else:
+                cat_counts = sample_df[col_name].fillna("Unknown").value_counts()
+                if len(cat_counts) <= 1:
+                    plt.close(fig)
+                    continue
+                cat_counts = cat_counts.sort_values(ascending=False)
+                x_labels = [str(x).replace("_", " ") for x in cat_counts.index]
+                n_cats = len(cat_counts)
+
+                if n_cats == 2:
+                    x_pos = [-0.35, 0.35]
+                    bars = ax.bar(x_pos, cat_counts.values, color="#4472C4", edgecolor="none", width=0.52)
+                    ax.set_xticks(x_pos)
+                    ax.set_xticklabels(x_labels, fontsize=9)
+                    ax.set_xlim(-1.0, 1.0)
+                else:
+                    bars = ax.bar(range(n_cats), cat_counts.values, color="#4472C4", edgecolor="none", width=0.75)
+                    ax.set_xticks(range(n_cats))
+                    ax.set_xticklabels(x_labels, fontsize=9)
+
+                max_v_cat = cat_counts.max() if len(cat_counts) else 1
+                for bar, cnt in zip(bars, cat_counts.values):
+                    h = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width() / 2, h + max_v_cat * 0.015, f"{cnt}", ha="center", va="bottom", fontsize=8.5, color="black")
+
+                ax.set_ylabel("Number of samples", fontsize=10)
+                ax.set_ylim(0, max_v_cat * 1.15)
+                ax.tick_params(axis="x", labelsize=9)
+                if any(len(lbl) > 8 for lbl in x_labels):
+                    plt.setp(ax.get_xticklabels(), rotation=35, ha="right", rotation_mode="anchor")
+
+            ax.tick_params(axis="y", labelsize=9)
+            ax.set_title(f"Demographics – {label}\nPhase: {cur_phase_tag} | Project: {cur_proj_tag}", fontsize=10.5)
+            fig.text(0.5, 0.015, f"source: {strat_tag}", ha="center", fontsize=9.5, color="black")
+            plt.tight_layout(rect=[0, 0.05, 1, 1])
+
+            demo_out_name = f"{fn_prefix}_demo_{var_fname}.tiff"
+            demo_out_path = os.path.join(out_dir, demo_out_name)
+            fig.savefig(demo_out_path, dpi=300, bbox_inches="tight", pil_kwargs={"compression": "tiff_lzw"})
+            plt.close(fig)
+            print(f"[SUCCESS] Saved demographics plot: {demo_out_path}")
+
+    # --------------------------------------------------------------------------
     # 6. Heatmaps Module Integration (Outputs TIFF heatmaps in stats out_dir)
     # --------------------------------------------------------------------------
     rc_switch = str(getattr(args, "heatmap_read_counts", "off")).lower()
     cn_switch = str(getattr(args, "heatmap_copy_number", "off")).lower()
-    hm_strategy = getattr(args, "target_heatmap_strategy", "clean_flags")
     hm_min_reads = getattr(args, "heatmap_min_reads_cutoff", 3)
+    hm_stratify = getattr(args, "heatmap_stratify_by", "")
+
+    # Derive heatmap strategy from primary target strategy
+    primary_strat = args.strategies[0] if args.strategies else "clean_flags"
+    hm_strategy = get_short_strategy(primary_strat)
 
     if rc_switch == "on" or cn_switch == "on":
         import subprocess
@@ -757,7 +1030,8 @@ def generate_stats(args):
                 f"python3 {heatmap_script_path} --input-report \"{input_report_path}\" "
                 f"--out-dir \"{out_dir}\" --dataset \"{dataset}\" --genome-build \"{genome_build}\" "
                 f"--phase \"{args.target_phase or ''}\" --project \"{args.target_project or ''}\" "
-                f"--strategy \"{hm_strategy}\" --value-type \"read_counts\" --min-reads-cutoff {hm_min_reads}"
+                f"--strategy \"{hm_strategy}\" --value-type \"read_counts\" --min-reads-cutoff {hm_min_reads} "
+                f"--stratify-by \"{hm_stratify}\""
             )
             subprocess.run(cmd_rc, shell=True, check=True)
 
@@ -766,7 +1040,8 @@ def generate_stats(args):
                 f"python3 {heatmap_script_path} --input-report \"{input_report_path}\" "
                 f"--out-dir \"{out_dir}\" --dataset \"{dataset}\" --genome-build \"{genome_build}\" "
                 f"--phase \"{args.target_phase or ''}\" --project \"{args.target_project or ''}\" "
-                f"--strategy \"{hm_strategy}\" --value-type \"copy_number\" --min-reads-cutoff {hm_min_reads}"
+                f"--strategy \"{hm_strategy}\" --value-type \"copy_number\" --min-reads-cutoff {hm_min_reads} "
+                f"--stratify-by \"{hm_stratify}\""
             )
             subprocess.run(cmd_cn, shell=True, check=True)
 

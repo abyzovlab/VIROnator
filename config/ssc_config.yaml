@@ -147,6 +147,7 @@ mouse_contigs_file: "mm39_modified.renamed.contigs.txt"
 
 # Tool paths and script names (scripts are stored in scripts_dir)
 bwa_bin: "/mnt/disks/staff/bin/bwa"
+bwa_threads: 20        # Number of CPU threads per BWA alignment process (e.g. 16, 20, 32, 64)
 python_bin: "python3"
 init_ref_script: "init_ref.sh"
 combined_refs_dir: ""  # Output folder for combined reference (resolves directly to ref_dir)
@@ -202,6 +203,11 @@ master_report_file: "{dataset}_{genome_build}_master_report.tsv"  # Input master
 stats_out_dirname: "{dataset}_{genome_build}_stats"
 stats_script: "generate_stats.py"
 
+# Scope Filters (Leave "" or "all" to calculate stats across all phases/projects):
+stats_target_phase: ""          # Phase filter (e.g. "WGS.TS.Vaccarino", "1", or "" for all)
+stats_target_project: ""        # Project filter (e.g. "base", or "" for all)
+stats_target_strategy: "exogeneSR_viral_clean_filtered.sorted.flags.cram" # Strategy CRAM filter
+
 # Transformation Switches for Reads vs Copy Number Distribution Plots:
 # Reads distribution plot (reads.tiff)
 reads_panel_a_loglog: "on"
@@ -213,11 +219,11 @@ copy_number_panel_a_loglog: "on"
 copy_number_panel_b_log_y: "on"
 log_scale_copy_number_cutoff: 0.1             # Threshold to trigger log scale for copy numbers (default: 0.1)
 
-# Heatmap Sub-Switches (Outputs 300 DPI publication TIFF heatmaps directly in stats_out_dirname):
+# Heatmap Configuration & Stratification (Outputs 300 DPI publication TIFF heatmaps):
 heatmap_read_counts: "off"              # Switch: "on" or "off" for read counts heatmap
 heatmap_copy_number: "off"              # Switch: "on" or "off" for copy number heatmap
-target_heatmap_strategy: "clean_flags"  # Candidate CRAM strategy: e.g. "clean_flags" or "clean_filtered"
 heatmap_min_reads_cutoff: 3             # Min reads threshold for heatmap inclusion (3 = skips hits with <=2 reads/1 read pair)
+heatmap_stratify_by: ""                 # Demographics column to split heatmaps by (e.g., "sex", "phenotype", "tissue", or "" for unstratified)
 
 # Taxonomic Grouping Setting for Heatmaps, Aggregated Summary TSVs, and Bar Plots:
 # Options: "species", "genus", "family", "realm", or "none" (default: "species")

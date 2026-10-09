@@ -101,6 +101,10 @@ PLASMID_CONTIGS="{plasmid_contigs_path}"
 MOUSE_CONTIGS="{mouse_contigs_path}"
 
 BWA_BIN="{bwa_bin}"
+BWA_THREADS="{bwa_threads}"
+if [ -z "${BWA_THREADS}" ] || [ "${BWA_THREADS}" = "0" ]; then
+    BWA_THREADS=20
+fi
 if [ ! -x "${BWA_BIN}" ] && ! command -v "${BWA_BIN}" >/dev/null 2>&1; then
     if [ -x "/mnt/disks/staff/bin/bwa" ]; then
         BWA_BIN="/mnt/disks/staff/bin/bwa"
@@ -254,7 +258,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     # 3. Step 1: Alignment to foreign reference database (REF_VIR_CONT)
     echo "STEP 1) ALIGNMENT TO FOREIGN REFERENCE DATABASE"
     samtools fastq -@ 4 -F 2048 --reference "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
-        | "${BWA_BIN}" mem -k 30 -t 20 "${REF_VIR_CONT}" - \
+        | "${BWA_BIN}" mem -k 30 -t "${BWA_THREADS}" "${REF_VIR_CONT}" - \
         | egrep -v '^@' \
         | awk '$3 != "*"' \
         > "${TMP_DIR}/viral_reads_se.reads_temp"
@@ -352,7 +356,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
                 | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/plasmid_reads_se.ids" "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq" "${OUT_DIR}/plasmid_raw.count"
             
             # Align plasmid pairs and convert to sorted CRAM
-            "${BWA_BIN}" mem -Y -k 30 -t 20 "${REF_VIR_CONT}" "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq" 2>> "${OUT_DIR}/bwa.log" \
+            "${BWA_BIN}" mem -Y -k 30 -t "${BWA_THREADS}" "${REF_VIR_CONT}" "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq" 2>> "${OUT_DIR}/bwa.log" \
                 | samtools view -C -T "${REF_VIR_CONT}" - \
                 | samtools sort -@ 3 -o "${OUT_DIR}/plasmid_hits.sorted.cram" -
             samtools index "${OUT_DIR}/plasmid_hits.sorted.cram"
@@ -371,7 +375,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
                 | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/mouse_reads_se.ids" "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq" "${OUT_DIR}/mouse_raw.count"
             
             # Align mouse pairs and convert to sorted CRAM
-            "${BWA_BIN}" mem -Y -k 30 -t 20 "${REF_VIR_CONT}" "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq" 2>> "${OUT_DIR}/bwa.log" \
+            "${BWA_BIN}" mem -Y -k 30 -t "${BWA_THREADS}" "${REF_VIR_CONT}" "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq" 2>> "${OUT_DIR}/bwa.log" \
                 | samtools view -C -T "${REF_VIR_CONT}" - \
                 | samtools sort -@ 3 -o "${OUT_DIR}/mouse_hits.sorted.cram" -
             samtools index "${OUT_DIR}/mouse_hits.sorted.cram"
@@ -390,23 +394,23 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     # 5. Step 4: Alignment to combined reference & decoy/RNA filtering
     echo "STEP 4) ALIGNMENT TO COMBINED REFERENCE"
     # Mode 1: Clean
-    "${BWA_BIN}" mem -Y -k 30 -t 20 -v 2 "${COMBINED_REF}" "${OUT_DIR}/viral_clean_1.fq" "${OUT_DIR}/viral_clean_2.fq" 2> "${OUT_DIR}/bwa.log" \
+    "${BWA_BIN}" mem -Y -k 30 -t "${BWA_THREADS}" -v 2 "${COMBINED_REF}" "${OUT_DIR}/viral_clean_1.fq" "${OUT_DIR}/viral_clean_2.fq" 2> "${OUT_DIR}/bwa.log" \
         | samtools sort -@ 3 -o "${OUT_DIR}/Viral_clean.sort.bam" -
     samtools index "${OUT_DIR}/Viral_clean.sort.bam"
 
     # Mode 2: Raw (if DUAL_MODE=on)
     if [ "${DUAL_MODE}" = "on" ]; then
-        "${BWA_BIN}" mem -Y -k 30 -t 20 -v 2 "${COMBINED_REF}" "${OUT_DIR}/viral_raw_1.fq" "${OUT_DIR}/viral_raw_2.fq" 2>> "${OUT_DIR}/bwa.log" \
+        "${BWA_BIN}" mem -Y -k 30 -t "${BWA_THREADS}" -v 2 "${COMBINED_REF}" "${OUT_DIR}/viral_raw_1.fq" "${OUT_DIR}/viral_raw_2.fq" 2>> "${OUT_DIR}/bwa.log" \
             | samtools sort -@ 3 -o "${OUT_DIR}/Viral_raw.sort.bam" -
         samtools index "${OUT_DIR}/Viral_raw.sort.bam"
     fi
 
     # Align to Decoys & RNA
     echo "ALIGN TO DECOYS"
-    "${BWA_BIN}" mem -Y -k 30 -t 20 "${REF_RNA}" "${OUT_DIR}/viral_reads_se.fa" 2> "${OUT_DIR}/errors.log" \
+    "${BWA_BIN}" mem -Y -k 30 -t "${BWA_THREADS}" "${REF_RNA}" "${OUT_DIR}/viral_reads_se.fa" 2> "${OUT_DIR}/errors.log" \
         | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/aln_match_filter_py3.py" 90 > "${OUT_DIR}/rna_hits.ids" 2>> "${OUT_DIR}/errors.log"
     
-    "${BWA_BIN}" mem -Y -k 30 -t 20 "${REF_DECOY}" "${OUT_DIR}/viral_reads_se.fa" 2>> "${OUT_DIR}/errors.log" \
+    "${BWA_BIN}" mem -Y -k 30 -t "${BWA_THREADS}" "${REF_DECOY}" "${OUT_DIR}/viral_reads_se.fa" 2>> "${OUT_DIR}/errors.log" \
         | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/aln_match_filter_py3.py" 90 > "${OUT_DIR}/decoy_hits.ids" 2>> "${OUT_DIR}/errors.log"
     
     sort "${OUT_DIR}/rna_hits.ids" "${OUT_DIR}/decoy_hits.ids" | uniq > "${OUT_DIR}/bad.list"

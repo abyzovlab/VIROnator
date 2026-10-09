@@ -38,6 +38,7 @@ def parse_args():
                         help="Minimum mapped reads threshold for sample inclusion in heatmap (default: 3)")
     parser.add_argument("--group-level", default="none", choices=["none", "species", "genus", "family", "realm"],
                         help="Taxonomic grouping level for aggregated heatmap (default: none)")
+    parser.add_argument("--stratify-by", default="", help="Demographics column to split heatmaps by (e.g., sex, phenotype)")
     return parser.parse_args()
 
 
@@ -217,8 +218,8 @@ def main():
     p_val = str(args.phase).strip() if args.phase else ""
     prj_val = str(args.project).strip() if args.project else ""
 
-    is_phase_empty = not p_val or p_val.lower() in ["none", "0", "", "all_cohorts"]
-    is_proj_empty = not prj_val or prj_val.lower() in ["none", "0", "", "base", "combined"]
+    is_phase_empty = not p_val or p_val.lower() in ["none", "0", "", "all", "all_cohorts"]
+    is_proj_empty = not prj_val or prj_val.lower() in ["none", "0", "", "base", "combined", "all"]
 
     strat_raw = args.strategy or "clean_flags"
     if "clean_filtered.sorted.flags" in strat_raw or strat_raw == "clean_flags":
@@ -228,14 +229,35 @@ def main():
     else:
         strat_tag = strat_raw.replace(".cram", "").replace(".bam", "").replace(".", "_")
 
-    if is_phase_empty and is_proj_empty:
-        base_out_name = f"{args.dataset}_{args.genome_build}_{strat_tag}_heatmap_{args.value_type}"
-    else:
-        p_tag = "all" if is_phase_empty else p_val if p_val.startswith("phase") else f"phase{p_val}"
-        prj_tag = "base" if is_proj_empty else prj_val
-        base_out_name = f"{args.dataset}_{args.genome_build}_{p_tag}_{prj_tag}_{strat_tag}_heatmap_{args.value_type}"
+    p_clean = p_val[5:] if p_val.lower().startswith("phase") else p_val
+    p_tag = "ALL" if is_phase_empty else (p_clean if p_clean else "ALL")
+    prj_tag = "ALL" if is_proj_empty else prj_val
 
-    # 1. Render Accession-Level Heatmap
+    base_out_name = f"{args.dataset}_{args.genome_build}_{p_tag}_{prj_tag}_{strat_tag}_heatmap_{args.value_type}"
+
+    # Demographic Stratification Sub-splitting
+    strat_col = str(args.stratify_by).strip().lower() if args.stratify_by else ""
+    matching_cols = [c for c in df.columns if c.lower().strip() == strat_col] if strat_col else []
+
+    if strat_col and matching_cols:
+        target_demo_col = matching_cols[0]
+        categories = df[target_demo_col].fillna("Unknown").astype(str).unique()
+        for cat in categories:
+            clean_cat = cat.strip().replace(" ", "_")
+            sub_df = df[df[target_demo_col].fillna("Unknown").astype(str) == cat]
+            if sub_df.empty or sub_df[sample_col].nunique() == 0:
+                continue
+
+            sub_pivot = sub_df.pivot_table(index=sample_col, columns="Virus_Display", values=value_col, aggfunc="max", fill_value=0.0)
+            sub_pivot = sub_pivot.reindex(columns=unique_cols, fill_value=0.0)
+            if args.value_type == "copy_number":
+                sub_pivot = sub_pivot[sub_pivot.max(axis=1) > 0.0]
+
+            cat_out_path = os.path.join(args.out_dir, f"{base_out_name}_strat_{strat_col}_{clean_cat}.tiff")
+            title_cat = f"Virus {args.value_type.replace('_', ' ').title()} Heatmap ({strat_col.capitalize()}: {cat})"
+            render_and_save_heatmap(sub_pivot, cat_out_path, title_cat, args.value_type, p_val, prj_val, strat_raw)
+
+    # Standard Unstratified Heatmap
     out_path_acc = os.path.join(args.out_dir, f"{base_out_name}.tiff")
     title_acc = "Virus Read Counts Heatmap" if args.value_type == "read_counts" else "Virus Copy Number Heatmap"
     render_and_save_heatmap(pivot_df, out_path_acc, title_acc, args.value_type, p_val, prj_val, strat_raw)
