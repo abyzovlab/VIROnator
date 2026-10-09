@@ -93,6 +93,27 @@ Executing the sanitizer script creates five output files in `/mnt/disks/staff/re
 
 ---
 
+### Standalone Utility: Viral Name Shortener <small>(shorten_viral_names.py)</small>
+
+`scripts/shorten_viral_names.py` is a **standalone utility script** that processes a `.renamed_map.tsv` file (created during reference sanitization) and applies rule-based text replacements to abbreviate and clean viral descriptive names for cleaner figure labels in stats and heatmaps.
+
+It supports both local file paths and Google Cloud Storage (`gs://`) URIs.
+
+#### Shortening Rules Applied:
+- **Removals**: Strips genomic descriptors such as `, complete genome, strain:`, `, complete genome.`, ` genomic RNA, complete genome, strain:`, ` genomic RNA, complete`, ` genomic DNA, partial`, ` genomic DNA.`, `sense strand`.
+- **Replacements**: Standardizes common viral family/species names (e.g. `Torque teno mini virus` $\rightarrow$ `TTV mini`, `Torque teno virus` $\rightarrow$ `TTV`, `Simian adenovirus` $\rightarrow$ `Simian Ad`, `Human papillomavirus` $\rightarrow$ `HPV`, `Human immunodeficiency virus` $\rightarrow$ `HIV`, `Human herpesvirus` $\rightarrow$ `HHV`, `Porcine endogenous retrovirus` $\rightarrow$ `PERV`).
+
+#### Usage Example:
+```bash
+# Process map file stored on Google Cloud Storage (overwrites GCS file directly)
+python3 scripts/shorten_viral_names.py gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/HumanViral_Reference_02-07-2022_modified.renamed_map.tsv
+
+# Process local map file and save to a separate output file
+python3 scripts/shorten_viral_names.py input_map.tsv -o shortened_map.tsv
+```
+
+---
+
 ## Standalone Utility: Taxonomy Index Builder <small>(make_taxonomy_index.py)</small>
 
 `scripts/make_taxonomy_index.py` is a standalone helper script that pre-processes NCBI taxonomy dump files (`nodes.dmp`, `names.dmp`) and accession-to-taxid mapping files (`nucl_gb.accession2taxid`) into a unified, 14-column viral taxonomy lookup index (`viral_reference_taxonomy_index.tsv`).

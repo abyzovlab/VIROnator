@@ -126,6 +126,12 @@ def load_viral_lengths(bed_filepath, fai_filepath=""):
 def load_viral_names(rename_map_filepath):
     """Loads viral contig descriptive name mapping from rename_map.tsv (final_clean_id -> original_header)."""
     names = {}
+    # Automatically prefer shortened map file (_short.tsv) if present in refs directory
+    if rename_map_filepath:
+        short_candidate = rename_map_filepath[:-4] + "_short.tsv" if rename_map_filepath.endswith(".tsv") else rename_map_filepath + "_short.tsv"
+        if os.path.exists(short_candidate):
+            rename_map_filepath = short_candidate
+
     if not os.path.exists(rename_map_filepath):
         return names
     with open(rename_map_filepath, "r") as f:

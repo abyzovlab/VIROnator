@@ -55,6 +55,27 @@ When adopting a new vector or plasmid reference dataset, raw FASTA header names 
 
 ---
 
+### Standalone Utility: Viral Name Shortener <small>(shorten_viral_names.py)</small>
+
+`scripts/shorten_viral_names.py` is a **standalone utility script** that processes a `.renamed_map.tsv` file (created during reference sanitization) and applies rule-based text replacements to abbreviate and clean viral descriptive names for cleaner figure labels in stats and heatmaps.
+
+It supports both local file paths and Google Cloud Storage (`gs://`) URIs.
+
+#### Shortening Rules Applied:
+- **Removals**: Strips genomic descriptors such as `, complete genome, strain:`, `, complete genome.`, ` genomic RNA, complete genome, strain:`, ` genomic RNA, complete`, ` genomic DNA, partial`, ` genomic DNA.`, `sense strand`.
+- **Replacements**: Standardizes common viral family/species names (e.g. `Torque teno mini virus` $\rightarrow$ `TTV mini`, `Torque teno virus` $\rightarrow$ `TTV`, `Simian adenovirus` $\rightarrow$ `Simian Ad`, `Human papillomavirus` $\rightarrow$ `HPV`, `Human immunodeficiency virus` $\rightarrow$ `HIV`, `Human herpesvirus` $\rightarrow$ `HHV`, `Porcine endogenous retrovirus` $\rightarrow$ `PERV`).
+
+#### Usage Example:
+```bash
+# Process map file stored on Google Cloud Storage (overwrites GCS file directly)
+python3 scripts/shorten_viral_names.py gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/HumanViral_Reference_02-07-2022_modified.renamed_map.tsv
+
+# Process local map file and save to a separate output file
+python3 scripts/shorten_viral_names.py input_map.tsv -o shortened_map.tsv
+```
+
+---
+
 ## Workflow Execution & Modules
 
 For detailed documentation, see [docs/ssc_extraction.md](docs/ssc_extraction.md).
