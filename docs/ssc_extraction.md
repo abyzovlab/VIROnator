@@ -100,8 +100,8 @@ Executing the sanitizer script creates five output files in `/mnt/disks/staff/re
 It supports both local file paths and Google Cloud Storage (`gs://`) URIs.
 
 #### Shortening Rules Applied:
-- **Removals**: Strips genomic descriptors such as `, complete genome, strain:`, `, complete genome.`, ` genomic RNA, complete genome, strain:`, ` genomic RNA, complete`, ` genomic DNA, partial`, ` genomic DNA.`, `sense strand`.
-- **Replacements**: Standardizes common viral family/species names (e.g. `Torque teno mini virus` $\rightarrow$ `TTV mini`, `Torque teno virus` $\rightarrow$ `TTV`, `Simian adenovirus` $\rightarrow$ `Simian Ad`, `Human papillomavirus` $\rightarrow$ `HPV`, `Human immunodeficiency virus` $\rightarrow$ `HIV`, `Human herpesvirus` $\rightarrow$ `HHV`, `Porcine endogenous retrovirus` $\rightarrow$ `PERV`).
+- **Removals**: Strips genomic descriptors such as `, complete genome, strain:`, `, complete genome.`, `, complete genome`, ` genomic RNA, complete genome, strain:`, ` genomic RNA, complete`, ` genomic DNA, partial`, ` genomic DNA.`, `sense strand`.
+- **Replacements**: Standardizes common viral family/species names (e.g. `Torque teno mini virus` $\rightarrow$ `TTV mini`, `Torque teno virus` $\rightarrow$ `TTV`, `Adeno-associated virus` $\rightarrow$ `AAV`, `Simian adenovirus` $\rightarrow$ `Simian Ad`, `Human papillomavirus` $\rightarrow$ `HPV`, `Human immunodeficiency virus` $\rightarrow$ `HIV`, `Human herpesvirus` $\rightarrow$ `HHV`, `Porcine endogenous retrovirus` $\rightarrow$ `PERV`).
 
 #### Usage Example:
 ```bash

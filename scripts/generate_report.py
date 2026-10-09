@@ -145,8 +145,14 @@ def load_viral_names(rename_map_filepath):
                 header = [p.lower() for p in parts]
                 continue
 
-            if len(parts) >= 2:
-                clean_id = parts[0]
+            if len(parts) >= 3 and parts[2].strip():
+                clean_id = parts[0].strip()
+                short_name = parts[2].strip()
+                import re
+                sanitized = re.sub(r"[^A-Za-z0-9]+", "_", short_name).strip("_")
+                names[clean_id] = sanitized if sanitized else clean_id
+            elif len(parts) >= 2:
+                clean_id = parts[0].strip()
                 orig_header = parts[1].strip()
                 
                 # Strip accession prefix if present at start of header
