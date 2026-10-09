@@ -105,11 +105,8 @@ It supports both local file paths and Google Cloud Storage (`gs://`) URIs.
 
 #### Usage Example:
 ```bash
-# Process map file stored on Google Cloud Storage (overwrites GCS file directly)
-python3 scripts/shorten_viral_names.py gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/HumanViral_Reference_02-07-2022_modified.renamed_map.tsv
-
-# Process local map file and save to a separate output file
-python3 scripts/shorten_viral_names.py input_map.tsv -o shortened_map.tsv
+# Process map file stored on Google Cloud Storage (automatically saves to gs://<output_bucket>/refs/<map_name>_short.tsv)
+python3 scripts/shorten_viral_names.py gs://<output_bucket>/refs/HumanViral_Reference_02-07-2022_modified.renamed_map.tsv
 ```
 
 ---

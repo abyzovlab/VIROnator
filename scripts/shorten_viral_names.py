@@ -3,15 +3,17 @@
 shorten_viral_names.py
 Standalone Utility Script for VIROnator
 
-Shortens viral descriptive names in a reference name mapping file (.renamed_map.tsv).
+Takes an input viral reference rename map file (.renamed_map.tsv) and automatically
+determines the output path in the same directory, appending '_short.tsv'.
+
 Supports both local file paths and Google Cloud Storage (gs://) URIs.
 
-Naming Convention:
-  By default, outputs to the same directory (local or gs:// bucket refs/) with '_short.tsv'
-  appended before the file extension.
-  Example:
-    Input:  gs://.../refs/HumanViral_Reference_02-07-2022_modified.renamed_map.tsv
-    Output: gs://.../refs/HumanViral_Reference_02-07-2022_modified.renamed_map_short.tsv
+Automatic Path Resolution:
+  Input:  gs://<bucket>/refs/HumanViral_Reference_02-07-2022_modified.renamed_map.tsv
+  Output: gs://<bucket>/refs/HumanViral_Reference_02-07-2022_modified.renamed_map_short.tsv
+
+  Input:  /mnt/disks/staff/refs/HumanViral_Reference_02-07-2022_modified.renamed_map.tsv
+  Output: /mnt/disks/staff/refs/HumanViral_Reference_02-07-2022_modified.renamed_map_short.tsv
 
 Rules Enforced:
 1. Substring Removals:
@@ -33,8 +35,8 @@ Rules Enforced:
    - "Porcine endogenous retrovirus" -> "PERV"
 
 Usage:
-  python3 scripts/shorten_viral_names.py gs://bucket/refs/HumanViral_Reference_02-07-2022_modified.renamed_map.tsv
-  python3 scripts/shorten_viral_names.py /mnt/disks/staff/refs/HumanViral_Reference_02-07-2022_modified.renamed_map.tsv -o custom_output.tsv
+  python3 scripts/shorten_viral_names.py gs://<bucket>/refs/HumanViral_Reference_02-07-2022_modified.renamed_map.tsv
+  python3 scripts/shorten_viral_names.py /mnt/disks/staff/refs/HumanViral_Reference_02-07-2022_modified.renamed_map.tsv
 """
 
 import sys
@@ -70,19 +72,13 @@ def parse_args():
     )
     parser.add_argument(
         "input_map",
-        help="Path or GCS URI to input rename map TSV (e.g., gs://.../refs/HumanViral_Reference_02-07-2022_modified.renamed_map.tsv)",
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        default="",
-        help="Optional output path or GCS URI (default: constructs '<input>_short.tsv' in the same directory)",
+        help="Path or GCS URI to input rename map TSV (e.g. gs://<bucket>/refs/HumanViral_Reference_02-07-2022_modified.renamed_map.tsv)",
     )
     return parser.parse_args()
 
 
-def construct_default_output_path(input_path):
-    """Generates default output path with '_short.tsv' suffix in the same directory."""
+def derive_output_path(input_path):
+    """Automatically constructs the output path with '_short.tsv' in the exact same directory."""
     if input_path.endswith(".tsv"):
         return input_path[:-4] + "_short.tsv"
     return input_path + "_short.tsv"
@@ -158,8 +154,9 @@ def process_map_file(local_input, local_output):
 def main():
     args = parse_args()
     input_path = args.input_map
-    output_path = args.output if args.output else construct_default_output_path(input_path)
+    output_path = derive_output_path(input_path)
 
+    print(f"=== VIROnator Viral Name Shortener ===")
     print(f"Input Map Path:  {input_path}")
     print(f"Output Map Path: {output_path}")
 
@@ -184,7 +181,7 @@ def main():
         # Step 4: Upload to GCS or verify local output
         if is_gcs_path(output_path):
             upload_to_gcs(local_out, output_path)
-            print(f"[SUCCESS] Saved shortened map to GCS: {output_path}")
+            print(f"[SUCCESS] Uploaded shortened map to GCS: {output_path}")
         else:
             print(f"[SUCCESS] Saved shortened map to local file: {output_path}")
 
