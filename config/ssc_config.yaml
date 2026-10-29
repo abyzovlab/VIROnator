@@ -58,7 +58,6 @@ unmapped_out_dirname: "{dataset}_{genome_build}_unmapped"
 vironator_out_dirname: "{dataset}_{genome_build}_vironator"
 reports_out_dirname: "{dataset}_{genome_build}_reports"
 human_alignment_out_dirname: "{dataset}_{genome_build}_human_alignment"
-# human_alignment_out_dirname: "fromNorgan/data/panviral_alignment"
 
 # Jobexec orchestrator folder names (located in output_bucket)
 unmapped_jobexec_dirname: "jobexec_unmapped_{dataset}_{genome_build}"
@@ -114,7 +113,6 @@ fastq_r2_pattern: "{sample}_L001_R2_001.{suffix}"
 # phase: "hpv"
 # data_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4" # Staff bucket (used as input data_bucket here)
 # data_subdir: "fromNorgan/data/panviral"
-# human_alignment_out_dirname: "fromNorgan/data/panviral_alignment"
 
 
 # ==============================================================================
