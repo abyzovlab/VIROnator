@@ -4,10 +4,13 @@
 # dataset: "SSC"
 # dataset: "BSMN"
 # dataset: "1000GP"
+# dataset: "fromNorgan"
 dataset: "MCBiobank"
 genome_build: "hg38"
 # phase: "2"
 phase: ""
+# phase: "panviral"
+# phase: "hpv"
 # phase: "WGS.TS.Vaccarino"
 # phase: "WGS.SCZ.Weinberger"
 # phase: "WGS.SCZ.Chess"
@@ -105,7 +108,7 @@ human_align_threads: 32                   # CPU threads for BWA-MEM (use 16, 32,
 human_align_machine_type: "n2-standard-32" # GCP instance machine type
 
 # Directory & Bucket Settings for Norgan Dataset:
-# dataset: "from_Norgan"
+# dataset: "fromNorgan"
 # phase: "panviral"
 # phase: "hpv"
 # data_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4" # Staff bucket (used as input data_bucket here)
