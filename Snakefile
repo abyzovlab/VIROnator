@@ -6,10 +6,13 @@ include: "rules/ssc.smk"
 
 # Validate samples_list file only if batch job modules requiring samples are active
 batch_modules_active = any([
+    config.get("human_alignment_module", "off") == "on",
     config.get("unmapped_extraction", "off") == "on",
     config.get("viral_db_alignment", "off") == "on",
     (config.get("reporting_module", "off") == "on" and config.get("generate_report_submodule", "off") == "on"),
-    config.get("coverage_module", "off") == "on"
+    config.get("coverage_module", "off") == "on",
+    config.get("refinement_module", "off") == "on",
+    config.get("discordant_module", "off") == "on"
 ])
 
 if batch_modules_active:
@@ -38,10 +41,18 @@ targets.extend([
     "config/batch_jobexec_vironator.config",
     "config/batch_jobexec_reporting.config",
     "config/batch_jobexec_coverage.config",
+    "config/batch_jobexec_flag_comparison.config",
+    "config/batch_jobexec_refinement.config",
+    "config/batch_jobexec_discordant.config",
+    "config/batch_jobexec_human_alignment.config",
     "config/ssc_coverage.job"
 ])
 
-# Module 0: Coverage calculation
+# Module 0: Human Genome Alignment (FASTQ -> CRAM via BWA-MEM)
+if config.get("human_alignment_module", "off") == "on":
+    targets.append("config/ssc_human_alignment.job")
+
+# Module 1: Coverage calculation
 if config.get("coverage_module", "off") == "on":
     targets.append("config/coverage_dir.created")
 
@@ -77,6 +88,14 @@ if config.get("distributions_module", "off") == "on":
 # Module 7: Flag Comparison & IGV Snapshot Generation Module
 if config.get("flag_comparison_module", "off") == "on":
     targets.append("config/flag_difference_crams.done")
+
+# Module 8: Refinement Module
+if config.get("refinement_module", "off") == "on":
+    targets.append("config/ssc_refinement.job")
+
+# Module 10: Discordant Reads & Viral Integration Breakpoints Module
+if config.get("discordant_module", "off") == "on":
+    targets.append("config/ssc_discordant.job")
 
 rule all:
     input:

@@ -47,6 +47,12 @@ def parse_args():
                         help="Minimum mapped reads threshold for heatmap inclusion (default: 3)")
     parser.add_argument("--heatmap-stratify-by", default="",
                         help="Demographics column to split heatmaps by (e.g., sex, phenotype)")
+    parser.add_argument("--sample-enrichment-plots", default="off", choices=["on", "off"],
+                        help="Generate horizontal sample-enrichment bar plots ('on' or 'off', default: off)")
+    parser.add_argument("--sample-label-filter-file", default="",
+                        help="Path to text file containing target sample label list (one per line)")
+    parser.add_argument("--sample-label-filtered-plots", default="off", choices=["on", "off"],
+                        help="Generate matching & non-matching sample label plots ('on' or 'off', default: off)")
     parser.add_argument("--group-level", default="species", choices=["none", "species", "genus", "family", "realm"],
                         help="Taxonomic grouping level for aggregated summary TSV and bar plots (default: species)")
     return parser.parse_args()
@@ -157,7 +163,9 @@ def generate_stats(args):
         'species_name': [c for c in df_raw.columns if 'species_name' in c][0] if any('species_name' in c for c in df_raw.columns) else '',
         'genus_name': [c for c in df_raw.columns if 'genus_name' in c][0] if any('genus_name' in c for c in df_raw.columns) else '',
         'family_name': [c for c in df_raw.columns if 'family_name' in c][0] if any('family_name' in c for c in df_raw.columns) else '',
-        'realm_name': [c for c in df_raw.columns if 'realm_name' in c][0] if any('realm_name' in c for c in df_raw.columns) else ''
+        'realm_name': [c for c in df_raw.columns if 'realm_name' in c][0] if any('realm_name' in c for c in df_raw.columns) else '',
+        'shannon_h': [c for c in df_raw.columns if 'shannon_entropy' in c or 'entropy_h' in c][0] if any('entropy' in c for c in df_raw.columns) else '',
+        'shannon_j': [c for c in df_raw.columns if 'shannon_evenness' in c or 'evenness_j' in c][0] if any('evenness' in c for c in df_raw.columns) else ''
     }
 
     df = pd.DataFrame()
@@ -176,6 +184,8 @@ def generate_stats(args):
     df['genus_name'] = df_raw[col_map['genus_name']].fillna('Unknown').astype(str).str.strip() if col_map['genus_name'] else 'Unknown'
     df['family_name'] = df_raw[col_map['family_name']].fillna('Unknown').astype(str).str.strip() if col_map['family_name'] else 'Unknown'
     df['realm_name'] = df_raw[col_map['realm_name']].fillna('Unknown').astype(str).str.strip() if col_map['realm_name'] else 'Unknown'
+    df['viral_shannon_entropy_h'] = pd.to_numeric(df_raw[col_map['shannon_h']], errors='coerce').fillna(0.0).astype(float) if col_map['shannon_h'] else 0.0
+    df['viral_shannon_evenness_j'] = pd.to_numeric(df_raw[col_map['shannon_j']], errors='coerce').fillna(0.0).astype(float) if col_map['shannon_j'] else 0.0
 
     if target_strategies:
         df = df[df['source_file'].isin(target_strategies)].copy()
@@ -934,6 +944,128 @@ def generate_stats(args):
             plt.close(fig)
             print(f"[SUCCESS] Saved accession family overlay plot: {overlay_out_path}")
 
+        # 5b-2. Horizontal Sample-Enrichment Bar Plots (Stacked by Sample with Family Overlay)
+        def render_sample_enrichment_overlay(df_sub, out_path, title_str, n_total_cohort):
+            if df_sub.empty or "family_name" not in df_sub.columns or "genus_name" not in df_sub.columns:
+                return
+
+            above_cols = ["family_name", "genus_name", "species_name"]
+            grp_cols = ["virus_accession", "virus_name_sanitized"] + [c for c in above_cols if c in df_sub.columns]
+            grp_data = df_sub.groupby(grp_cols).agg(
+                n_positive_samples=("sample_id", "nunique"),
+                total_reads=("virus_mapped_reads", "sum")
+            ).reset_index()
+
+            grp_data["pct_positive"] = grp_data["n_positive_samples"] / float(n_total_cohort) * 100.0 if n_total_cohort > 0 else 0.0
+            grp_data["label"] = grp_data["virus_accession"].astype(str) + " – " + grp_data["virus_name_sanitized"].astype(str)
+
+            s_cols_sub, s_asc_sub = [], []
+            for c in above_cols:
+                if c in df_sub.columns:
+                    c_tot = df_sub.groupby(c)["sample_id"].nunique().to_dict()
+                    grp_data[c + "_tot"] = grp_data[c].map(c_tot)
+                    grp_data[c + "_unk"] = grp_data[c] == "Unknown"
+                    s_cols_sub.extend([c + "_unk", c + "_tot", c])
+                    s_asc_sub.extend([True, False, True])
+            s_cols_sub.extend(["n_positive_samples", "total_reads"])
+            s_asc_sub.extend([False, False])
+            grp_data = grp_data.sort_values(by=s_cols_sub, ascending=s_asc_sub).reset_index(drop=True)
+
+            if grp_data.empty:
+                return
+
+            unique_samples_sub = list(dict.fromkeys(df_sub["sample_id"]))
+            sample_color_map = {s: PALETTE[i % len(PALETTE)] for i, s in enumerate(unique_samples_sub)}
+
+            fam_order_sub = list(dict.fromkeys(grp_data["family_name"]))
+            fam_samples_sub = df_sub.groupby("family_name")["sample_id"].nunique().to_dict()
+            fam_reads_sub = df_sub.groupby("family_name")["virus_mapped_reads"].sum().to_dict()
+
+            fam_palette = ["#C6D8EF", "#FEE8C8", "#E7D4E8", "#FDDBC7", "#E0ECF4", "#E5F5E0"]
+            fam_tint_map = {f: fam_palette[i % len(fam_palette)] for i, f in enumerate(fam_order_sub)}
+
+            fig_h = max(4.8, len(grp_data) * 0.36)
+            fig_sub, ax_sub = plt.subplots(figsize=(11.5, fig_h), dpi=300)
+            y_pos_sub = list(range(len(grp_data)))
+
+            # 1. Family shaded background boxes
+            for fam in fam_order_sub:
+                idx_list = grp_data.index[grp_data["family_name"] == fam].tolist()
+                if not idx_list:
+                    continue
+                y_min = min(idx_list) - 0.46
+                y_max = max(idx_list) + 0.46
+                pct = fam_samples_sub[fam] / float(n_total_cohort) * 100.0 if n_total_cohort > 0 else 0.0
+                tint = fam_tint_map[fam]
+                rect = plt.Rectangle((0, y_min), pct, y_max - y_min, facecolor=tint, alpha=0.6, edgecolor="none", zorder=1)
+                ax_sub.add_patch(rect)
+                fam_label = f"Family {fam}: {fam_samples_sub[fam]} samples ({pct:.1f}%), {int(fam_reads_sub[fam]):,} reads"
+                x_pos = pct + 1.0 if pct > 10 else 13.0
+                ax_sub.text(x_pos, (y_min + y_max) / 2, fam_label, va="center", ha="left", fontsize=8.5, color="#1A252F", zorder=2)
+
+            # 2. Segmented horizontal bars per sample
+            for idx_row, row_v in grp_data.iterrows():
+                v_acc = row_v["virus_accession"]
+                v_df = df_sub[df_sub["virus_accession"] == v_acc]
+                left_val = 0.0
+                for s_row in v_df.itertuples(index=False):
+                    s_id = s_row.sample_id
+                    seg_w = 1.0 / float(n_total_cohort) * 100.0 if n_total_cohort > 0 else 0.0
+                    ax_sub.barh(idx_row, seg_w, left=left_val, height=0.88, color=sample_color_map[s_id], edgecolor="none", zorder=3)
+                    left_val += seg_w
+
+            ax_sub.set_yticks(y_pos_sub)
+            ax_sub.set_yticklabels(grp_data["label"], fontsize=8.5)
+            ax_sub.invert_yaxis()
+
+            # 3. Sample color legend positioned under the plot (below X-axis)
+            sample_handles = [mpatches.Patch(facecolor=sample_color_map[s], edgecolor="none", label=s) for s in unique_samples_sub]
+            ncol_legend = min(6, max(1, len(unique_samples_sub)))
+            ax_sub.legend(handles=sample_handles, title="Samples", fontsize=7.5, title_fontsize=8, bbox_to_anchor=(0.5, -0.15), loc="upper center", ncol=ncol_legend, frameon=False)
+
+            ax_sub.set_xlabel(f"% positive samples (n = {n_total_cohort})", fontsize=10)
+            ax_sub.set_title(title_str, fontsize=10.5)
+            ax_sub.xaxis.set_major_formatter(mtick.PercentFormatter(decimals=1))
+            ax_sub.tick_params(axis="x", labelsize=9)
+            ax_sub.tick_params(axis="y", labelsize=8.5)
+            max_v_fam = max(fam_samples_sub.values()) / float(n_total_cohort) * 100.0 if fam_samples_sub and n_total_cohort > 0 else 10.0
+            ax_sub.set_xlim(0, max_v_fam * 1.55)
+            fig_sub.text(0.5, 0.005, f"source: {strat_tag}", ha="center", fontsize=9.5, color="black")
+            plt.tight_layout(rect=[0, 0.08, 1, 1])
+            fig_sub.savefig(out_path, dpi=300, bbox_inches="tight", pil_kwargs={"compression": "tiff_lzw"})
+            plt.close(fig_sub)
+            print(f"[SUCCESS] Saved sample enrichment overlay plot: {out_path}")
+
+        if getattr(args, "sample_enrichment_plots", "off").lower() == "on":
+            # 1. Overall sample enrichment plot (All Samples)
+            enrich_all_path = os.path.join(out_dir, f"{fn_prefix}_sample_enrichment_all.tiff")
+            title_all = f"Sample Enrichment per Virus – All Cohort Samples\nPhase: {cur_phase_tag} | Project: {cur_proj_tag}"
+            render_sample_enrichment_overlay(df_plot_filt, enrich_all_path, title_all, n_tot)
+
+            # 2 & 3. Label-filtered sample enrichment plots (Matching & Non-matching)
+            if getattr(args, "sample_label_filtered_plots", "off").lower() == "on":
+                label_file = getattr(args, "sample_label_filter_file", "")
+                if label_file and os.path.exists(label_file):
+                    with open(label_file, "r") as f_lbl:
+                        target_labels = set(line.strip() for line in f_lbl if line.strip())
+
+                    # Match samples containing any line label from the file
+                    mask_match = df_plot_filt["sample_id"].apply(lambda sid: any(lbl in str(sid) for lbl in target_labels))
+                    df_match = df_plot_filt[mask_match].copy()
+                    df_nonmatch = df_plot_filt[~mask_match].copy()
+
+                    if not df_match.empty:
+                        enrich_match_path = os.path.join(out_dir, f"{fn_prefix}_sample_enrichment_matching.tiff")
+                        title_match = f"Sample Enrichment per Virus – Label-Matching Samples\nPhase: {cur_phase_tag} | Project: {cur_proj_tag}"
+                        render_sample_enrichment_overlay(df_match, enrich_match_path, title_match, df_match["sample_id"].nunique())
+
+                    if not df_nonmatch.empty:
+                        enrich_nonmatch_path = os.path.join(out_dir, f"{fn_prefix}_sample_enrichment_nonmatching.tiff")
+                        title_nonmatch = f"Sample Enrichment per Virus – Non-Matching Samples\nPhase: {cur_phase_tag} | Project: {cur_proj_tag}"
+                        render_sample_enrichment_overlay(df_nonmatch, enrich_nonmatch_path, title_nonmatch, df_nonmatch["sample_id"].nunique())
+                else:
+                    print(f"[WARNING] Sample label filter file not found: {label_file}")
+
         # 5c. Demographics Plots (Histograms & Vertical Bar Charts)
         demo_cols = [
             ("sex",               "Sex",        "sex",       False),
@@ -1006,6 +1138,65 @@ def generate_stats(args):
             fig.savefig(demo_out_path, dpi=300, bbox_inches="tight", pil_kwargs={"compression": "tiff_lzw"})
             plt.close(fig)
             print(f"[SUCCESS] Saved demographics plot: {demo_out_path}")
+
+    # --------------------------------------------------------------------------
+    # 5b. Shannon Entropy (H) & Shannon Evenness (J) Spatial Distribution Plots
+    # --------------------------------------------------------------------------
+    if getattr(args, "entropy_plots", "off").lower() == "on":
+        df_ent = df[(df["virus_mapped_reads"] > 0) & ((df["viral_shannon_entropy_h"] > 0) | (df["viral_shannon_evenness_j"] > 0))].copy()
+        if len(df_ent) > 0:
+            # 1. Shannon Entropy (H) Plot
+            fig, ax = plt.subplots(figsize=(10, 6))
+            v_groups = df_ent.groupby("virus_name_sanitized")["viral_shannon_entropy_h"].apply(list)
+            names = list(v_groups.index)
+            data = [v_groups[n] for n in names]
+            ax.boxplot(data, vert=False, labels=names, patch_artist=True, boxprops=dict(facecolor="#4472C4", alpha=0.7))
+            ax.set_xlabel("Shannon Entropy (H)", fontsize=11)
+            ax.set_ylabel("Viral Species / Accession", fontsize=11)
+            ax.set_title(f"Viral Spatial Shannon Entropy (H)\nPhase: {cur_phase_tag} | Project: {cur_proj_tag}", fontsize=12)
+            plt.tight_layout()
+            ent_h_path = os.path.join(out_dir, f"{fn_prefix}_shannon_entropy_H.tiff")
+            fig.savefig(ent_h_path, dpi=300, bbox_inches="tight", pil_kwargs={"compression": "tiff_lzw"})
+            plt.close(fig)
+            print(f"[SUCCESS] Generated Shannon Entropy H plot: {ent_h_path}")
+
+            # 2. Shannon Evenness (J) Plot
+            fig, ax = plt.subplots(figsize=(10, 6))
+            v_groups_j = df_ent.groupby("virus_name_sanitized")["viral_shannon_evenness_j"].apply(list)
+            names_j = list(v_groups_j.index)
+            data_j = [v_groups_j[n] for n in names_j]
+            ax.boxplot(data_j, vert=False, labels=names_j, patch_artist=True, boxprops=dict(facecolor="#ED7D31", alpha=0.7))
+            ax.set_xlabel("Shannon Evenness (J)", fontsize=11)
+            ax.set_ylabel("Viral Species / Accession", fontsize=11)
+            ax.set_xlim(0.0, 1.05)
+            ax.set_title(f"Viral Spatial Shannon Evenness (J)\nPhase: {cur_phase_tag} | Project: {cur_proj_tag}", fontsize=12)
+            plt.tight_layout()
+            ent_j_path = os.path.join(out_dir, f"{fn_prefix}_shannon_evenness_J.tiff")
+            fig.savefig(ent_j_path, dpi=300, bbox_inches="tight", pil_kwargs={"compression": "tiff_lzw"})
+            plt.close(fig)
+            print(f"[SUCCESS] Generated Shannon Evenness J plot: {ent_j_path}")
+
+            # 3. 2D Scatter Plot: H vs J
+            fig, ax = plt.subplots(figsize=(8, 6))
+            scatter = ax.scatter(
+                df_ent["viral_shannon_entropy_h"],
+                df_ent["viral_shannon_evenness_j"],
+                c=pd.factorize(df_ent["family_name"])[0],
+                cmap="tab10",
+                alpha=0.8,
+                edgecolors="none"
+            )
+            ax.set_xlabel("Shannon Entropy (H)", fontsize=11)
+            ax.set_ylabel("Shannon Evenness (J)", fontsize=11)
+            ax.set_ylim(0.0, 1.05)
+            ax.set_title(f"Shannon Entropy (H) vs Evenness (J)\nPhase: {cur_phase_tag} | Project: {cur_proj_tag}", fontsize=12)
+            plt.tight_layout()
+            ent_vs_path = os.path.join(out_dir, f"{fn_prefix}_shannon_entropy_vs_evenness.tiff")
+            fig.savefig(ent_vs_path, dpi=300, bbox_inches="tight", pil_kwargs={"compression": "tiff_lzw"})
+            plt.close(fig)
+            print(f"[SUCCESS] Generated Shannon Entropy H vs Evenness J scatter plot: {ent_vs_path}")
+        else:
+            print("[INFO] No non-zero spatial entropy data found for entropy plotting.")
 
     # --------------------------------------------------------------------------
     # 6. Heatmaps Module Integration (Outputs TIFF heatmaps in stats out_dir)

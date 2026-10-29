@@ -1,0 +1,162 @@
+# =========================================================================================================================
+# VIROnator Module 0: Human Genome Alignment Job Template (FASTQ -> CRAM via BWA-MEM)
+# Aligns paired-end FASTQ reads directly to the GRCh38 human reference genome using multithreaded BWA-MEM.
+# Streams output into sorted, indexed CRAM format without writing intermediate uncompressed SAM files.
+# =========================================================================================================================
+
+job_name={dataset}_HUMAN_ALIGN
+job_identifier={dataset}_[SAMPLE]
+machine_type={machine_type}
+
+####
+#### Buckets
+####
+
+input_bucket=gs://{output_bucket}/{human_alignment_jobexec_dirname}/input
+output_bucket=gs://{output_bucket}/{human_alignment_jobexec_dirname}/output
+log_bucket=gs://{output_bucket}/{human_alignment_jobexec_dirname}/logs
+
+####
+#### Tools
+####
+
+repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
+tool=bwa
+tool=samtools
+
+####
+#### Post-Job Configuration
+####
+
+clear_output=true
+clear_input=true 
+
+####
+#### Script to run
+####
+
+commands_start
+
+export PATH="/mnt/disks/staff/bin:${PATH}"
+
+# Automatically load environment modules if Lmod/Modules are available on node
+if command -v module >/dev/null 2>&1 || [ -f /usr/share/modules/init/bash ]; then
+    [ -f /usr/share/modules/init/bash ] && . /usr/share/modules/init/bash 2>/dev/null || true
+    module load samtools bwa python 2>/dev/null || true
+fi
+
+set -ex
+
+echo "Start: $(date)"
+
+# Tool resolution
+BWA_BIN="{bwa_bin}"
+if [ ! -x "${BWA_BIN}" ] && ! command -v "${BWA_BIN}" >/dev/null 2>&1; then
+    if [ -x "/mnt/disks/staff/bin/bwa" ]; then
+        BWA_BIN="/mnt/disks/staff/bin/bwa"
+    elif command -v bwa >/dev/null 2>&1; then
+        BWA_BIN="bwa"
+    fi
+fi
+
+SAMTOOLS_BIN="{samtools_bin}"
+if [ ! -x "${SAMTOOLS_BIN}" ] && ! command -v "${SAMTOOLS_BIN}" >/dev/null 2>&1; then
+    if [ -x "/mnt/disks/staff/bin/samtools" ]; then
+        SAMTOOLS_BIN="/mnt/disks/staff/bin/samtools"
+    elif command -v samtools >/dev/null 2>&1; then
+        SAMTOOLS_BIN="samtools"
+    fi
+fi
+
+# Detect thread allocation (use configured value or max hardware threads)
+THREADS="{threads}"
+if [ -z "${THREADS}" ] || [ "${THREADS}" = "0" ] || [ "${THREADS}" = "auto" ]; then
+    THREADS=$(nproc 2>/dev/null || echo 16)
+fi
+
+HUMAN_REF="{human_align_ref}"
+if [ ! -f "${HUMAN_REF}" ]; then
+    echo "[ERROR] Human reference genome FASTA not found at '${HUMAN_REF}'! Aborting."
+    exit 1
+fi
+
+SAMPLE="[SAMPLE]"
+DATA_DIR="{data_dir}"
+DATA_SUBDIR="{data_subdir}"
+FASTQ_SUFFIX="{fastq_suffix}"
+
+# Assemble candidate base search directory
+if [ -n "${DATA_SUBDIR}" ] && [ "${DATA_SUBDIR}" != "none" ]; then
+    SEARCH_BASE="${DATA_DIR}/${DATA_SUBDIR}"
+else
+    SEARCH_BASE="${DATA_DIR}"
+fi
+
+echo "=================================================================="
+echo "Sample ID:        ${SAMPLE}"
+echo "Search Base:      ${SEARCH_BASE}"
+echo "Human Reference:  ${HUMAN_REF}"
+echo "Threads:          ${THREADS}"
+echo "=================================================================="
+
+# 1. Expand pattern templates to find Read 1 and Read 2 for this sample
+SEARCH_R1_PATTERN=$(echo "{fastq_r1_pattern}" | sed "s/{sample}/${SAMPLE}/g; s/{suffix}/${FASTQ_SUFFIX}/g")
+SEARCH_R2_PATTERN=$(echo "{fastq_r2_pattern}" | sed "s/{sample}/${SAMPLE}/g; s/{suffix}/${FASTQ_SUFFIX}/g")
+
+echo "Looking for Read 1 matching: ${SEARCH_R1_PATTERN}"
+echo "Looking for Read 2 matching: ${SEARCH_R2_PATTERN}"
+
+FQ1=$(find "${SEARCH_BASE}" -type f -name "${SEARCH_R1_PATTERN}" 2>/dev/null | head -n 1)
+FQ2=$(find "${SEARCH_BASE}" -type f -name "${SEARCH_R2_PATTERN}" 2>/dev/null | head -n 1)
+
+# Fallback: if not found in SEARCH_BASE, check full DATA_DIR
+if [ -z "${FQ1}" ] || [ ! -f "${FQ1}" ]; then
+    echo "[INFO] Not found in ${SEARCH_BASE}, searching full data mount ${DATA_DIR}..."
+    FQ1=$(find "${DATA_DIR}" -type f -name "${SEARCH_R1_PATTERN}" 2>/dev/null | head -n 1)
+    FQ2=$(find "${DATA_DIR}" -type f -name "${SEARCH_R2_PATTERN}" 2>/dev/null | head -n 1)
+fi
+
+echo "Resolved FQ1: ${FQ1}"
+echo "Resolved FQ2: ${FQ2}"
+
+if [ -z "${FQ1}" ] || [ ! -f "${FQ1}" ]; then
+    echo "[ERROR] Could not resolve Read 1 FASTQ for sample '${SAMPLE}' matching '${SEARCH_R1_PATTERN}'. Aborting."
+    exit 1
+fi
+
+if [ -z "${FQ2}" ] || [ ! -f "${FQ2}" ]; then
+    echo "[ERROR] Could not resolve Read 2 FASTQ for sample '${SAMPLE}' matching '${SEARCH_R2_PATTERN}'. Aborting."
+    exit 1
+fi
+
+# 2. Output directory and CRAM destination setup
+OUT_DIR="{output_dir}/{human_alignment_out_dirname}"
+mkdir -p "${OUT_DIR}"
+OUT_CRAM="${OUT_DIR}/${SAMPLE}.cram"
+
+echo "Output CRAM: ${OUT_CRAM}"
+
+# 3. Stream BWA-MEM directly into sorted CRAM
+echo "$(date) Starting BWA-MEM alignment to GRCh38..."
+"${BWA_BIN}" mem -t "${THREADS}" -Y -K 100000000 \
+    -R "@RG\tID:${SAMPLE}\tSM:${SAMPLE}\tPL:ILLUMINA\tLB:lib1" \
+    "${HUMAN_REF}" "${FQ1}" "${FQ2}" \
+    | "${SAMTOOLS_BIN}" view -@ 4 -C -T "${HUMAN_REF}" - \
+    | "${SAMTOOLS_BIN}" sort -@ 8 -o "${OUT_CRAM}" -
+
+# 4. Generate CRAM index (.crai)
+echo "$(date) Indexing output CRAM: ${OUT_CRAM}..."
+"${SAMTOOLS_BIN}" index "${OUT_CRAM}"
+
+# 5. Quickcheck verification
+"${SAMTOOLS_BIN}" quickcheck "${OUT_CRAM}"
+echo "$(date) Output CRAM verification PASSED: ${OUT_CRAM}"
+
+# 6. Synchronize output CRAM & CRAI to GCS bucket if configured
+if [ -n "{output_bucket}" ]; then
+    echo "[INFO] Syncing CRAM and CRAI to GCS bucket: gs://{output_bucket}/{human_alignment_out_dirname}/"
+    gsutil -q cp "${OUT_CRAM}*" "gs://{output_bucket}/{human_alignment_out_dirname}/" 2>/dev/null || true
+fi
+
+echo "End: $(date)"
+commands_end

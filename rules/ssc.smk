@@ -87,7 +87,9 @@ rule generate_resources_config:
         reporting_config="config/batch_jobexec_reporting.config",
         coverage_config="config/batch_jobexec_coverage.config",
         flag_comparison_config="config/batch_jobexec_flag_comparison.config",
-        refinement_config="config/batch_jobexec_refinement.config"
+        refinement_config="config/batch_jobexec_refinement.config",
+        discordant_config="config/batch_jobexec_discordant.config",
+        human_alignment_config="config/batch_jobexec_human_alignment.config"
     run:
         with open(input.template, "r") as f:
             template_content = f.read()
@@ -137,8 +139,22 @@ rule generate_resources_config:
         with open(output.refinement_config, "w") as f:
             f.write(refinement_content)
 
+        # 7. Discordant config
+        discordant_content = base_sub.replace("{jobexec_dirname}", str(config.get("discordant_jobexec_dirname", "jobexec_discordant")))
+        with open(output.discordant_config, "w") as f:
+            f.write(discordant_content)
+
+        # 8. Human Genome Alignment config
+        human_alignment_content = base_sub.replace("{jobexec_dirname}", str(config.get("human_alignment_jobexec_dirname", "jobexec_human_alignment")))
+        with open(output.human_alignment_config, "w") as f:
+            f.write(human_alignment_content)
+
         # Active default config based on active module switch
-        if config.get("refinement_module", "off") == "on":
+        if config.get("human_alignment_module", "off") == "on":
+            active_content = human_alignment_content
+        elif config.get("discordant_module", "off") == "on":
+            active_content = discordant_content
+        elif config.get("refinement_module", "off") == "on":
             active_content = refinement_content
         elif config.get("flag_comparison_module", "off") == "on":
             active_content = flag_comparison_content
@@ -618,9 +634,14 @@ rule generate_stats:
         cn_switch = str(config.get("heatmap_copy_number", "off")).lower()
         hm_min_reads = int(config.get("heatmap_min_reads_cutoff", 3))
         hm_stratify = str(config.get("heatmap_stratify_by", ""))
+        entropy_plots = str(config.get("entropy_plots", "off")).lower()
+        taxonomy_stratify = str(config.get("taxonomy_stratify", "off")).lower()
+        sample_enrichment_plots = str(config.get("sample_enrichment_plots", "off")).lower()
+        sample_label_filter_file = str(config.get("sample_label_filter_file", ""))
+        sample_label_filtered_plots = str(config.get("sample_label_filtered_plots", "off")).lower()
         group_lvl = str(config.get("stats_taxonomic_group_level", "species")).lower()
         
-        cmd = f"python3 {input.script} --input-report \"{input.master_report}\" --out-dir \"{out_dir}\" --dataset \"{ds}\" --genome-build \"{gb}\" --target-phase \"{phase}\" --target-project \"{project}\" --strategies {strategies} --cohort-scope \"{cohort_scope}\" --reads-panel-a-loglog \"{reads_pa}\" --reads-panel-b-log-y \"{reads_pb}\" --copy-number-panel-a-loglog \"{cn_pa}\" --copy-number-panel-b-log-y \"{cn_pb}\" --log-scale-read-cutoff {cutoff} --log-scale-copy-number-cutoff {cn_cutoff} --prelim-prevalence-cutoff-pct {prev_cutoff} --prelim-mean-read-cutoff {mean_cutoff} --heatmap-read-counts \"{rc_switch}\" --heatmap-copy-number \"{cn_switch}\" --heatmap-min-reads-cutoff {hm_min_reads} --heatmap-stratify-by \"{hm_stratify}\" --group-level \"{group_lvl}\""
+        cmd = f"python3 {input.script} --input-report \"{input.master_report}\" --out-dir \"{out_dir}\" --dataset \"{ds}\" --genome-build \"{gb}\" --target-phase \"{phase}\" --target-project \"{project}\" --strategies {strategies} --cohort-scope \"{cohort_scope}\" --reads-panel-a-loglog \"{reads_pa}\" --reads-panel-b-log-y \"{reads_pb}\" --copy-number-panel-a-loglog \"{cn_pa}\" --copy-number-panel-b-log-y \"{cn_pb}\" --log-scale-read-cutoff {cutoff} --log-scale-copy-number-cutoff {cn_cutoff} --prelim-prevalence-cutoff-pct {prev_cutoff} --prelim-mean-read-cutoff {mean_cutoff} --heatmap-read-counts \"{rc_switch}\" --heatmap-copy-number \"{cn_switch}\" --heatmap-min-reads-cutoff {hm_min_reads} --heatmap-stratify-by \"{hm_stratify}\" --taxonomy-stratify \"{taxonomy_stratify}\" --entropy-plots \"{entropy_plots}\" --sample-enrichment-plots \"{sample_enrichment_plots}\" --sample-label-filter-file \"{sample_label_filter_file}\" --sample-label-filtered-plots \"{sample_label_filtered_plots}\" --group-level \"{group_lvl}\""
         subprocess.run(cmd, shell=True, check=True)
 
         # Copy local outputs to GCS bucket if output_bucket is configured
@@ -737,6 +758,134 @@ rule generate_flag_difference_crams:
         fi
         touch {output.token}
         """
+
+rule create_breakpoints_directory:
+    """
+    Initializes the target breakpoints output directory on GCS using gsutil if not already initialized.
+    """
+    input:
+        placeholder=config["placeholder_file"],
+        config_file="config/ssc_config.yaml"
+    output:
+        token="config/breakpoints_dir.created"
+    shell:
+        """
+        TARGET_PATH="gs://{config[output_bucket]}/{config[discordant_out_dirname]}/test.txt"
+        if ! gsutil -q stat "$TARGET_PATH"; then
+            gsutil cp {input.placeholder} "$TARGET_PATH"
+        fi
+        touch {output.token}
+        """
+
+rule generate_discordant_job_file:
+    """
+    Module 10: Generates ssc_discordant.job from ssc_discordant.job.template.
+    """
+    input:
+        template="config/ssc_discordant.job.template",
+        config_file="config/ssc_config.yaml",
+        script="scripts/extract_discordant_integrations.py"
+    output:
+        job="config/ssc_discordant.job"
+    run:
+        import shutil, subprocess
+        staff_scripts = os.path.join(config["output_dir"], "scripts")
+        try:
+            os.makedirs(staff_scripts, exist_ok=True)
+            if os.path.exists("scripts"):
+                shutil.copytree("scripts", staff_scripts, dirs_exist_ok=True)
+        except Exception:
+            bucket = config.get("output_bucket")
+            if bucket:
+                subprocess.run(f"gsutil -q cp -r scripts/* gs://{bucket}/scripts/ 2>/dev/null", shell=True)
+
+        with open(input.template, "r") as f:
+            content = f.read()
+
+        formatted_content = (
+            content.replace("{dataset}", str(config.get("dataset", "DATASET")))
+            .replace("{phase}", str(config["phase"]))
+            .replace("{project}", str(config["project"]))
+            .replace("{output_bucket}", str(config["output_bucket"]))
+            .replace("{output_dir}", str(config["output_dir"]))
+            .replace("{ref_combined_path}", os.path.join(config["ref_dir"], config.get("ref_combined_default", "combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa")))
+            .replace("{human_contigs_path}", os.path.join(config["ref_dir"], config.get("human_contigs_file", "GRCh38_full_analysis_set_plus_decoy_hla_modified.renamed.contigs.txt")))
+            .replace("{viral_contigs_path}", os.path.join(config["ref_dir"], config.get("viral_contigs_file", "HumanViral_Reference_02-07-2022_modified.renamed.contigs.txt")))
+            .replace("{viral_rename_map_path}", os.path.join(config["ref_dir"], config.get("viral_rename_map_file", f"{config.get('db_name', 'HumanViral_Reference_02-07-2022')}_map.tsv")))
+            .replace("{human_gene_annotation_path}", os.path.join(config["ref_dir"], config.get("human_gene_annotation_file", "gencode.v38.annotation.genes.bed")))
+            .replace("{python_bin}", str(config.get("python_bin", "python3")))
+            .replace("{samtools_bin}", str(config.get("samtools_bin", "samtools")))
+            .replace("{discordant_script_path}", os.path.join(config["scripts_dir"], config.get("discordant_script", "extract_discordant_integrations.py")))
+            .replace("{discordant_input_strategy}", str(config.get("discordant_input_strategy", "exogeneSR_viral_clean.cram")))
+            .replace("{vironator_out_dirname}", str(config["vironator_out_dirname"]))
+            .replace("{breakpoints_out_dirname}", str(config.get("discordant_out_dirname", f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_breakpoints")))
+            .replace("{vironator_jobexec_dirname}", str(config["vironator_jobexec_dirname"]))
+            .replace("{discordant_jobexec_dirname}", str(config.get("discordant_jobexec_dirname", "jobexec_discordant")))
+            .replace("{machine_type}", str(config.get("machine_type", "n2-standard-16")))
+            .replace("{discordant_min_mapq}", str(config.get("discordant_min_mapq", 20)))
+            .replace("{discordant_min_aligned_len}", str(config.get("discordant_min_aligned_len", 35)))
+            .replace("{softclip_min_primary_mapq}", str(config.get("softclip_min_primary_mapq", 10)))
+            .replace("{softclip_min_sa_mapq}", str(config.get("softclip_min_sa_mapq", 10)))
+            .replace("{softclip_min_clip_len}", str(config.get("softclip_min_clip_len", 25)))
+            .replace("{integration_cluster_window}", str(config.get("integration_cluster_window", 500)))
+            .replace("{integration_min_support_reads}", str(config.get("integration_min_support_reads", 2)))
+            .replace("{plot_integration_plots}", str(config.get("plot_integration_plots", "on")))
+            .replace("{plot_min_support_reads}", str(config.get("plot_min_support_reads", 3)))
+            .replace("{plot_top_loci_count}", str(config.get("plot_top_loci_count", 5)))
+        )
+
+        with open(output.job, "w") as f:
+            f.write(formatted_content)
+
+rule merge_breakpoint_reports:
+    """
+    Consolidates individual per-sample integration breakpoint reports into a master cohort report.
+    """
+    input:
+        script="scripts/merge_breakpoint_reports.py",
+        config_file="config/ssc_config.yaml"
+    output:
+        master_report="cohort_breakpoints_master.tsv"
+    run:
+        import subprocess
+        vironator_dir = os.path.join(config["output_dir"], config.get("vironator_out_dirname", f"{config.get('dataset', 'DATASET')}_{config.get('genome_build', 'hg38')}_vironator"))
+        cmd = f"python3 {input.script} --vironator-dir \"{vironator_dir}\" --out-file \"{output.master_report}\""
+        subprocess.run(cmd, shell=True, check=True)
+
+rule generate_human_alignment_job_file:
+    """
+    Module 0: Generates ssc_human_alignment.job from ssc_human_alignment.job.template.
+    """
+    input:
+        template="config/ssc_human_alignment.job.template",
+        config_file="config/ssc_config.yaml"
+    output:
+        job="config/ssc_human_alignment.job"
+    run:
+        with open(input.template, "r") as f:
+            content = f.read()
+
+        formatted_content = (
+            content.replace("{dataset}", str(config.get("dataset", "DATASET")))
+            .replace("{output_bucket}", str(config["output_bucket"]))
+            .replace("{machine_type}", str(config.get("human_align_machine_type", config.get("machine_type", "n2-standard-32"))))
+            .replace("{human_alignment_jobexec_dirname}", str(config.get("human_alignment_jobexec_dirname", "jobexec_human_alignment")))
+            .replace("{bwa_bin}", str(config.get("bwa_bin", "bwa")))
+            .replace("{samtools_bin}", str(config.get("samtools_bin", "samtools")))
+            .replace("{threads}", str(config.get("human_align_threads", config.get("threads", 32))))
+            .replace("{human_align_ref}", str(config.get("human_align_ref", os.path.join(config.get("ref_dir", "/mnt/disks/staff/refs"), "GRCh38_full_analysis_set_plus_decoy_hla_modified.renamed.fa"))))
+            .replace("{data_dir}", str(config.get("data_dir", "/mnt/disks/lab")))
+            .replace("{data_subdir}", str(config.get("data_subdir", "")))
+            .replace("{fastq_suffix}", str(config.get("fastq_suffix", "fastq.gz")))
+            .replace("{fastq_r1_pattern}", str(config.get("fastq_r1_pattern", "{sample}_L001_*R1*{suffix}")))
+            .replace("{fastq_r2_pattern}", str(config.get("fastq_r2_pattern", "{sample}_L001_*R2*{suffix}")))
+            .replace("{output_dir}", str(config.get("output_dir", "/mnt/disks/staff")))
+            .replace("{human_alignment_out_dirname}", str(config.get("human_alignment_out_dirname", "fromNorgan/data/panviral_alignment")))
+        )
+
+        with open(output.job, "w") as f:
+            f.write(formatted_content)
+
 
 
 

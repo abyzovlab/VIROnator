@@ -64,6 +64,8 @@ reporting_jobexec_dirname: "jobexec_reporting_{dataset}_{genome_build}"
 # - If your samples file is stored elsewhere, you MUST provide an ABSOLUTE path 
 #   starting with a "/" (e.g. "/home/user/working/samples_p2_base") to bypass 
 #   automatic appending.
+# samples_list: "samples_panviral.txt"
+# samples_list: "samples_hpv.txt"
 # samples_list: "samples_mayo_biobank.txt"
 samples_list: "samples_p4_clean_base"
 # samples_list: "samples_1000GP.txt"
@@ -78,6 +80,40 @@ ref_dir: "/mnt/disks/staff/refs"
 
 # Repository directory containing helper scripts (GCS shared mount)
 scripts_dir: "/mnt/disks/staff/scripts"
+
+
+# ==============================================================================
+# MODULE 0: HUMAN GENOME ALIGNMENT (FASTQ -> CRAM via BWA-MEM)
+# ==============================================================================
+human_alignment_module: "off"             # Master switch: "on" or "off"
+human_alignment_script: "ssc_human_alignment.job"
+
+# Reference Genome:
+human_align_ref: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla_modified.renamed.fa"
+# Alternatively unmodified GRCh38:
+# human_align_ref: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla.fa"
+
+# Input FASTQ Extension & Naming Patterns (Supports {sample} and {suffix}):
+# For files like: 9_L001_R1_001.fastq.gz, {sample}_L001_*R1*{suffix} matches sample 9 specifically
+# without collision with sample 19, 29, or 90.
+fastq_suffix: "fastq.gz"
+fastq_r1_pattern: "{sample}_L001_*R1*{suffix}"
+fastq_r2_pattern: "{sample}_L001_*R2*{suffix}"
+
+# Computational Resources (Max Threads):
+human_align_threads: 32                   # CPU threads for BWA-MEM (use 16, 32, 64, or "auto")
+human_align_machine_type: "n2-standard-32" # GCP instance machine type
+
+# Directory & Bucket Settings for Norgan Dataset:
+# dataset: "from_Norgan"
+# phase: "panviral"
+# phase: "hpv"
+# data_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4" # Staff bucket (used as input data_bucket here)
+# data_subdir: "fromNorgan/data/panviral"
+
+# Output Directory on staff bucket:
+human_alignment_out_dirname: "fromNorgan/data/panviral_alignment"
+human_alignment_jobexec_dirname: "jobexec_human_alignment_{dataset}_{genome_build}"
 
 
 # ==============================================================================
@@ -225,6 +261,17 @@ heatmap_copy_number: "off"              # Switch: "on" or "off" for copy number 
 heatmap_min_reads_cutoff: 3             # Min reads threshold for heatmap inclusion (3 = skips hits with <=2 reads/1 read pair)
 heatmap_stratify_by: ""                 # Demographics column to split heatmaps by (e.g., "sex", "phenotype", "tissue", or "" for unstratified)
 
+# Shannon Entropy (H) & Shannon Evenness (J) Plots:
+entropy_plots: "off"                    # Switch: "on" or "off" for spatial entropy distribution plots (H, J, H vs J)
+
+# Demographics Stratification for Taxonomy Bar Plots:
+taxonomy_stratify: "off"                # Switch: "on" or "off" to generate demographic-stratified taxonomy bar plots (using heatmap_stratify_by)
+
+# Sample Enrichment Horizontal Bar Plot Settings:
+sample_enrichment_plots: "off"             # Switch: "on" or "off" to generate sample enrichment overlay plots
+sample_label_filter_file: ""               # Path to text file containing target sample labels (one per line, e.g., BSMN_sorted_labels.txt)
+sample_label_filtered_plots: "off"         # Switch: "on" or "off" to generate matching & non-matching sample label plots
+
 # Taxonomic Grouping Setting for Heatmaps, Aggregated Summary TSVs, and Bar Plots:
 # Options: "species", "genus", "family", "realm", or "none" (default: "species")
 stats_taxonomic_group_level: "species"
@@ -332,6 +379,38 @@ refinement_out_dirname: "{dataset}_{genome_build}_refinement"
 refinement_jobexec_dirname: "jobexec_refinement_{dataset}_{genome_build}"
 refinement_strategy: "clean"            # Candidate read source strategy: "clean" or "raw"
 bowtie2_max_multimaps: 10               # -k flag for Bowtie2 multimapping alignment
+
+
+# ==============================================================================
+# MODULE 10: DISCORDANT READS & VIRAL INTEGRATION BREAKPOINTS
+# ==============================================================================
+discordant_module: "off"                 # Master switch: "on" or "off"
+discordant_script: "extract_discordant_integrations.py"
+discordant_input_strategy: "exogeneSR_viral_clean.cram" # Target unfiltered CRAM file (exogeneSR_viral_clean.cram or exogeneSR_viral_raw.cram)
+discordant_out_dirname: "{dataset}_{genome_build}_breakpoints"
+discordant_jobexec_dirname: "jobexec_discordant_{dataset}_{genome_build}"
+
+# Reference Contigs & Annotations:
+human_contigs_file: "GRCh38_full_analysis_set_plus_decoy_hla_modified.renamed.contigs.txt" # List of valid human contigs in ref_dir
+viral_contigs_file: "HumanViral_Reference_02-07-2022_modified.renamed.contigs.txt"           # List of valid viral contigs in ref_dir
+human_gene_annotation_file: "gencode.v38.annotation.genes.bed"                               # Human gene annotation BED file in ref_dir (auto-downloaded if absent)
+
+# Quality & Filtering Criteria:
+discordant_min_mapq: 20                  # Min MAPQ for both mates of discordant pairs
+discordant_min_aligned_len: 35           # Min aligned length (bp) for discordant read metrics
+softclip_min_primary_mapq: 10            # Min MAPQ for split read primary alignment
+softclip_min_sa_mapq: 10                 # Min MAPQ for split read supplementary (SA) cross-species alignment
+softclip_min_clip_len: 25                # Min length (bp) for split portion
+
+# Clustering & Breakpoint Thresholds (Rightward Sliding Window - Seed / Anchor Approach):
+integration_cluster_window: 500          # Window size in bp (extends rightward from seed read)
+integration_min_support_reads: 2         # Min total supporting reads (discordant + split) to report locus
+
+# Plotting Settings:
+plot_integration_plots: "on"             # Switch: "on" or "off" for Dual Genomic Arc / locus coverage plots
+plot_min_support_reads: 3                # Min reads threshold to trigger locus plot
+plot_top_loci_count: 5                   # Maximum top candidate loci to plot per sample
+
 
 
 

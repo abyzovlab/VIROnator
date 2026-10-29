@@ -1,0 +1,156 @@
+# =========================================================================================================================
+# VIROnator Module 10: Discordant Reads & Viral Integration Breakpoints Job Template
+# Extracts chimeric discordant read pairs and split reads, performs rightward sliding window clustering (Seed / Anchor),
+# annotates nearest human genomic genes, and discovers viral integration loci.
+# =========================================================================================================================
+
+job_name={dataset}_DISCORDANT
+job_identifier={dataset}_[SAMPLE]
+machine_type={machine_type}
+
+####
+#### Buckets
+####
+
+input_bucket=gs://{output_bucket}/{vironator_jobexec_dirname}/output
+output_bucket=gs://{output_bucket}/{discordant_jobexec_dirname}/output
+log_bucket=gs://{output_bucket}/{discordant_jobexec_dirname}/logs
+
+####
+#### Tools
+####
+
+repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
+tool=samtools
+
+####
+#### Post-Job Configuration
+####
+
+clear_output=true
+clear_input=true 
+
+####
+#### Script to run
+####
+
+commands_start
+
+export PATH="/mnt/disks/staff/bin:${PATH}"
+
+# Automatically load environment modules if Lmod/Modules are available on node
+if command -v module >/dev/null 2>&1 || [ -f /usr/share/modules/init/bash ]; then
+    [ -f /usr/share/modules/init/bash ] && . /usr/share/modules/init/bash 2>/dev/null || true
+    module load samtools python 2>/dev/null || true
+fi
+
+set -ex
+
+echo "Start: $(date)"
+
+PYTHON_BIN="{python_bin}"
+if [ ! -x "${PYTHON_BIN}" ] && ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
+    if command -v python3 >/dev/null 2>&1; then
+        PYTHON_BIN="python3"
+    elif command -v python >/dev/null 2>&1; then
+        PYTHON_BIN="python"
+    fi
+fi
+
+SAMTOOLS_BIN="{samtools_bin}"
+if [ ! -x "${SAMTOOLS_BIN}" ] && ! command -v "${SAMTOOLS_BIN}" >/dev/null 2>&1; then
+    if [ -x "/mnt/disks/staff/bin/samtools" ]; then
+        SAMTOOLS_BIN="/mnt/disks/staff/bin/samtools"
+    elif command -v samtools >/dev/null 2>&1; then
+        SAMTOOLS_BIN="samtools"
+    fi
+fi
+
+COMBINED_REF="{ref_combined_path}"
+HUMAN_CONTIGS="{human_contigs_path}"
+VIRAL_CONTIGS="{viral_contigs_path}"
+RENAME_MAP="{viral_rename_map_path}"
+GENE_ANNOTATION="{human_gene_annotation_path}"
+
+DISCORDANT_SCRIPT="{discordant_script_path}"
+STRATEGY="{discordant_input_strategy}"
+
+PHASE="{phase}"
+PROJECT="{project}"
+SAMPLE="[SAMPLE]"
+
+# Directory paths
+if [ -z "${PHASE}" ] || [ "${PHASE}" = "none" ] || [ "${PHASE}" = "0" ]; then
+    PHASE_SUBDIR=""
+else
+    PHASE_SUBDIR="phase${PHASE}"
+fi
+
+if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ] || [ "${PROJECT}" = "none" ]; then
+    PROJECT_SUBDIR=""
+else
+    PROJECT_SUBDIR="${PROJECT}"
+fi
+
+if [ -n "${PHASE_SUBDIR}" ] && [ -n "${PROJECT_SUBDIR}" ]; then
+    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/${PHASE_SUBDIR}/${PROJECT_SUBDIR}/${SAMPLE}"
+elif [ -n "${PHASE_SUBDIR}" ]; then
+    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/${PHASE_SUBDIR}/${SAMPLE}"
+elif [ -n "${PROJECT_SUBDIR}" ]; then
+    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/${PROJECT_SUBDIR}/${SAMPLE}"
+else
+    VIRONATOR_DIR="{output_dir}/{vironator_out_dirname}/${SAMPLE}"
+fi
+
+mkdir -p "${VIRONATOR_DIR}"
+
+INPUT_CRAM="${VIRONATOR_DIR}/${STRATEGY}"
+
+if [ ! -f "${INPUT_CRAM}" ]; then
+    echo "[WARNING] Input strategy CRAM not found locally: ${INPUT_CRAM}"
+    if [ -n "{output_bucket}" ]; then
+        echo "[INFO] Attempting download from GCS: gs://{output_bucket}/{vironator_out_dirname}/${PHASE_SUBDIR}/${PROJECT_SUBDIR}/${SAMPLE}/${STRATEGY} ..."
+        gsutil -q cp "gs://{output_bucket}/{vironator_out_dirname}/${PHASE_SUBDIR}/${PROJECT_SUBDIR}/${SAMPLE}/${STRATEGY}*" "${VIRONATOR_DIR}/" 2>/dev/null || true
+    fi
+fi
+
+if [ ! -f "${INPUT_CRAM}" ]; then
+    echo "[ERROR] Could not resolve input CRAM file: ${INPUT_CRAM}. Aborting."
+    exit 1
+fi
+
+# Execute Module 10 Extraction, Rightward Sliding Window Clustering & Annotation
+${PYTHON_BIN} ${DISCORDANT_SCRIPT} \
+    --sample-id "${SAMPLE}" \
+    --phase "${PHASE}" \
+    --project "${PROJECT}" \
+    --input-cram "${INPUT_CRAM}" \
+    --reference "${COMBINED_REF}" \
+    --human-contigs "${HUMAN_CONTIGS}" \
+    --viral-contigs "${VIRAL_CONTIGS}" \
+    --gene-annotation "${GENE_ANNOTATION}" \
+    --rename-map "${RENAME_MAP}" \
+    --vironator-dir "${VIRONATOR_DIR}" \
+    --samtools-bin "${SAMTOOLS_BIN}" \
+    --discordant-min-mapq {discordant_min_mapq} \
+    --discordant-min-aligned-len {discordant_min_aligned_len} \
+    --softclip-min-primary-mapq {softclip_min_primary_mapq} \
+    --softclip-min-sa-mapq {softclip_min_sa_mapq} \
+    --softclip-min-clip-len {softclip_min_clip_len} \
+    --cluster-window {integration_cluster_window} \
+    --min-support-reads {integration_min_support_reads} \
+    --plot-integrations "{plot_integration_plots}" \
+    --plot-min-reads {plot_min_support_reads} \
+    --plot-top-loci {plot_top_loci_count}
+
+# Sync generated outputs back to GCS bucket
+if [ -n "{output_bucket}" ]; then
+    echo "[INFO] Syncing discordant CRAMs and breakpoints to GCS bucket..."
+    gsutil -q cp "${VIRONATOR_DIR}/exogeneSR_discordant_pairs.*" "gs://{output_bucket}/{vironator_out_dirname}/${PHASE_SUBDIR}/${PROJECT_SUBDIR}/${SAMPLE}/" 2>/dev/null || true
+    gsutil -q cp "${VIRONATOR_DIR}/exogeneSR_softclipped_split.*" "gs://{output_bucket}/{vironator_out_dirname}/${PHASE_SUBDIR}/${PROJECT_SUBDIR}/${SAMPLE}/" 2>/dev/null || true
+    gsutil -q cp "${VIRONATOR_DIR}/${SAMPLE}_integration_breakpoints.tsv" "gs://{output_bucket}/{vironator_out_dirname}/${PHASE_SUBDIR}/${PROJECT_SUBDIR}/${SAMPLE}/" 2>/dev/null || true
+    gsutil -q cp "${VIRONATOR_DIR}/*_arc.*" "gs://{output_bucket}/{vironator_out_dirname}/${PHASE_SUBDIR}/${PROJECT_SUBDIR}/${SAMPLE}/" 2>/dev/null || true
+fi
+
+echo "End: $(date)"
+commands_end

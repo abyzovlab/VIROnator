@@ -62,8 +62,9 @@ When adopting a new vector or plasmid reference dataset, raw FASTA header names 
 It supports both local file paths and Google Cloud Storage (`gs://`) URIs.
 
 #### Shortening Rules Applied:
-- **Removals**: Strips genomic descriptors such as `, complete genome, strain:`, `, complete genome.`, `, complete genome`, ` genomic RNA, complete genome, strain:`, ` genomic RNA, complete`, ` genomic DNA, partial`, ` genomic DNA.`, `sense strand`.
-- **Replacements**: Standardizes common viral family/species names (e.g. `Torque teno mini virus` $\rightarrow$ `TTV mini`, `Torque teno virus` $\rightarrow$ `TTV`, `Adeno-associated virus` $\rightarrow$ `AAV`, `Simian adenovirus` $\rightarrow$ `Simian Ad`, `Human papillomavirus` $\rightarrow$ `HPV`, `Human immunodeficiency virus` $\rightarrow$ `HIV`, `Human herpesvirus` $\rightarrow$ `HHV`, `Porcine endogenous retrovirus` $\rightarrow$ `PERV`).
+- **Comma Stripping**: Automatically removes all commas (`,`) from headers first.
+- **Removals**: Strips genomic descriptors such as ` genomic RNA complete genome strain:`, ` complete genome strain:`, ` genomic RNA complete`, ` genomic DNA partial`, ` genomic DNA`, ` genomic RNA`, ` complete virion genome`, ` virion genome`, ` complete genome`, `sense strand`, and space-dash-space combinations (` - `).
+- **Replacements**: Standardizes viral family/species names (e.g. `Torque teno mini virus` $\rightarrow$ `TTV mini`, `Torque teno virus` $\rightarrow$ `TTV`, `Adeno-associated virus` $\rightarrow$ `AAV`, `Simian adenovirus` $\rightarrow$ `Simian Ad`, `Human papillomavirus` / `Human papillomavirus virus` $\rightarrow$ `HPV`, `Human immunodeficiency virus` $\rightarrow$ `HIV`, `Human alphaherpesvirus 1-3` $\rightarrow$ `HHV-1`-`HHV-3`, `Human gammaherpesvirus 4` $\rightarrow$ `EBV`, `Human betaherpesvirus 5` $\rightarrow$ `CMV`, `Human betaherpesvirus 6A/6B/7` $\rightarrow$ `HHV-6A`/`HHV-6B`/`HHV-7`, `Molluscum contagiosum virus` $\rightarrow$ `MCV`, `Porcine endogenous retrovirus` $\rightarrow$ `PERV`).
 
 #### Usage Example:
 ```bash
@@ -153,6 +154,18 @@ When `generate_report_submodule: "on"` is set, Snakemake compiles `ssc_reporting
 batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
 
+#### Module 0: Human Genome Alignment Module (`ssc_human_alignment.job`)
+Aligns paired-end FASTQ reads directly to the GRCh38 human reference genome using multithreaded BWA-MEM and streams output into coordinate-sorted, indexed CRAM files (`.cram` and `.cram.crai`).
+```bash
+# 1. Compile human alignment jobexec cluster files:
+snakemake config/ssc_human_alignment.job --cores 1
+
+# 2. Submit parallel batch run across samples:
+batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_human_alignment.config -non-spot config/ssc_human_alignment.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
+# Or via jobexec:
+jobexec batch config/batch_jobexec_human_alignment.config config/ssc_human_alignment.job samples_list.txt
+```
+
 #### Module 1: Coverage Calculation Module (`ssc_coverage.job`)
 
 ```bash
@@ -222,10 +235,23 @@ snakemake config/ssc_refinement.job --cores 1
 
 # 4. Submit parallel batch run across target refinement samples:
 batchRun -multibatch config/refinement_samples.tsv -config config/batch_jobexec_refinement.config -non-spot config/ssc_refinement.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
-```
 
 # 5. Merge all cohort outputs into master report (run on head node after cluster jobs finish):
 snakemake cohort_refinement_master.tsv --cores 1
+```
+
+#### Module 10: Discordant Reads & Viral Integration Breakpoints Module (`ssc_discordant.job`)
+```bash
+# 1. Compile discordant jobexec cluster files:
+snakemake config/ssc_discordant.job --cores 1
+
+# 2. Submit parallel batch run across samples:
+jobexec batch config/batch_jobexec_resources.config config/ssc_discordant.job samples_list.txt
+# Or with module-specific config:
+jobexec batch config/batch_jobexec_discordant.config config/ssc_discordant.job samples_list.txt
+
+# 3. Consolidate all per-sample reports into master cohort report (run on head node after cluster jobs finish):
+snakemake cohort_breakpoints_master.tsv --cores 1
 ```
 
 ### 7. Systematic SAM Flag Comparison Module (`flag_comparison_module`)
@@ -313,3 +339,86 @@ Re-aligns candidate viral reads against complete RefSeq viral genomes for detect
 9. `Total_Refined_Reads` — Total read pairs (`Reference_Unique_Reads` + `Species_Supportive_Reads`)
 10. `Refined_Copy_Number` — Reference-discriminating copy-number lower bound
 11. `Classification_Status` — Call status (`CONFIRMED_UNIQUE` or `SPECIES_COLLAPSED`)
+
+### 10. Discordant Reads & Viral Integration Breakpoints Module (`discordant_module`)
+Extracts chimeric discordant read pairs and split reads from unfiltered alignment CRAM files (`exogeneSR_viral_clean.cram` or `exogeneSR_viral_raw.cram`), discovers host-viral genomic integration sites using a rightward sliding window clustering algorithm (Seed / Anchor approach), estimates single-nucleotide or interval integration boundaries, assesses call confidence, annotates nearest human genomic genes (GENCODE), and generates dual genomic arc visualizations.
+
+1. Configure Module 10 in `config/ssc_config.yaml`:
+   ```yaml
+   discordant_module: "on"
+   discordant_input_strategy: "exogeneSR_viral_clean.cram"
+   integration_cluster_window: 500
+   integration_min_support_reads: 2
+   plot_integration_plots: "on"
+   plot_min_support_reads: 3
+   plot_top_loci_count: 5
+   ```
+2. Compile job and resource config files:
+   ```bash
+   snakemake config/ssc_discordant.job --cores 1
+   ```
+3. Submit parallel batch run across cohort samples:
+   ```bash
+   jobexec batch config/batch_jobexec_resources.config config/ssc_discordant.job samples_list.txt
+   ```
+4. Consolidate cohort output into master report (run on head node after cluster jobs finish):
+   ```bash
+   snakemake cohort_breakpoints_master.tsv --cores 1
+   ```
+
+#### Algorithmic Workflow & Methodology:
+1. **Extraction of Discordant Pairs & Split Reads**:
+   - Inspects the unfiltered CRAM file where inter-chromosomal chimeric pairs and soft-clipped reads are retained.
+   - **Discordant Pairs**: Exactly one mate aligns to a human chromosome (`chr1`-`chr22`, `chrX`, `chrY`, `chrM`) and one mate aligns to a viral contig with `MAPQ >= 20` (unmapped, secondary, supplementary, and duplicate reads excluded).
+   - **Split / Soft-Clipped Reads**: Primary alignment on human or viral contig with `MAPQ >= 10`, soft-clipped by $\ge 25$ bp, containing a cross-species supplementary alignment (`SA` tag) with `MAPQ >= 10`.
+2. **Rightward Sliding Window Clustering (Seed / Anchor Approach)**:
+   - Discordant pairs are sorted by human coordinate and grouped strictly by:
+     - `(human_chr, viral_accession, structural_orientation)`
+   - **Structural Orientation Classes**:
+     - **Colinear**: $(+, -)$ and $(-, +)$ read pairs (opposite strands).
+     - **Inverted**: $(+, +)$ and $(-,-)$ read pairs (same strands).
+   - The first discordant pair in an orientation group is designated as the cluster **seed / anchor**.
+   - As subsequent candidate pairs are scanned, the human window extends rightward from the anchor boundary (`human_max_end + window_size`, default 500 bp), while requiring the viral distance between reads to be $\le window\_size$. Split reads matching the genomic interval are merged into the cluster.
+3. **Breakpoint Estimation**:
+   - **Single-Nucleotide Precision ($N_{split} \ge 1$)**: When split reads are present, the exact junction point is calculated directly from the read coordinate where sequence transitions from human to viral genome.
+   - **Interval Estimation ($N_{split} = 0$)**: When supported only by discordant pairs, the breakpoint is estimated from the median human coordinate and median viral coordinate of supporting reads.
+4. **Call Confidence Rating**:
+   - **High Confidence**: Supported by $\ge 1$ split read AND $\ge 3$ total supporting reads ($N_{split} \ge 1$ and $N_{total} \ge 3$).
+   - **Medium Confidence**: ($N_{split} \ge 1$ and $N_{total} < 3$) OR ($N_{split} = 0$ and $N_{discordant} \ge 3$).
+   - **Low Confidence**: $N_{split} = 0$ and $N_{discordant} < 3$.
+5. **Human Gene Annotation**:
+   - Automatically utilizes GENCODE v38 gene models (downloaded to `/mnt/disks/staff/refs/` if absent).
+   - Identifies if the breakpoint falls within an intragenic element (gene name, biotype, strand) or is intergenic, recording the nearest upstream (`-X bp`) and downstream (`+Y bp`) genes.
+
+#### Output Files & Locations:
+- **Per-Sample Directory**: `gs://<output_bucket>/<vironator_out_dirname>/[phase]/[project]/<sample>/`
+  - `exogeneSR_discordant_pairs.cram` & `.crai`: Filtered discordant pairs CRAM.
+  - `exogeneSR_discordant_pairs.tsv`: Table of extracted discordant read pairs.
+  - `exogeneSR_softclipped_split.cram` & `.crai`: Filtered split reads CRAM.
+  - `exogeneSR_softclipped_split.tsv`: Table of extracted split/soft-clipped reads.
+  - `<sample>_integration_breakpoints.tsv`: Locus-level summary of integration breakpoints.
+  - `<sample>_locus_rank<N>_<chr>_<virus>_arc.tiff` (300 DPI publication TIFF) & `.png`: Dual genomic arc and coverage locus plot (for loci with $\ge 3$ supporting reads).
+- **Consolidated Cohort Master Report**:
+  - `cohort_breakpoints_master.tsv`: Generated on the head node after all parallel batch jobs complete via `snakemake cohort_breakpoints_master.tsv --cores 1`.
+
+#### 20-Column Breakpoints TSV Schema (`<sample>_integration_breakpoints.tsv` and `cohort_breakpoints_master.tsv`):
+1. `sample_id` — Sample identifier (e.g. `SS0012978`)
+2. `phase` — Cohort phase tag (e.g. `phase1` or `unknown`)
+3. `project` — Cohort project tag (e.g. `base`)
+4. `human_chr` — Human host chromosome (e.g. `chr8`)
+5. `human_coord_window` — Spanned human genomic interval (e.g. `chr8:128748200-128748950`)
+6. `human_breakpoint_est` — Exact split junction or median human coordinate (e.g. `128748575`)
+7. `viral_accession` — NCBI Viral Reference Accession ID (e.g. `NC_001357.1`)
+8. `viral_name_sanitized` — Human-readable viral species name (e.g. `Human papillomavirus type 18`)
+9. `viral_coord_window` — Spanned viral genomic interval (e.g. `NC_001357.1:3100-3450`)
+10. `viral_breakpoint_est` — Exact split junction or median viral coordinate (e.g. `3275`)
+11. `orientation` — Structural orientation (`colinear` or `inverted`)
+12. `discordant_read_count` — Supporting discordant read pair count
+13. `split_read_count` — Supporting chimeric split read count
+14. `total_evidence_reads` — Total supporting reads (`discordant_read_count` + `split_read_count`)
+15. `confidence` — Categorical confidence tier (`High`, `Medium`, or `Low`)
+16. `intragenic_element` — Intragenic gene symbol if breakpoint falls within a gene body (or `NA`)
+17. `upstream_element` — Nearest upstream gene symbol (e.g. `PVT1`)
+18. `upstream_distance_bp` — Distance in bp to nearest upstream gene (e.g. `-1420`)
+19. `downstream_element` — Nearest downstream gene symbol (e.g. `MYC`)
+20. `downstream_distance_bp` — Distance in bp to nearest downstream gene (e.g. `+5230`)

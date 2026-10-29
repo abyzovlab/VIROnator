@@ -6,6 +6,12 @@ Standalone Utility Script for VIROnator
 Takes an input viral reference rename map file (.renamed_map.tsv) and automatically
 determines the output path in the same directory, appending '_short.tsv'.
 
+Execution Flow:
+1. Strips all commas (',') from the input descriptive text strings first.
+2. Applies rule-based removals of genomic descriptors & formatting artifacts.
+3. Applies standardized viral species/family acronym replacements (ordered longest-to-shortest).
+4. Cleans up gene/CDS annotation noise (ORF1..9, cds, genes, sequence, nonfunctional, and).
+
 Output File Structure (3 Columns):
   Column 1: final_clean_id (Accession ID)
   Column 2: original_header (Unmodified original header)
@@ -13,26 +19,6 @@ Output File Structure (3 Columns):
 
 Example Output:
   HE974372 \t HE974372 HBV genotype D4 complete genome, isolate Mart-B36 \t HBV genotype D4 isolate Mart-B36
-
-Rules Enforced:
-1. Substring Removals:
-   - " genomic RNA, complete genome, strain:"
-   - ", complete genome, strain:"
-   - " genomic RNA, complete"
-   - " genomic DNA, partial"
-   - " genomic DNA."
-   - ", complete genome."
-   - ", complete genome"
-   - "sense strand"
-
-2. Abbreviation Replacements:
-   - "Torque teno mini virus" -> "TTV mini"
-   - "Torque teno virus"      -> "TTV"
-   - "Simian adenovirus"      -> "Simian Ad"
-   - "Human papillomavirus"   -> "HPV"
-   - "Human immunodeficiency virus" -> "HIV"
-   - "Human herpesvirus"      -> "HHV"
-   - "Porcine endogenous retrovirus" -> "PERV"
 
 Usage:
   python3 scripts/shorten_viral_names.py gs://<bucket>/refs/HumanViral_Reference_02-07-2022_modified.renamed_map.tsv
@@ -44,31 +30,48 @@ import os
 import argparse
 import subprocess
 import tempfile
+import re
 
 REMOVALS = [
-    " genomic RNA, complete genome, strain:",
-    ", complete genome, strain:",
-    " genomic RNA, complete",
-    " genomic DNA, partial",
-    " genomic DNA.",
-    ", complete genome, ",
-    ", complete genome,",
-    ", complete genome.",
-    ", complete genome",
-    " complete genome,",
-    " complete genome.",
-    " complete genome",
+    "genomic RNA complete genome strain:",
+    "complete genome strain:",
+    "genomic RNA complete",
+    "genomic DNA partial",
+    "genomic DNA.",
+    "genomic DNA",
+    "genomic RNA",
+    "complete virion genome",
+    "virion genome",
+    "DNA complete genome",
+    "complete genome.",
+    "complete genome",
     "sense strand",
+    " - ",
 ]
 
+# Order matters: longest/most specific patterns must come before general ones
 REPLACEMENTS = [
+    ("Trichodysplasia spinulosa associated polyomavirus", "TSPyV"),
     ("Torque teno mini virus", "TTV mini"),
+    ("Torque teno midi virus", "TTV midi"),
+    ("Torque teno midi", "TTV midi"),
+    ("TTV like mini virus", "TTV mini"),
     ("Torque teno virus", "TTV"),
     ("Adeno-associated virus", "AAV"),
     ("Simian adenovirus", "Simian Ad"),
+    ("Human papillomavirus virus", "HPV"),
     ("Human papillomavirus", "HPV"),
     ("Human immunodeficiency virus", "HIV"),
+    ("Human alphaherpesvirus 1", "HHV-1"),
+    ("Human alphaherpesvirus 2", "HHV-2"),
+    ("Human alphaherpesvirus 3", "HHV-3"),
+    ("Human gammaherpesvirus 4", "EBV"),
+    ("Human betaherpesvirus 5", "CMV"),
+    ("Human betaherpesvirus 6A", "HHV-6A"),
+    ("Human betaherpesvirus 6B", "HHV-6B"),
+    ("Human betaherpesvirus 7", "HHV-7"),
     ("Human herpesvirus", "HHV"),
+    ("Molluscum contagiosum virus", "MCV"),
     ("Porcine endogenous retrovirus", "PERV"),
 ]
 
@@ -85,27 +88,31 @@ def parse_args():
 
 
 def derive_output_path(input_path):
-    """Automatically constructs the output path with '_short.tsv' in the exact same directory."""
+    """Automatically constructs output path with '_short.tsv' in the exact same directory."""
     if input_path.endswith(".tsv"):
         return input_path[:-4] + "_short.tsv"
     return input_path + "_short.tsv"
 
 
 def shorten_text(text):
-    """Applies rule-based removals and replacements to a string."""
-    result = text
+    """Strips commas first, applies removals and replacements, and cleans gene/CDS noise."""
+    # 1. Strip all commas first
+    result = text.replace(",", "")
 
-    # 1. Apply removals
+    # 2. Apply removals
     for target in REMOVALS:
         result = result.replace(target, "")
 
-    # 2. Apply replacements
+    # 3. Apply replacements (specific long names before broader ones)
     for old_term, new_term in REPLACEMENTS:
         result = result.replace(old_term, new_term)
 
+    # 4. Strip gene/CDS annotation noise (ORF1..9, cds, genes, sequence, nonfunctional, and)
+    result = re.sub(r"\b(ORF\d+|genes?|cds|complete|sequence|nonfunctional|and)\b", "", result, flags=re.IGNORECASE)
+
     # Clean up leftover double spaces or trailing punctuation
     result = " ".join(result.split())
-    result = result.strip(",. ")
+    result = result.strip(". ")
     return result
 
 
@@ -154,7 +161,7 @@ def process_map_file(local_input, local_output):
                 else:
                     desc = orig_header
 
-                # Apply shortening rules to the description (without accession)
+                # Apply comma removal, shortening rules, and gene/CDS cleanup to description
                 short_name = shorten_text(desc)
                 if not short_name:
                     short_name = clean_id

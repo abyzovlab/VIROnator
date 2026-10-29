@@ -184,10 +184,6 @@ fi
 # Configure REF_PATH so samtools can resolve CRAM references in ref_dir
 export REF_PATH="/mnt/disks/staff/refs/%s:/mnt/disks/staff/refs/%s.fa"
 
-# Fallback symlinks for legacy CRAM headers that expect /mnt/disks/staff/ref/GRCh38_full_analysis_set_plus_decoy_hla.fa
-if [ ! -d "/mnt/disks/staff/ref" ] && [ -d "/mnt/disks/staff/refs" ]; then
-    ln -s /mnt/disks/staff/refs /mnt/disks/staff/ref 2>/dev/null || true
-fi
 if [ -d "/mnt/disks/staff/refs" ]; then
     if [ ! -f "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla.fa" ] && [ -f "${REF_HUMAN_FULL}" ]; then
         ln -s "${REF_HUMAN_FULL}" /mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla.fa 2>/dev/null || true
