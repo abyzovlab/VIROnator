@@ -101,51 +101,58 @@ rule generate_resources_config:
             .replace("{pi}", str(config["pi"]))
             .replace("{pau}", str(config["pau"]))
             .replace("{task_name}", str(config["task_name"]))
-            .replace("{machine_type}", str(config.get("machine_type", "n2-standard-16")))
-            .replace("{threads}", str(config.get("threads", 16)))
-            .replace("{memory}", str(config.get("memory", 64)))
+            .replace("{machine_type}", str(config.get("machine_type", "n2-standard-64")))
+            .replace("{threads}", str(config.get("threads", 64)))
+            .replace("{memory}", str(config.get("memory", 256)))
             .replace("{nodes}", str(config.get("nodes", 3000)))
             .replace("{storage}", str(config.get("storage", 0)))
             .replace("{boot_storage}", str(config.get("boot_storage", 50)))
         )
         
+        ds = str(config.get("dataset", "DATASET"))
+        gb = str(config.get("genome_build", "hg38"))
+
+        def resolve_jobexec(name_key, default_name):
+            val = str(config.get(name_key, default_name))
+            return val.replace("{dataset}", ds).replace("{genome_build}", gb)
+
         # 1. Unmapped config
-        unmapped_content = base_sub.replace("{jobexec_dirname}", str(config.get("unmapped_jobexec_dirname", "jobexec_unmapped")))
+        unmapped_content = base_sub.replace("{jobexec_dirname}", resolve_jobexec("unmapped_jobexec_dirname", "jobexec_unmapped"))
         with open(output.unmapped_config, "w") as f:
             f.write(unmapped_content)
 
         # 2. VIROnator config
-        vironator_content = base_sub.replace("{jobexec_dirname}", str(config.get("vironator_jobexec_dirname", "jobexec_vironator")))
+        vironator_content = base_sub.replace("{jobexec_dirname}", resolve_jobexec("vironator_jobexec_dirname", "jobexec_vironator"))
         with open(output.vironator_config, "w") as f:
             f.write(vironator_content)
 
         # 3. Reporting config
-        reporting_content = base_sub.replace("{jobexec_dirname}", str(config.get("reporting_jobexec_dirname", "jobexec_reporting")))
+        reporting_content = base_sub.replace("{jobexec_dirname}", resolve_jobexec("reporting_jobexec_dirname", "jobexec_reporting"))
         with open(output.reporting_config, "w") as f:
             f.write(reporting_content)
 
         # 4. Coverage config
-        coverage_content = base_sub.replace("{jobexec_dirname}", str(config.get("coverage_jobexec_dirname", "jobexec_coverage")))
+        coverage_content = base_sub.replace("{jobexec_dirname}", resolve_jobexec("coverage_jobexec_dirname", "jobexec_coverage"))
         with open(output.coverage_config, "w") as f:
             f.write(coverage_content)
 
         # 5. Flag Comparison config
-        flag_comparison_content = base_sub.replace("{jobexec_dirname}", str(config.get("flag_comparison_jobexec_dirname", "jobexec_flag_comparison")))
+        flag_comparison_content = base_sub.replace("{jobexec_dirname}", resolve_jobexec("flag_comparison_jobexec_dirname", "jobexec_flag_comparison"))
         with open(output.flag_comparison_config, "w") as f:
             f.write(flag_comparison_content)
 
         # 6. Refinement config
-        refinement_content = base_sub.replace("{jobexec_dirname}", str(config.get("refinement_jobexec_dirname", "jobexec_refinement")))
+        refinement_content = base_sub.replace("{jobexec_dirname}", resolve_jobexec("refinement_jobexec_dirname", "jobexec_refinement"))
         with open(output.refinement_config, "w") as f:
             f.write(refinement_content)
 
         # 7. Discordant config
-        discordant_content = base_sub.replace("{jobexec_dirname}", str(config.get("discordant_jobexec_dirname", "jobexec_discordant")))
+        discordant_content = base_sub.replace("{jobexec_dirname}", resolve_jobexec("discordant_jobexec_dirname", "jobexec_discordant"))
         with open(output.discordant_config, "w") as f:
             f.write(discordant_content)
 
         # 8. Human Genome Alignment config
-        human_alignment_content = base_sub.replace("{jobexec_dirname}", str(config.get("human_alignment_jobexec_dirname", "jobexec_human_alignment")))
+        human_alignment_content = base_sub.replace("{jobexec_dirname}", resolve_jobexec("human_alignment_jobexec_dirname", "jobexec_human_alignment"))
         with open(output.human_alignment_config, "w") as f:
             f.write(human_alignment_content)
 
@@ -865,11 +872,17 @@ rule generate_human_alignment_job_file:
         with open(input.template, "r") as f:
             content = f.read()
 
+        ds = str(config.get("dataset", "DATASET"))
+        gb = str(config.get("genome_build", "hg38"))
+        human_align_out = str(config.get("human_alignment_out_dirname", "{dataset}_{genome_build}_human_alignment")).replace("{dataset}", ds).replace("{genome_build}", gb)
+        human_align_jobexec = str(config.get("human_alignment_jobexec_dirname", "jobexec_human_alignment_{dataset}_{genome_build}")).replace("{dataset}", ds).replace("{genome_build}", gb)
+
         formatted_content = (
-            content.replace("{dataset}", str(config.get("dataset", "DATASET")))
+            content.replace("{dataset}", ds)
+            .replace("{genome_build}", gb)
             .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{machine_type}", str(config.get("machine_type", "n2-standard-64")))
-            .replace("{human_alignment_jobexec_dirname}", str(config.get("human_alignment_jobexec_dirname", "jobexec_human_alignment")))
+            .replace("{human_alignment_jobexec_dirname}", human_align_jobexec)
             .replace("{bwa_bin}", str(config.get("bwa_bin", "bwa")))
             .replace("{samtools_bin}", str(config.get("samtools_bin", "samtools")))
             .replace("{threads}", str(config.get("threads", 64)))
@@ -880,7 +893,7 @@ rule generate_human_alignment_job_file:
             .replace("{fastq_r1_pattern}", str(config.get("fastq_r1_pattern", "{sample}_L001_R1_001.{suffix}")))
             .replace("{fastq_r2_pattern}", str(config.get("fastq_r2_pattern", "{sample}_L001_R2_001.{suffix}")))
             .replace("{output_dir}", str(config.get("output_dir", "/mnt/disks/staff")))
-            .replace("{human_alignment_out_dirname}", str(config.get("human_alignment_out_dirname", "fromNorgan/data/panviral_alignment")))
+            .replace("{human_alignment_out_dirname}", human_align_out)
         )
 
         with open(output.job, "w") as f:
