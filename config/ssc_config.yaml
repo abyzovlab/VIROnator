@@ -26,6 +26,7 @@ data_dir: "/mnt/disks/lab"
 data_subdir: "whole_genome/bb1000_2013/raw/bam"
 # data_subdir: "tertiary/s203958.TS_mosaicism/integrated/raw_data/BSMN_download"
 # data_subdir: "tertiary/s203958.TS_mosaicism/integrated/raw_data/1000G_2504_high_coverage"
+# data_subdir: "fromNorgan/data/"
 input_keyword: ""                      # Optional middle keyword after sample dot (e.g. "final", "sorted", or "" for none)
 input_suffix: "bam"                    # File extension after keyword (e.g. "cram", "bam")
 output_dir: "/mnt/disks/staff"
@@ -37,6 +38,7 @@ placeholder_file: "test.txt"
 # - output_bucket: Destination GCS bucket where outputs are deposited (mounts to /mnt/disks/staff)
 data_bucket: "ml-phi-abyzov-alexej-m124423-rsa-us-central1-p-d3c4"
 # data_bucket: "ml-phi-mcbiobank-rsa-us-central1-p-88af"
+# data_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4" # staff bucket
 output_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"
 
 # GCP Service Account & Billing Parameters
@@ -44,9 +46,9 @@ gcp_account: "vaults6-m277455-p-1733249128@ml-fpt-rsa-aproject1-p-581c.iam.gserv
 pi: "MDJ"
 pau: 0
 task_name: "mdj_test"
-machine_type: "n2-standard-16"  # GCP Instance type (e.g. n1-standard-4, n2-standard-8, n2-standard-16)
-threads: 16                     # CPU threads per worker node
-memory: 64                      # Memory (RAM) in GB per worker node
+machine_type: "n2-standard-64"  # GCP Instance type (e.g. n1-standard-4, n2-standard-8, n2-standard-16)
+threads: 64                     # CPU threads per worker node
+memory: 256                      # Memory (RAM) in GB per worker node
 nodes: 3000                     # Max node count
 storage: 0                      # Additional persistent storage in GB
 boot_storage: 50                # Boot storage in GB
@@ -97,15 +99,11 @@ human_align_ref: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla_
 # human_align_ref: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla.fa"
 
 # Input FASTQ Extension & Naming Patterns (Supports {sample} and {suffix}):
-# For files like: 9_L001_R1_001.fastq.gz, {sample}_L001_*R1*{suffix} matches sample 9 specifically
-# without collision with sample 19, 29, or 90.
+# For files like: 10_L001_R1_001.fastq.gz, explicitly includes '001' to avoid confusion with other labels.
+# Anchored by '{sample}_' so sample 1 never collides with sample 10, 19, or 100.
 fastq_suffix: "fastq.gz"
-fastq_r1_pattern: "{sample}_L001_*R1*{suffix}"
-fastq_r2_pattern: "{sample}_L001_*R2*{suffix}"
-
-# Computational Resources (Max Threads):
-human_align_threads: 32                   # CPU threads for BWA-MEM (use 16, 32, 64, or "auto")
-human_align_machine_type: "n2-standard-32" # GCP instance machine type
+fastq_r1_pattern: "{sample}_L001_R1_001.{suffix}"
+fastq_r2_pattern: "{sample}_L001_R2_001.{suffix}"
 
 # Directory & Bucket Settings for Norgan Dataset:
 # dataset: "fromNorgan"
