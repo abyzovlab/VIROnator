@@ -158,12 +158,12 @@ batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_reporting.config
 Aligns paired-end FASTQ reads directly to the GRCh38 human reference genome using multithreaded BWA-MEM and streams output into coordinate-sorted, indexed CRAM files (`.cram` and `.cram.crai`).
 ```bash
 # 1. Compile human alignment jobexec cluster files:
-snakemake config/ssc_human_alignment.job --cores 1
+snakemake config/batch_jobexec_human_alignment.config config/ssc_human_alignment.job --cores 1
 
 # 2. Submit parallel batch run across samples:
 batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_human_alignment.config -non-spot config/ssc_human_alignment.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 # Or via jobexec:
-jobexec batch config/batch_jobexec_human_alignment.config config/ssc_human_alignment.job samples_list.txt
+jobexec batch config/batch_jobexec_human_alignment.config config/ssc_human_alignment.job <SAMPLE_LIST>
 ```
 
 #### Module 1: Coverage Calculation Module (`ssc_coverage.job`)

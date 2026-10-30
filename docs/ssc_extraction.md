@@ -206,7 +206,7 @@ Open `config/ssc_config.yaml` in a text editor. Configure these settings before 
 * **`placeholder_file`**: An empty text file (`test.txt`) used for creating directory structures on GCS object storage.
 
 #### 2. Module Execution Switches & Module-Specific Settings
-To execute specific pipeline features and modules, simply turn `"on"` or `"off"` the corresponding master switches in `config/ssc_config.yaml` (e.g. `coverage_module: "on"`, `unmapped_extraction: "on"`, `viral_db_alignment: "on"`, `reporting_module: "on"`, `stats_module: "on"`, `distributions_module: "on"`, `flag_comparison_module: "on"`, or `refinement_module: "on"`).
+To execute specific pipeline features and modules, simply turn `"on"` or `"off"` the corresponding master switches in `config/ssc_config.yaml` (e.g. `human_alignment_module: "on"`, `coverage_module: "on"`, `unmapped_extraction: "on"`, `viral_db_alignment: "on"`, `reporting_module: "on"`, `stats_module: "on"`, `distributions_module: "on"`, `flag_comparison_module: "on"`, or `refinement_module: "on"`).
 
 > [!NOTE]
 > **Module Parameters**: In addition to the Common / Joint Variables defined above, each active module relies on module-specific parameters configured in `config/ssc_config.yaml` (such as dedicated output directory names, reference genome paths, tool binary locations, and metadata files). All parameters under an enabled module are mandatory for that stage to execute and complete successfully.
@@ -219,6 +219,17 @@ snakemake --cores 1
 ```
 
 ### Phase 3: Execute the Workflow
+
+#### Module 0: Human Genome Alignment Module (`ssc_human_alignment.job`)
+Aligns raw paired-end FASTQ reads directly to the GRCh38 human reference genome using multithreaded BWA-MEM and streams output into coordinate-sorted, indexed CRAM files (`.cram` and `.cram.crai`).
+
+```bash
+batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_human_alignment.config -non-spot config/ssc_human_alignment.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
+```
+Or directly via `jobexec`:
+```bash
+jobexec batch config/batch_jobexec_human_alignment.config config/ssc_human_alignment.job <SAMPLE_LIST>
+```
 
 #### Module 1: Coverage Calculation Module (`ssc_coverage.job`)
 

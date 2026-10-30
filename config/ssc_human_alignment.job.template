@@ -129,6 +129,11 @@ if [ -z "${FQ2}" ] || [ ! -f "${FQ2}" ]; then
     exit 1
 fi
 
+# Configure REF_PATH and REF_CACHE to ensure samtools resolves reference locally
+# and never attempts external network queries (prevents libcurl error 60)
+export REF_PATH="/mnt/disks/staff/refs/%s:/mnt/disks/staff/refs/%s.fa"
+export REF_CACHE="/mnt/disks/staff/refs/%2s/%02s/%s"
+
 # 2. Output directory and CRAM destination setup
 OUT_DIR="{output_dir}/{human_alignment_out_dirname}"
 mkdir -p "${OUT_DIR}"
@@ -142,7 +147,7 @@ echo "$(date) Starting BWA-MEM alignment to GRCh38..."
     -R "@RG\tID:${SAMPLE}\tSM:${SAMPLE}\tPL:ILLUMINA\tLB:lib1" \
     "${HUMAN_REF}" "${FQ1}" "${FQ2}" \
     | "${SAMTOOLS_BIN}" view -@ 4 -C -T "${HUMAN_REF}" - \
-    | "${SAMTOOLS_BIN}" sort -@ 8 -o "${OUT_CRAM}" -
+    | "${SAMTOOLS_BIN}" sort -@ 8 -T "/tmp/sort_${SAMPLE}" -o "${OUT_CRAM}" --reference "${HUMAN_REF}" -
 
 # 4. Generate CRAM index (.crai)
 echo "$(date) Indexing output CRAM: ${OUT_CRAM}..."
@@ -159,4 +164,3 @@ if [ -n "{output_bucket}" ]; then
 fi
 
 echo "End: $(date)"
-commands_end

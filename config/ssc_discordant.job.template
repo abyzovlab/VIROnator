@@ -153,4 +153,3 @@ if [ -n "{output_bucket}" ]; then
 fi
 
 echo "End: $(date)"
-commands_end
