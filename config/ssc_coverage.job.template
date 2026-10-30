@@ -50,9 +50,24 @@ echo "Node Hostname: $(hostname)"
 echo "Current Directory: $(pwd)"
 echo "PATH: ${PATH}"
 
-PHASE="{phase}"
-PROJECT="{project}"
-SAMPLE="[SAMPLE]"
+# Support plus delimiter (PHASE+PROJECT+SAMPLE or PHASE+SAMPLE) in sample list
+RAW_SAMPLE="[SAMPLE]"
+if [[ "${RAW_SAMPLE}" == *"+"* ]]; then
+    IFS='+' read -r -a PARTS <<< "${RAW_SAMPLE}"
+    if [ ${#PARTS[@]} -ge 3 ]; then
+        PHASE="${PARTS[0]}"
+        PROJECT="${PARTS[1]}"
+        SAMPLE="${PARTS[2]}"
+    elif [ ${#PARTS[@]} -eq 2 ]; then
+        PHASE="${PARTS[0]}"
+        PROJECT=""
+        SAMPLE="${PARTS[1]}"
+    fi
+    echo "[PARSER] Extracted from token -> PHASE: '${PHASE}', PROJECT: '${PROJECT}', SAMPLE: '${SAMPLE}'"
+else
+    SAMPLE="${RAW_SAMPLE}"
+fi
+
 SAMPLE_METADATA="{sample_metadata_path}"
 DATA_BUCKET="{data_bucket}"
 DATA_SUBDIR="{data_subdir}"
@@ -265,12 +280,19 @@ echo "[DIAGNOSTIC] Locating human CRAM file on mounted filesystem (${DATA_DIR}).
 
 CRAM=""
 # Candidate paths depending on whether PHASE and/or PROJECT are set
-if [ -n "${PHASE}" ] && [ "${PHASE}" != "none" ] && [ "${PHASE}" != "0" ]; then
+PHASE_CLEAN="${PHASE#phase}"
+if [ -n "${PHASE_CLEAN}" ] && [ "${PHASE_CLEAN}" != "none" ] && [ "${PHASE_CLEAN}" != "0" ]; then
     if [ -n "${PROJECT}" ] && [ "${PROJECT}" != "base" ] && [ "${PROJECT}" != "none" ]; then
-        CRAM="${BASE_INPUT_DIR}/phase${PHASE}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${TARGET_FILENAME}"
-        [ ! -f "${CRAM}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE}/CRAM/${PROJECT}/${TARGET_FILENAME}"
+        # Direct project paths under phase
+        [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT}/${SAMPLE}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT}/${SAMPLE}/${TARGET_FILENAME}"
+        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT}/${TARGET_FILENAME}"
+        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${TARGET_FILENAME}"
+        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT}/${TARGET_FILENAME}"
     else
-        CRAM="${BASE_INPUT_DIR}/phase${PHASE}/CRAM/${TARGET_FILENAME}"
+        # Direct base paths under phase
+        [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${SAMPLE}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${SAMPLE}/${TARGET_FILENAME}"
+        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${TARGET_FILENAME}"
+        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${TARGET_FILENAME}"
     fi
 else
     if [ -n "${PROJECT}" ] && [ "${PROJECT}" != "base" ] && [ "${PROJECT}" != "none" ]; then

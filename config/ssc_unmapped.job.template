@@ -79,9 +79,24 @@ echo "Start: $(date)"
 
 # Consolidated global variables
 REF_CRAM_DECODER="{ref_cram_decoder}"
-PHASE="{phase}"
-PROJECT="{project}"
-SAMPLE="[SAMPLE]"
+# Support plus delimiter (PHASE+PROJECT+SAMPLE or PHASE+SAMPLE) in sample list
+RAW_SAMPLE="[SAMPLE]"
+if [[ "${RAW_SAMPLE}" == *"+"* ]]; then
+    IFS='+' read -r -a PARTS <<< "${RAW_SAMPLE}"
+    if [ ${#PARTS[@]} -ge 3 ]; then
+        PHASE="${PARTS[0]}"
+        PROJECT="${PARTS[1]}"
+        SAMPLE="${PARTS[2]}"
+    elif [ ${#PARTS[@]} -eq 2 ]; then
+        PHASE="${PARTS[0]}"
+        PROJECT=""
+        SAMPLE="${PARTS[1]}"
+    fi
+    echo "[PARSER] Extracted from token -> PHASE: '${PHASE}', PROJECT: '${PROJECT}', SAMPLE: '${SAMPLE}'"
+else
+    SAMPLE="${RAW_SAMPLE}"
+fi
+
 DATA_SUBDIR="{data_subdir}"
 INPUT_KEYWORD="{input_keyword}"
 INPUT_SUFFIX="{input_suffix}"
@@ -114,22 +129,26 @@ else
     PROJECT_CLEAN="${PROJECT}"
 fi
 
-if [ -z "${PHASE}" ] || [ "${PHASE}" = "none" ]; then
+if [ -z "${PHASE}" ] || [ "${PHASE}" = "none" ] || [ "${PHASE}" = "0" ]; then
     PHASE_CLEAN=""
 else
-    PHASE_CLEAN="${PHASE}"
+    PHASE_CLEAN="${PHASE#phase}" # Normalize e.g. "phase2" -> "2"
 fi
 
-# Try structured lookup if PHASE is set
+# Structured lookup: check direct SSC paths without CRAM/ or Sample_
 CRAM=""
 if [ -n "${PHASE_CLEAN}" ]; then
     if [ -z "${PROJECT_CLEAN}" ]; then
-        CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${TARGET_FILENAME}"
+        # Direct base paths under phase
+        [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${SAMPLE}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${SAMPLE}/${TARGET_FILENAME}"
+        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${TARGET_FILENAME}"
+        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${TARGET_FILENAME}"
     else
-        CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT_CLEAN}/Sample_${SAMPLE}/analysis/${TARGET_FILENAME}"
-        if [ ! -f "${CRAM}" ]; then
-            CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT_CLEAN}/${TARGET_FILENAME}"
-        fi
+        # Direct project paths under phase
+        [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT_CLEAN}/${SAMPLE}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT_CLEAN}/${SAMPLE}/${TARGET_FILENAME}"
+        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT_CLEAN}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT_CLEAN}/${TARGET_FILENAME}"
+        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT_CLEAN}/Sample_${SAMPLE}/analysis/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT_CLEAN}/Sample_${SAMPLE}/analysis/${TARGET_FILENAME}"
+        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT_CLEAN}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT_CLEAN}/${TARGET_FILENAME}"
     fi
 fi
 

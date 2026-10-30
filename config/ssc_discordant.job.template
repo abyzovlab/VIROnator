@@ -75,15 +75,30 @@ GENE_ANNOTATION="{human_gene_annotation_path}"
 DISCORDANT_SCRIPT="{discordant_script_path}"
 STRATEGY="{discordant_input_strategy}"
 
-PHASE="{phase}"
-PROJECT="{project}"
-SAMPLE="[SAMPLE]"
+# Support plus delimiter (PHASE+PROJECT+SAMPLE or PHASE+SAMPLE) in sample list
+RAW_SAMPLE="[SAMPLE]"
+if [[ "${RAW_SAMPLE}" == *"+"* ]]; then
+    IFS='+' read -r -a PARTS <<< "${RAW_SAMPLE}"
+    if [ ${#PARTS[@]} -ge 3 ]; then
+        PHASE="${PARTS[0]}"
+        PROJECT="${PARTS[1]}"
+        SAMPLE="${PARTS[2]}"
+    elif [ ${#PARTS[@]} -eq 2 ]; then
+        PHASE="${PARTS[0]}"
+        PROJECT=""
+        SAMPLE="${PARTS[1]}"
+    fi
+    echo "[PARSER] Extracted from token -> PHASE: '${PHASE}', PROJECT: '${PROJECT}', SAMPLE: '${SAMPLE}'"
+else
+    SAMPLE="${RAW_SAMPLE}"
+fi
 
 # Directory paths
 if [ -z "${PHASE}" ] || [ "${PHASE}" = "none" ] || [ "${PHASE}" = "0" ]; then
     PHASE_SUBDIR=""
 else
-    PHASE_SUBDIR="phase${PHASE}"
+    PHASE_CLEAN="${PHASE#phase}"
+    PHASE_SUBDIR="phase${PHASE_CLEAN}"
 fi
 
 if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ] || [ "${PROJECT}" = "none" ]; then

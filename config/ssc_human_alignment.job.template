@@ -80,7 +80,27 @@ if [ ! -f "${HUMAN_REF}" ]; then
     exit 1
 fi
 
-SAMPLE="[SAMPLE]"
+PHASE="{phase}"
+PROJECT="{project}"
+
+# Support plus delimiter (PHASE+PROJECT+SAMPLE or PHASE+SAMPLE) in sample list
+RAW_SAMPLE="[SAMPLE]"
+if [[ "${RAW_SAMPLE}" == *"+"* ]]; then
+    IFS='+' read -r -a PARTS <<< "${RAW_SAMPLE}"
+    if [ ${#PARTS[@]} -ge 3 ]; then
+        PHASE="${PARTS[0]}"
+        PROJECT="${PARTS[1]}"
+        SAMPLE="${PARTS[2]}"
+    elif [ ${#PARTS[@]} -eq 2 ]; then
+        PHASE="${PARTS[0]}"
+        PROJECT=""
+        SAMPLE="${PARTS[1]}"
+    fi
+    echo "[PARSER] Extracted from token -> PHASE: '${PHASE}', PROJECT: '${PROJECT}', SAMPLE: '${SAMPLE}'"
+else
+    SAMPLE="${RAW_SAMPLE}"
+fi
+
 DATA_DIR="{data_dir}"
 DATA_SUBDIR="{data_subdir}"
 FASTQ_SUFFIX="{fastq_suffix}"
@@ -92,9 +112,51 @@ else
     SEARCH_BASE="${DATA_DIR}"
 fi
 
+# Directory paths for outputs
+if [ -z "${PHASE}" ] || [ "${PHASE}" = "none" ] || [ "${PHASE}" = "0" ]; then
+    PHASE_SUBDIR=""
+else
+    PHASE_CLEAN="${PHASE#phase}"
+    # If phase is numeric (e.g. 1, 2, 4), prefix with phase; otherwise preserve name (e.g. panviral, hpv)
+    if [[ "${PHASE_CLEAN}" =~ ^[0-9]+(-[0-9]+)?$ ]]; then
+        PHASE_SUBDIR="phase${PHASE_CLEAN}"
+    else
+        PHASE_SUBDIR="${PHASE}"
+    fi
+fi
+
+if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ] || [ "${PROJECT}" = "none" ]; then
+    PROJECT_SUBDIR=""
+else
+    PROJECT_SUBDIR="${PROJECT}"
+fi
+
+if [ -n "${PHASE_SUBDIR}" ] && [ -n "${PROJECT_SUBDIR}" ]; then
+    REL_OUT_DIR="{human_alignment_out_dirname}/${PHASE_SUBDIR}/${PROJECT_SUBDIR}"
+elif [ -n "${PHASE_SUBDIR}" ]; then
+    REL_OUT_DIR="{human_alignment_out_dirname}/${PHASE_SUBDIR}"
+elif [ -n "${PROJECT_SUBDIR}" ]; then
+    REL_OUT_DIR="{human_alignment_out_dirname}/${PROJECT_SUBDIR}"
+else
+    REL_OUT_DIR="{human_alignment_out_dirname}"
+fi
+
+# If phase/project subdirectory exists inside SEARCH_BASE, narrow search base
+if [ -n "${PHASE_SUBDIR}" ] && [ -d "${SEARCH_BASE}/${PHASE_SUBDIR}" ]; then
+    SEARCH_BASE="${SEARCH_BASE}/${PHASE_SUBDIR}"
+elif [ -n "${PHASE}" ] && [ -d "${SEARCH_BASE}/${PHASE}" ]; then
+    SEARCH_BASE="${SEARCH_BASE}/${PHASE}"
+fi
+if [ -n "${PROJECT_SUBDIR}" ] && [ -d "${SEARCH_BASE}/${PROJECT_SUBDIR}" ]; then
+    SEARCH_BASE="${SEARCH_BASE}/${PROJECT_SUBDIR}"
+fi
+
 echo "=================================================================="
 echo "Sample ID:        ${SAMPLE}"
+echo "Phase:            ${PHASE_SUBDIR:-none}"
+echo "Project:          ${PROJECT_SUBDIR:-none}"
 echo "Search Base:      ${SEARCH_BASE}"
+echo "Output Rel Dir:   ${REL_OUT_DIR}"
 echo "Human Reference:  ${HUMAN_REF}"
 echo "Threads:          ${THREADS}"
 echo "=================================================================="
@@ -135,7 +197,7 @@ export REF_PATH="/mnt/disks/staff/refs/%s:/mnt/disks/staff/refs/%s.fa"
 export REF_CACHE="/mnt/disks/staff/refs/%2s/%02s/%s"
 
 # 2. Output directory and CRAM destination setup
-OUT_DIR="{output_dir}/{human_alignment_out_dirname}"
+OUT_DIR="{output_dir}/${REL_OUT_DIR}"
 mkdir -p "${OUT_DIR}"
 OUT_CRAM="${OUT_DIR}/${SAMPLE}.cram"
 
@@ -159,8 +221,8 @@ echo "$(date) Output CRAM verification PASSED: ${OUT_CRAM}"
 
 # 6. Synchronize output CRAM & CRAI to GCS bucket if configured
 if [ -n "{output_bucket}" ]; then
-    echo "[INFO] Syncing CRAM and CRAI to GCS bucket: gs://{output_bucket}/{human_alignment_out_dirname}/"
-    gsutil -q cp "${OUT_CRAM}*" "gs://{output_bucket}/{human_alignment_out_dirname}/" 2>/dev/null || true
+    echo "[INFO] Syncing CRAM and CRAI to GCS bucket: gs://{output_bucket}/${REL_OUT_DIR}/"
+    gsutil -q cp "${OUT_CRAM}*" "gs://{output_bucket}/${REL_OUT_DIR}/" 2>/dev/null || true
 fi
 
 echo "End: $(date)"

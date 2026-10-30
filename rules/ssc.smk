@@ -880,6 +880,8 @@ rule generate_human_alignment_job_file:
         formatted_content = (
             content.replace("{dataset}", ds)
             .replace("{genome_build}", gb)
+            .replace("{phase}", str(config.get("phase", "")))
+            .replace("{project}", str(config.get("project", "")))
             .replace("{output_bucket}", str(config["output_bucket"]))
             .replace("{machine_type}", str(config.get("machine_type", "n2-standard-64")))
             .replace("{human_alignment_jobexec_dirname}", human_align_jobexec)

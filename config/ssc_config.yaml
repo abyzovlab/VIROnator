@@ -73,6 +73,7 @@ human_alignment_jobexec_dirname: "jobexec_human_alignment_{dataset}_{genome_buil
 #   automatic appending.
 # samples_list: "samples_panviral.txt"
 # samples_list: "samples_hpv.txt"
+# samples_list: "samples_SSC_all.txt"
 # samples_list: "samples_mayo_biobank.txt"
 samples_list: "samples_p4_clean_base"
 # samples_list: "samples_1000GP.txt"
