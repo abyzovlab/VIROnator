@@ -56,6 +56,8 @@ if [ ! -x "${PYTHON_BIN}" ] && ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; the
 fi
 
 FLAG_SCRIPT="{flag_script_path}"
+PHASE="{phase}"
+PROJECT="{project}"
 
 # Support plus delimiter (PHASE+PROJECT+SAMPLE or PHASE+SAMPLE) in sample list
 RAW_SAMPLE="[SAMPLE]"

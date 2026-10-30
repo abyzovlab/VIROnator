@@ -79,6 +79,8 @@ echo "Start: $(date)"
 
 # Consolidated global variables
 REF_CRAM_DECODER="{ref_cram_decoder}"
+PHASE="{phase}"
+PROJECT="{project}"
 # Support plus delimiter (PHASE+PROJECT+SAMPLE or PHASE+SAMPLE) in sample list
 RAW_SAMPLE="[SAMPLE]"
 if [[ "${RAW_SAMPLE}" == *"+"* ]]; then

@@ -101,8 +101,11 @@ else
     SAMPLE="${RAW_SAMPLE}"
 fi
 
-DATA_DIR="{data_dir}"
-DATA_SUBDIR="{data_subdir}"
+DATA_DIR_RAW="{data_dir}"
+DATA_DIR="${DATA_DIR_RAW%/}"
+DATA_SUBDIR_RAW="{data_subdir}"
+DATA_SUBDIR="${DATA_SUBDIR_RAW#/}"
+DATA_SUBDIR="${DATA_SUBDIR%/}"
 FASTQ_SUFFIX="{fastq_suffix}"
 
 # Assemble candidate base search directory

@@ -49,6 +49,8 @@ echo "=== JOBEXEC WORKER PROCESS STARTED ==="
 echo "Node Hostname: $(hostname)"
 echo "Current Directory: $(pwd)"
 echo "PATH: ${PATH}"
+PHASE="{phase}"
+PROJECT="{project}"
 
 # Support plus delimiter (PHASE+PROJECT+SAMPLE or PHASE+SAMPLE) in sample list
 RAW_SAMPLE="[SAMPLE]"

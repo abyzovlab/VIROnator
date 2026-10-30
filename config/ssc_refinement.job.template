@@ -71,6 +71,8 @@ if [ ! -x "${BOWTIE2_BIN}" ] && ! command -v "${BOWTIE2_BIN}" >/dev/null 2>&1; t
 fi
 
 REFINEMENT_SCRIPT="{refinement_script_path}"
+PHASE="{phase}"
+PROJECT="{project}"
 
 # Support plus delimiter (PHASE+PROJECT+SAMPLE or PHASE+SAMPLE) in sample list
 RAW_SAMPLE="[SAMPLE]"

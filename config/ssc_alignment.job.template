@@ -139,6 +139,8 @@ ALIGN_ONLY="{align_only}"
 FILTER_ONLY="{filter_only}"
 CONTAMINATION_QUANTIFICATION="{contamination_quantification}"
 DUAL_MODE="{dual_mode}"
+PHASE="{phase}"
+PROJECT="{project}"
 
 # Support plus delimiter (PHASE+PROJECT+SAMPLE or PHASE+SAMPLE) in sample list
 RAW_SAMPLE="[SAMPLE]"

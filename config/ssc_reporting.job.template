@@ -75,6 +75,8 @@ BASENAME_VIR_CONT=$(basename "${REF_VIR_CONT}")
 BASENAME_VIR_CONT_NOEXT=$(printf '%s' "${BASENAME_VIR_CONT}" | rev | cut -d'.' -f2- | rev)
 COMBINED_BASENAME="combined_${BASENAME_HUMAN_NOEXT}_${BASENAME_VIR_CONT_NOEXT}.fa"
 COMBINED_REF="${COMBINED_REFS_DIR}/${COMBINED_BASENAME}"
+PHASE="{phase}"
+PROJECT="{project}"
 
 # Support plus delimiter (PHASE+PROJECT+SAMPLE or PHASE+SAMPLE) in sample list
 RAW_SAMPLE="[SAMPLE]"

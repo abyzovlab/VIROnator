@@ -74,6 +74,8 @@ GENE_ANNOTATION="{human_gene_annotation_path}"
 
 DISCORDANT_SCRIPT="{discordant_script_path}"
 STRATEGY="{discordant_input_strategy}"
+PHASE="{phase}"
+PROJECT="{project}"
 
 # Support plus delimiter (PHASE+PROJECT+SAMPLE or PHASE+SAMPLE) in sample list
 RAW_SAMPLE="[SAMPLE]"

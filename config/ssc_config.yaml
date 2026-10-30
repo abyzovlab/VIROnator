@@ -26,7 +26,8 @@ data_dir: "/mnt/disks/lab"
 data_subdir: "whole_genome/bb1000_2013/raw/bam"
 # data_subdir: "tertiary/s203958.TS_mosaicism/integrated/raw_data/BSMN_download"
 # data_subdir: "tertiary/s203958.TS_mosaicism/integrated/raw_data/1000G_2504_high_coverage"
-# data_subdir: "fromNorgan/data/"
+# data_subdir: "fromNorgan/data"
+# data_subdir: "fromNorgan_hg38_human_alignment"
 input_keyword: ""                      # Optional middle keyword after sample dot (e.g. "final", "sorted", or "" for none)
 input_suffix: "bam"                    # File extension after keyword (e.g. "cram", "bam")
 output_dir: "/mnt/disks/staff"
@@ -110,10 +111,16 @@ fastq_r2_pattern: "{sample}_L001_R2_001.{suffix}"
 
 # Directory & Bucket Settings for Norgan Dataset:
 # dataset: "fromNorgan"
-# phase: "panviral"
-# phase: "hpv"
-# data_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4" # Staff bucket (used as input data_bucket here)
-# data_subdir: "fromNorgan/data/panviral"
+# genome_build: "hg38"
+# phase: "panviral"  # or "hpv" (or specify in sample list as panviral+sample_id)
+# project: ""
+# data_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"       # Input FASTQs bucket (mounts to data_dir)
+# output_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"     # Destination CRAM bucket (mounts to output_dir)
+# data_dir: "/mnt/disks/lab"
+# data_subdir: "fromNorgan/data"                                      # FASTQs located in data_subdir/phase
+# output_dir: "/mnt/disks/staff"
+# human_alignment_out_dirname: "{dataset}_{genome_build}_human_alignment"
+# human_alignment_jobexec_dirname: "jobexec_human_alignment_{dataset}_{genome_build}"
 
 
 # ==============================================================================
@@ -154,6 +161,21 @@ unmapped_extraction: "off"  # Switch: "on" or "off" to run/skip Phase 1 extracti
 # Extraction References (Original reference FASTA used to decode CRAM files)
 ref_cram_decoder: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla_modified.renamed.fa"
 # ref_cram_decoder: "/mnt/disks/staff/refs/hs37d5.fa"
+
+# Directory & Bucket Settings for Norgan Dataset:
+# dataset: "fromNorgan"
+# genome_build: "hg38"
+# phase: "panviral"  # or "hpv" (or specify in sample list as panviral+sample_id)
+# project: ""
+# data_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"       # Input CRAM bucket (staff bucket mounted to data_dir)
+# output_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"     # Destination unmapped CRAM bucket
+# data_dir: "/mnt/disks/staff"                                       # or /mnt/disks/lab if mounting staff bucket as data_bucket
+# data_subdir: "fromNorgan_hg38_human_alignment"                     # CRAMs located in data_subdir/phase
+# input_keyword: ""
+# input_suffix: "cram"
+# output_dir: "/mnt/disks/staff"
+# unmapped_out_dirname: "{dataset}_{genome_build}_unmapped"
+# unmapped_jobexec_dirname: "jobexec_unmapped_{dataset}_{genome_build}"
 
 
 # ==============================================================================
