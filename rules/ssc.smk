@@ -17,7 +17,15 @@ for _k, _v in list(config.items()):
         config[_k] = _v.format(dataset=_dataset_val, genome_build=_build_val, build=_build_val, db_name=_db_name_val)
 
 phase_val = str(config.get("phase", "")).strip()
-phase_part = f"phase{phase_val}/" if phase_val and phase_val.lower() not in ["none", "0", ""] else ""
+if not phase_val or phase_val.lower() in ["none", "0", ""]:
+    phase_part = ""
+else:
+    clean_phase = phase_val[5:] if phase_val.lower().startswith("phase") else phase_val
+    if clean_phase.replace("-", "").isdigit():
+        phase_part = f"phase{clean_phase}/"
+    else:
+        phase_part = f"{phase_val}/"
+
 project_val = str(config.get("project", "")).strip()
 project_part = f"{project_val}/" if project_val and project_val.lower() not in ["none", "base", ""] else ""
 
@@ -349,6 +357,9 @@ rule generate_reporting_job_file:
             .replace("{viral_bed_path}", os.path.join(config["ref_dir"], config["viral_bed_file"]))
             .replace("{taxonomy_index_path}", os.path.join(config["ref_dir"], config.get("taxonomy_index_file", "HumanViral_Reference_02-07-2022_taxonomy_index.tsv")))
             .replace("{sample_metadata_path}", os.path.join(config["ref_dir"], config["sample_metadata_file"]))
+            .replace("{sample_id_column}", str(config.get("sample_id_column", "sample")))
+            .replace("{phase_column}", str(config.get("phase_column", "phase")))
+            .replace("{project_column}", str(config.get("project_column", "project")))
             .replace("{bwa_bin}", str(config["bwa_bin"]))
             .replace("{python_bin}", str(config.get("python_bin", "python3")))
             .replace("{report_script_path}", os.path.join(config["scripts_dir"], config.get("report_script", "generate_report.py")))
@@ -586,21 +597,8 @@ rule generate_coverage_job_file:
             .replace("{raw_metadata_path}", os.path.join(config["ref_dir"], config.get("raw_metadata_file", "")) if config.get("raw_metadata_file") else "")
             .replace("{metadata_separator}", str(config.get("metadata_separator", "tab")).lower())
             .replace("{sample_id_column}", str(config.get("sample_id_column", "sample")))
-            .replace("{enable_specimen}", str(config.get("enable_specimen", "on")).lower())
-            .replace("{enable_tissue}", str(config.get("enable_tissue", "off")).lower())
-            .replace("{enable_cell}", str(config.get("enable_cell", "off")).lower())
-            .replace("{enable_sex}", str(config.get("enable_sex", "off")).lower())
-            .replace("{enable_race}", str(config.get("enable_race", "off")).lower())
-            .replace("{enable_clinic_number}", str(config.get("enable_clinic_number", "off")).lower())
-            .replace("{enable_age}", str(config.get("enable_age", "off")).lower())
-            .replace("{enable_phenotype}", str(config.get("enable_phenotype", "off")).lower())
-            .replace("{enable_contamination_status}", str(config.get("enable_contamination_status", "off")).lower())
-            .replace("{enable_collection_id}", str(config.get("enable_collection_id", "off")).lower())
-            .replace("{enable_principal_investigator}", str(config.get("enable_principal_investigator", "off")).lower())
-            .replace("{enable_coverage_suppl}", str(config.get("enable_coverage_suppl", "off")).lower())
-            .replace("{enable_phenotype_suppl}", str(config.get("enable_phenotype_suppl", "off")).lower())
-            .replace("{enable_case}", str(config.get("enable_case", "off")).lower())
-            .replace("{enable_principal_investigator_suppl}", str(config.get("enable_principal_investigator_suppl", "off")).lower())
+            .replace("{phase_column}", str(config.get("phase_column", "phase")))
+            .replace("{project_column}", str(config.get("project_column", "project")))
             .replace("{machine_type}", str(config.get("machine_type", "n2-standard-16")))
         )
         
@@ -628,7 +626,22 @@ rule generate_stats:
         project = str(config.get("stats_target_project", config.get("project", "")))
         target_strat = str(config.get("stats_target_strategy", "exogeneSR_viral_clean_filtered.sorted.flags.cram"))
         strategies = target_strat
-        cohort_scope = str(config.get("cohort_scope", "combined_all"))
+        cohort_scope = str(config.get("stats_cohort_scope", config.get("cohort_scope", "both")))
+        short_names = str(config.get("viral_short_names_file", "HumanViral_Reference_02-07-2022_modified.renamed_map_short.tsv"))
+        filter_labels = str(config.get("stats_filter_labels_file", config.get("sample_label_filter_file", "")))
+        gen_filt = str(config.get("stats_generate_filtered_set", "off")).lower()
+
+        # Subsection switches
+        sw_summary = str(config.get("enable_summary_tables", "on")).lower()
+        sw_tax = str(config.get("enable_taxonomy_plots", "on")).lower()
+        sw_tax_broken = str(config.get("enable_broken_axis_taxonomy", "on")).lower()
+        sw_family = str(config.get("enable_family_background_overlay", "on")).lower()
+        sw_enrich = str(config.get("sample_enrichment_plots", "on")).lower()
+        sw_demo = str(config.get("enable_demographics_plots", "on")).lower()
+        sw_abund = str(config.get("enable_abundance_distributions", "on")).lower()
+        sw_multi_dens = str(config.get("enable_multi_virus_density_plot", "on")).lower()
+        dens_top_n = int(config.get("multi_density_top_n_viruses", 15))
+        dens_scale = str(config.get("multi_density_x_scale", "log")).lower()
         reads_pa = str(config.get("reads_panel_a_loglog", "on"))
         reads_pb = str(config.get("reads_panel_b_log_y", "on"))
         cn_pa = str(config.get("copy_number_panel_a_loglog", "on"))
@@ -637,28 +650,58 @@ rule generate_stats:
         cn_cutoff = float(config.get("log_scale_copy_number_cutoff", 0.1))
         prev_cutoff = float(config.get("prelim_prevalence_cutoff_pct", 5.0))
         mean_cutoff = float(config.get("prelim_mean_read_cutoff", 6.0))
+
+        sw_hm = str(config.get("enable_heatmaps", "on")).lower()
         rc_switch = str(config.get("heatmap_read_counts", "off")).lower()
         cn_switch = str(config.get("heatmap_copy_number", "off")).lower()
         hm_min_reads = int(config.get("heatmap_min_reads_cutoff", 3))
         hm_stratify = str(config.get("heatmap_stratify_by", ""))
-        entropy_plots = str(config.get("entropy_plots", "off")).lower()
-        taxonomy_stratify = str(config.get("taxonomy_stratify", "off")).lower()
-        sample_enrichment_plots = str(config.get("sample_enrichment_plots", "off")).lower()
-        sample_label_filter_file = str(config.get("sample_label_filter_file", ""))
-        sample_label_filtered_plots = str(config.get("sample_label_filtered_plots", "off")).lower()
+        hm_exclude = " ".join([f'"{x}"' for x in config.get("heatmap_exclude_viruses", [])])
+
+        sw_entropy = str(config.get("enable_spatial_entropy_plots", "on")).lower()
+        sw_cov = str(config.get("enable_coverage_qc_plots", "on")).lower()
+        peak_fold = float(config.get("coverage_artifact_peak_fold_threshold", 5.0))
+        min_recur = int(config.get("coverage_artifact_min_sample_recurrence", 3))
         group_lvl = str(config.get("stats_taxonomic_group_level", "species")).lower()
-        
-        cmd = f"python3 {input.script} --input-report \"{input.master_report}\" --out-dir \"{out_dir}\" --dataset \"{ds}\" --genome-build \"{gb}\" --target-phase \"{phase}\" --target-project \"{project}\" --strategies {strategies} --cohort-scope \"{cohort_scope}\" --reads-panel-a-loglog \"{reads_pa}\" --reads-panel-b-log-y \"{reads_pb}\" --copy-number-panel-a-loglog \"{cn_pa}\" --copy-number-panel-b-log-y \"{cn_pb}\" --log-scale-read-cutoff {cutoff} --log-scale-copy-number-cutoff {cn_cutoff} --prelim-prevalence-cutoff-pct {prev_cutoff} --prelim-mean-read-cutoff {mean_cutoff} --heatmap-read-counts \"{rc_switch}\" --heatmap-copy-number \"{cn_switch}\" --heatmap-min-reads-cutoff {hm_min_reads} --heatmap-stratify-by \"{hm_stratify}\" --taxonomy-stratify \"{taxonomy_stratify}\" --entropy-plots \"{entropy_plots}\" --sample-enrichment-plots \"{sample_enrichment_plots}\" --sample-label-filter-file \"{sample_label_filter_file}\" --sample-label-filtered-plots \"{sample_label_filtered_plots}\" --group-level \"{group_lvl}\""
+
+        stats_dir_name = config.get("stats_out_dirname", f"{ds}_{gb}_stats")
+        plots_dir_name = config.get("plots_out_dirname", f"{ds}_{gb}_plots")
+
+        cmd = (
+            f"python3 {input.script} --input-report \"{input.master_report}\" --out-dir \"{out_dir}\" "
+            f"--dataset \"{ds}\" --genome-build \"{gb}\" --target-phase \"{phase}\" --target-project \"{project}\" "
+            f"--strategies {strategies} --cohort-scope \"{cohort_scope}\" "
+            f"--viral-short-names-file \"{short_names}\" --stats-filter-labels-file \"{filter_labels}\" "
+            f"--stats-generate-filtered-set \"{gen_filt}\" --enable-summary-tables \"{sw_summary}\" "
+            f"--enable-taxonomy-plots \"{sw_tax}\" --enable-broken-axis-taxonomy \"{sw_tax_broken}\" "
+            f"--enable-family-background-overlay \"{sw_family}\" --sample-enrichment-plots \"{sw_enrich}\" "
+            f"--enable-demographics-plots \"{sw_demo}\" --enable-abundance-distributions \"{sw_abund}\" "
+            f"--enable-multi-virus-density-plot \"{sw_multi_dens}\" --multi-density-top-n-viruses {dens_top_n} "
+            f"--multi-density-x-scale \"{dens_scale}\" --reads-panel-a-loglog \"{reads_pa}\" "
+            f"--reads-panel-b-log-y \"{reads_pb}\" --copy-number-panel-a-loglog \"{cn_pa}\" "
+            f"--copy-number-panel-b-log-y \"{cn_pb}\" --log-scale-read-cutoff {cutoff} "
+            f"--log-scale-copy-number-cutoff {cn_cutoff} --prelim-prevalence-cutoff-pct {prev_cutoff} "
+            f"--prelim-mean-read-cutoff {mean_cutoff} --enable-heatmaps \"{sw_hm}\" "
+            f"--heatmap-read-counts \"{rc_switch}\" --heatmap-copy-number \"{cn_switch}\" "
+            f"--heatmap-min-reads-cutoff {hm_min_reads} --heatmap-stratify-by \"{hm_stratify}\" "
+            f"--enable-spatial-entropy-plots \"{sw_entropy}\" --enable-coverage-qc-plots \"{sw_cov}\" "
+            f"--coverage-artifact-peak-fold-threshold {peak_fold} --coverage-artifact-min-sample-recurrence {min_recur} "
+            f"--group-level \"{group_lvl}\" --plots-dir \"{plots_dir_name}\" --stats-dir \"{stats_dir_name}\""
+        )
+        if hm_exclude:
+            cmd += f" --heatmap-exclude-viruses {hm_exclude}"
         subprocess.run(cmd, shell=True, check=True)
 
         # Copy local outputs to GCS bucket if output_bucket is configured
         output_bucket = config.get("output_bucket", "")
-        stats_out_dirname = config.get("stats_out_dirname", f"{ds}_{gb}_stats")
         if output_bucket:
             gcs_dest = f"gs://{output_bucket}/{stats_out_dirname}/"
-            subprocess.run(f"gsutil -q cp {ds}_{gb}_* {gcs_dest} 2>/dev/null || true", shell=True)
+            subprocess.run(f"gsutil -q cp -r {stats_out_dirname}/* {gcs_dest} 2>/dev/null || true", shell=True)
+            gcs_plots = f"gs://{output_bucket}/{plots_out_dirname}/"
+            subprocess.run(f"gsutil -q cp -r {plots_out_dirname}/* {gcs_plots} 2>/dev/null || true", shell=True)
             if os.path.exists("/mnt/disks/staff"):
-                subprocess.run(f"cp {ds}_{gb}_* /mnt/disks/staff/{stats_out_dirname}/ 2>/dev/null || true", shell=True)
+                subprocess.run(f"cp -r {stats_out_dirname}/* /mnt/disks/staff/{stats_out_dirname}/ 2>/dev/null || true", shell=True)
+                subprocess.run(f"cp -r {plots_out_dirname}/* /mnt/disks/staff/{plots_out_dirname}/ 2>/dev/null || true", shell=True)
 
 rule create_stats_and_plots_directory:
     """

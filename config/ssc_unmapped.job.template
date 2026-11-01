@@ -132,41 +132,61 @@ else
 fi
 
 if [ -z "${PHASE}" ] || [ "${PHASE}" = "none" ] || [ "${PHASE}" = "0" ]; then
-    PHASE_CLEAN=""
+    PHASE_SUBDIR=""
 else
-    PHASE_CLEAN="${PHASE#phase}" # Normalize e.g. "phase2" -> "2"
-fi
-
-# Structured lookup: check direct SSC paths without CRAM/ or Sample_
-CRAM=""
-if [ -n "${PHASE_CLEAN}" ]; then
-    if [ -z "${PROJECT_CLEAN}" ]; then
-        # Direct base paths under phase
-        [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${SAMPLE}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${SAMPLE}/${TARGET_FILENAME}"
-        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${TARGET_FILENAME}"
-        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${TARGET_FILENAME}"
+    PHASE_CLEAN="${PHASE#phase}"
+    if [[ "${PHASE_CLEAN}" =~ ^[0-9]+(-[0-9]+)?$ ]]; then
+        PHASE_SUBDIR="phase${PHASE_CLEAN}"
     else
-        # Direct project paths under phase
-        [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT_CLEAN}/${SAMPLE}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT_CLEAN}/${SAMPLE}/${TARGET_FILENAME}"
-        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT_CLEAN}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT_CLEAN}/${TARGET_FILENAME}"
-        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT_CLEAN}/Sample_${SAMPLE}/analysis/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT_CLEAN}/Sample_${SAMPLE}/analysis/${TARGET_FILENAME}"
-        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT_CLEAN}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT_CLEAN}/${TARGET_FILENAME}"
+        PHASE_SUBDIR="${PHASE}"
     fi
 fi
 
-# Direct lookup or recursive search inside BASE_INPUT_DIR
-if [ -z "${CRAM}" ] || [ ! -f "${CRAM}" ]; then
-    CRAM="${BASE_INPUT_DIR}/${TARGET_FILENAME}"
-    if [ ! -f "${CRAM}" ]; then
-        CRAM=$(find "${BASE_INPUT_DIR}" -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
-    fi
+# Locating human CRAM on mounted filesystem (${BASE_INPUT_DIR})
+echo "[DIAGNOSTIC] Locating human alignment file for '${SAMPLE}' (Phase: '${PHASE_SUBDIR}', Project: '${PROJECT_CLEAN}')..."
+
+CRAM=""
+
+# 1. Determine search root based on Phase (if Phase is configured and directory exists)
+SEARCH_ROOT="${BASE_INPUT_DIR}"
+if [ -n "${PHASE_SUBDIR}" ] && [ -d "${BASE_INPUT_DIR}/${PHASE_SUBDIR}" ]; then
+    SEARCH_ROOT="${BASE_INPUT_DIR}/${PHASE_SUBDIR}"
+fi
+
+# 2. Priority 1: Fast direct candidate paths (0 ms check)
+if [ -n "${PROJECT_CLEAN}" ] && [ "${PROJECT_CLEAN}" != "base" ] && [ "${PROJECT_CLEAN}" != "none" ]; then
+    [ -f "${SEARCH_ROOT}/${PROJECT_CLEAN}/${TARGET_FILENAME}" ] && CRAM="${SEARCH_ROOT}/${PROJECT_CLEAN}/${TARGET_FILENAME}"
+    [ -z "${CRAM}" ] && [ -f "${SEARCH_ROOT}/${PROJECT_CLEAN}/${SAMPLE}/${TARGET_FILENAME}" ] && CRAM="${SEARCH_ROOT}/${PROJECT_CLEAN}/${SAMPLE}/${TARGET_FILENAME}"
+    [ -z "${CRAM}" ] && [ -f "${SEARCH_ROOT}/${SAMPLE}/${TARGET_FILENAME}" ] && CRAM="${SEARCH_ROOT}/${SAMPLE}/${TARGET_FILENAME}"
+else
+    [ -f "${SEARCH_ROOT}/${TARGET_FILENAME}" ] && CRAM="${SEARCH_ROOT}/${TARGET_FILENAME}"
+    [ -z "${CRAM}" ] && [ -f "${SEARCH_ROOT}/${SAMPLE}/${TARGET_FILENAME}" ] && CRAM="${SEARCH_ROOT}/${SAMPLE}/${TARGET_FILENAME}"
+fi
+
+# 3. Priority 2: Sequence-aware lookup honoring Phase -> Project -> Target File
+# Handles arbitrary nesting (e.g. CRAM/, Sample_XXX/, analysis/, etc.) without hardcoded folder names
+if [ -z "${CRAM}" ] && [ -n "${PROJECT_CLEAN}" ] && [ "${PROJECT_CLEAN}" != "base" ] && [ "${PROJECT_CLEAN}" != "none" ]; then
+    echo "[DIAGNOSTIC] Performing sequence-aware lookup (*${PROJECT_CLEAN}*/*${TARGET_FILENAME}) under ${SEARCH_ROOT}..."
+    CRAM=$(find "${SEARCH_ROOT}" -type f -path "*${PROJECT_CLEAN}*${TARGET_FILENAME}" 2>/dev/null | head -n 1)
+fi
+
+# 4. Priority 3: Scoped search within Phase directory
+if [ -z "${CRAM}" ] && [ "${SEARCH_ROOT}" != "${BASE_INPUT_DIR}" ]; then
+    echo "[DIAGNOSTIC] Scoped search within phase directory (${SEARCH_ROOT}) for ${TARGET_FILENAME}..."
+    CRAM=$(find "${SEARCH_ROOT}" -type f -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
+fi
+
+# 5. Priority 4: Fallback search across entire BASE_INPUT_DIR
+if [ -z "${CRAM}" ]; then
+    echo "[DIAGNOSTIC] Fallback search across BASE_INPUT_DIR (${BASE_INPUT_DIR}) for ${TARGET_FILENAME}..."
+    CRAM=$(find "${BASE_INPUT_DIR}" -type f -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
 fi
 
 # Determine output directory
-if [ -n "${PHASE_CLEAN}" ] && [ -n "${PROJECT_CLEAN}" ]; then
-    OUT_DIR="{output_dir}/{unmapped_out_dirname}/phase${PHASE_CLEAN}/${PROJECT_CLEAN}"
-elif [ -n "${PHASE_CLEAN}" ]; then
-    OUT_DIR="{output_dir}/{unmapped_out_dirname}/phase${PHASE_CLEAN}"
+if [ -n "${PHASE_SUBDIR}" ] && [ -n "${PROJECT_CLEAN}" ]; then
+    OUT_DIR="{output_dir}/{unmapped_out_dirname}/${PHASE_SUBDIR}/${PROJECT_CLEAN}"
+elif [ -n "${PHASE_SUBDIR}" ]; then
+    OUT_DIR="{output_dir}/{unmapped_out_dirname}/${PHASE_SUBDIR}"
 else
     OUT_DIR="{output_dir}/{unmapped_out_dirname}"
 fi

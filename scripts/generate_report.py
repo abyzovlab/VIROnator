@@ -46,6 +46,9 @@ def parse_args():
     parser.add_argument("--viral-bed", required=True, help="Path to viral BED file")
     parser.add_argument("--taxonomy-index", default="", help="Path to viral taxonomy index TSV file")
     parser.add_argument("--metadata", required=True, help="Path to SSC_sample_metadata.tsv")
+    parser.add_argument("--sample-col", default="sample", help="Name of sample ID column in metadata table")
+    parser.add_argument("--phase-col", default="phase", help="Name of phase column in metadata table")
+    parser.add_argument("--project-col", default="project", help="Name of project column in metadata table")
     parser.add_argument("--enable-spatial-metrics", default="on", help="Switch: 'on' or 'off'")
     parser.add_argument("--coverage-nbins", type=int, default=10, help="Number of spatial percentile bins per virus")
     parser.add_argument("--min-genome-length-for-binning", type=int, default=1000, help="Minimum viral length in bp required to split into bins")
@@ -184,7 +187,7 @@ def calculate_human_genome_size(fai_filepath):
     return total_size if total_size > 0 else 3099734149
 
 
-def load_metadata(filepath, sample_id, phase, project):
+def load_metadata(filepath, sample_id, phase, project, sample_col="sample", phase_col="phase", project_col="project"):
     """
     Loads sample read depth, human genome size, and dynamic metadata attributes from master coverage TSV.
     """
@@ -222,8 +225,10 @@ def load_metadata(filepath, sample_id, phase, project):
             
             row = dict(zip(header, parts))
             
+            # Check configured sample column first, then fallbacks
             row_sample = ""
-            for k in ["sample", "sample_id", "id"]:
+            sample_candidates = [sample_col.strip().lower(), "sample", "sample_id", "sscid", "sfari_id", "id", "sampleid"]
+            for k in sample_candidates:
                 if k in row and row[k]:
                     row_sample = row[k].replace(".sorted", "").replace("Sample_", "").strip().lower()
                     break
@@ -231,10 +236,14 @@ def load_metadata(filepath, sample_id, phase, project):
             if not row_sample:
                 continue
 
-            row_phase = str(row.get("phase", "")).strip().lower()
+            # Check configured phase column, then fallbacks
+            phase_key = phase_col.strip().lower()
+            row_phase = str(row.get(phase_key, row.get("phase", ""))).strip().lower()
             row_phase_clean = row_phase[5:] if row_phase.startswith("phase") else row_phase
 
-            row_project = str(row.get("project", "")).strip().lower()
+            # Check configured project column, then fallbacks
+            proj_key = project_col.strip().lower()
+            row_project = str(row.get(proj_key, row.get("project", ""))).strip().lower()
             if not row_project:
                 row_project = "base"
             
@@ -250,8 +259,16 @@ def load_metadata(filepath, sample_id, phase, project):
                     gsz_val = row[k]
                     break
 
-            phase_match = (row_phase_clean == target_phase_clean or not row_phase or row_phase in ["phase", "none", "base", "0", "", "all"])
-            project_match = (row_project == project_key or not row_project or row_project in ["phase", "none", "base", "0", "", "all"])
+            # Cumulative matching for phase and project
+            if target_phase_clean and target_phase_clean not in ["none", "base", "0", "", "all"] and row_phase:
+                phase_match = (row_phase_clean == target_phase_clean)
+            else:
+                phase_match = (row_phase_clean == target_phase_clean or not row_phase or row_phase in ["phase", "none", "base", "0", "", "all"])
+
+            if project_key and project_key not in ["none", "base", "0", "", "all"] and row.get("project"):
+                project_match = (row_project == project_key)
+            else:
+                project_match = (row_project == project_key or not row_project or row_project in ["phase", "none", "base", "0", "", "all"])
 
             # Exact sample match
             if row_sample == clean_sample and phase_match and project_match:
@@ -266,7 +283,7 @@ def load_metadata(filepath, sample_id, phase, project):
                     genome_sz = 3099734149
                 
                 # Extract all extra metadata attributes present in header
-                ignore_keys = {"sample", "sample_id", "specimen_id", "id", "coverage", "mean_coverage", "depth", "read_depth", "mean_depth", "wgs_coverage", "human_genome_size", "genome_size", "phase", "project", "cram_url"}
+                ignore_keys = {"sample", "sample_id", "specimen_id", "id", "sscid", "sampleid", "coverage", "mean_coverage", "depth", "read_depth", "mean_depth", "wgs_coverage", "human_genome_size", "genome_size", "phase", "project", "cram_url"}
                 for h_raw, val in zip(header, parts):
                     if h_raw not in ignore_keys:
                         meta_dict[h_raw] = val if val and val != "NONE" else "Unknown"
@@ -546,7 +563,10 @@ def main():
     human_genome_size = calculate_human_genome_size(args.human_ref_fai)
     print(f"Human Genome Size: {human_genome_size} bp")
     
-    read_depth, genome_sz, meta_dict = load_metadata(args.metadata, args.sample_id, args.phase, args.project)
+    read_depth, genome_sz, meta_dict = load_metadata(
+        args.metadata, args.sample_id, args.phase, args.project,
+        sample_col=args.sample_col, phase_col=args.phase_col, project_col=args.project_col
+    )
     print(f"Metadata Lookup Result -> Read Depth: {read_depth}, Genome Size: {genome_sz}, Metadata Attributes: {meta_dict}")
 
     taxonomy_dict = load_taxonomy_index(args.taxonomy_index)

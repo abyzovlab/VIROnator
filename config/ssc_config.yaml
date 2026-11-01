@@ -58,12 +58,14 @@ boot_storage: 50                # Boot storage in GB
 unmapped_out_dirname: "{dataset}_{genome_build}_unmapped"
 vironator_out_dirname: "{dataset}_{genome_build}_vironator"
 reports_out_dirname: "{dataset}_{genome_build}_reports"
+coverage_out_dirname: "{dataset}_{genome_build}_coverage"
 human_alignment_out_dirname: "{dataset}_{genome_build}_human_alignment"
 
 # Jobexec orchestrator folder names (located in output_bucket)
 unmapped_jobexec_dirname: "jobexec_unmapped_{dataset}_{genome_build}"
 vironator_jobexec_dirname: "jobexec_vironator_{dataset}_{genome_build}"
 reporting_jobexec_dirname: "jobexec_reporting_{dataset}_{genome_build}"
+coverage_jobexec_dirname: "jobexec_coverage_{dataset}_{genome_build}"
 human_alignment_jobexec_dirname: "jobexec_human_alignment_{dataset}_{genome_build}"
 
 # Path to the sample metadata list.
@@ -107,7 +109,9 @@ human_align_ref: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla_
 # Anchored by '{sample}_' so sample 1 never collides with sample 10, 19, or 100.
 fastq_suffix: "fastq.gz"
 fastq_r1_pattern: "{sample}_L001_R1_001.{suffix}"
+# fastq_r1_pattern: "{sample}_L1_R1.{suffix}"
 fastq_r2_pattern: "{sample}_L001_R2_001.{suffix}"
+# fastq_r2_pattern: "{sample}_L1_R2.{suffix}"
 
 # Directory & Bucket Settings for Norgan Dataset:
 # dataset: "fromNorgan"
@@ -127,30 +131,32 @@ fastq_r2_pattern: "{sample}_L001_R2_001.{suffix}"
 # MODULE 1: COVERAGE CALCULATION MODULE (WGS Human Genome Read Depth)
 # ==============================================================================
 coverage_module: "off"  # Switch: "on" or "off" to run coverage calculation job
-coverage_out_dirname: "{dataset}_{genome_build}_coverage"
-coverage_jobexec_dirname: "jobexec_coverage_{dataset}_{genome_build}"
+
+# Header Variables Used in Coverage Calculation:
+# - dataset: "SSC"
+# - genome_build: "hg38"
+# - phase: ""                                                        # Set to "" if phase is specified in sample list tokens (e.g. 1+SSC+sample)
+# - project: ""                                                      # Set to "" if project is specified in sample list tokens
+# - data_bucket: "ml-phi-abyzov-alexej-m124423-rsa-us-central1-p-d3c4" # Source CRAM/BAM bucket (mounts to data_dir)
+# - output_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"     # Destination coverage TSVs bucket (mounts to output_dir)
+# - data_dir: "/mnt/disks/lab"
+# - data_subdir: "tertiary/SSC_hg38/WGS"                             # Middle subdirectory inside data_dir where CRAM/BAM files reside
+# - input_keyword: "final"                                           # Middle keyword (e.g. "final" for sample.final.cram, or "" if none)
+# - input_suffix: "cram"                                             # Alignment file format ("cram" or "bam")
+# - output_dir: "/mnt/disks/staff"
+# - coverage_out_dirname: "{dataset}_{genome_build}_coverage"        # Output coverage directory (defined in header)
+# - coverage_jobexec_dirname: "jobexec_coverage_{dataset}_{genome_build}" # Jobexec orchestration directory (defined in header)
+# - samples_list: "samples_SSC_hg38_extended.txt"                    # Sample list containing SAMPLE or PHASE+PROJECT+SAMPLE tokens
 
 # Input Raw Metadata File (stored directly in ref_dir /mnt/disks/staff/refs/)
-raw_metadata_file: "{dataset}_{genome_build}_metadata.tsv"  # Filename of raw metadata file in ref_dir
+# Note: All metadata columns present in this file are automatically transferred into the coverage TSV
+# and downstream sample viral reports without needing individual toggle switches.
+# Matching is performed cumulatively on sample ID, phase, and project to avoid duplicate ID collisions.
+raw_metadata_file: "{dataset}_{genome_build}_metadata.tsv"  # Filename of raw metadata file in ref_dir (e.g. SSC_hg38_comprehensive_metadata.tsv)
 metadata_separator: "tab"                                   # File delimiter: "tab" (\t), "comma" (,), or "auto"
-sample_id_column: "sample"                                  # Name of Sample ID column in raw_metadata_file
-
-# Metadata Attribute Feature Switches ("on" or "off")
-enable_specimen: "on"                   # Switch: "on" or "off" to include 'specimen' column
-enable_tissue: "off"                     # Switch: "on" or "off" to include 'tissue' column
-enable_cell: "off"                       # Switch: "on" or "off" to include 'cell' column
-enable_sex: "off"                        # Switch: "on" or "off" to include 'sex' column
-enable_race: "off"                       # Switch: "on" or "off" to include 'race' column
-enable_clinic_number: "off"              # Switch: "on" or "off" to include 'clinic_number' column
-enable_age: "off"                        # Switch: "on" or "off" to include 'age' column
-enable_phenotype: "off"                  # Switch: "on" or "off" to include 'phenotype' column
-enable_contamination_status: "off"       # Switch: "on" or "off" to include 'contamination_status' column
-enable_collection_id: "off"              # Switch: "on" or "off" to include 'collection_id' column
-enable_principal_investigator: "off"     # Switch: "on" or "off" to include 'principal_investigator' column
-enable_coverage_suppl: "off"             # Switch: "on" or "off" to include 'coverage_suppl' column
-enable_phenotype_suppl: "off"            # Switch: "on" or "off" to include 'phenotype_suppl' column
-enable_case: "off"                       # Switch: "on" or "off" to include 'case' column
-enable_principal_investigator_suppl: "off"  # Switch: "on" or "off" to include 'principal_investigator_suppl' column
+sample_id_column: "sample"                                  # Name of Sample ID column in raw_metadata_file (e.g. "sample" or "sscID")
+phase_column: "phase"                                       # Name of Phase column in raw_metadata_file (e.g. "phase")
+project_column: "project"                                   # Name of Project column in raw_metadata_file (e.g. "project")
 
 
 # ==============================================================================
@@ -237,6 +243,8 @@ taxonomy_index_file: "{db_name}_taxonomy_index.tsv"        # Generated 14-column
 # ------------------------------------------------------------------------------
 generate_report_submodule: "off"                          # Switch: "on" or "off"
 sample_metadata_file: "{dataset}_{genome_build}_master_coverage.tsv"
+# Note: Sample reports dynamically inherit metadata attributes and match records cumulatively 
+# using the sample_id_column, phase_column, and project_column configured above.
 viral_rename_map_file: "{db_name}_map.tsv"                 # Generated by rename_fasta_contigs.sh (.renamed_map.tsv)
 viral_bed_file: "{db_name}.bed"                            # Generated automatically during reference sanitization
 report_script: "generate_report.py"
@@ -254,49 +262,89 @@ coverage_flat_bin_threshold: 10.0                         # Percentage threshold
 
 
 # ==============================================================================
-# MODULE 5: STATS MODULE (Cohort Statistical Summary Snapshot, Plots & Heatmaps)
+# MODULE 5: UNIFIED STATS & VISUALIZATIONS MODULE
 # ==============================================================================
 stats_module: "off"  # Switch: "on" or "off" to run cohort stats summary & plots
 master_report_file: "{dataset}_{genome_build}_master_report.tsv"  # Input master report file
+viral_short_names_file: "HumanViral_Reference_02-07-2022_modified.renamed_map_short.tsv"   # Short virus abbreviations map in ref_dir (optional)
 stats_out_dirname: "{dataset}_{genome_build}_stats"
+plots_out_dirname: "{dataset}_{genome_build}_plots"
 stats_script: "generate_stats.py"
 
-# Scope Filters (Leave "" or "all" to calculate stats across all phases/projects):
-stats_target_phase: ""          # Phase filter (e.g. "WGS.TS.Vaccarino", "1", or "" for all)
-stats_target_project: ""        # Project filter (e.g. "base", or "" for all)
-stats_target_strategy: "exogeneSR_viral_clean_filtered.sorted.flags.cram" # Strategy CRAM filter
+# Scope & Strategy Selection:
+stats_cohort_scope: "both"                                    # "both" (combined + all subsets), "combined_all", or "subsets_only"
+stats_target_phase: ""                                        # Phase filter (e.g. "phase2", "panviral", or "" for auto-detect/all)
+stats_target_project: ""                                      # Project filter (e.g. "base", or "" for auto-detect/all)
 
-# Transformation Switches for Reads vs Copy Number Distribution Plots:
-# Reads distribution plot (reads.tiff)
-reads_panel_a_loglog: "on"
-reads_panel_b_log_y: "on"
-log_scale_read_cutoff: 30                    # Threshold to trigger log scale for read counts (default: 30)
+# Target Strategy (With vs. Without Flags):
+stats_target_strategy: "exogeneSR_viral_clean_filtered.sorted.flags.cram"   # With flags
+# stats_target_strategy: "exogeneSR_viral_clean_filtered.sorted.cram"       # Without flags
 
-# Copy number distribution plot (copy_number.tiff)
-copy_number_panel_a_loglog: "on"
-copy_number_panel_b_log_y: "on"
-log_scale_copy_number_cutoff: 0.1             # Threshold to trigger log scale for copy numbers (default: 0.1)
+# Sample Label Filtering (Cohort comparison before and after exclusions):
+stats_filter_labels_file: ""                                  # Optional file (e.g. "sorted.labels.txt") to filter samples; "" for none
+stats_generate_filtered_set: "off"                            # "on" to generate both ..._all_samples_... and ..._clean_samples_... outputs
 
-# Heatmap Configuration & Stratification (Outputs 300 DPI publication TIFF heatmaps):
-heatmap_read_counts: "off"              # Switch: "on" or "off" for read counts heatmap
-heatmap_copy_number: "off"              # Switch: "on" or "off" for copy number heatmap
-heatmap_min_reads_cutoff: 3             # Min reads threshold for heatmap inclusion (3 = skips hits with <=2 reads/1 read pair)
-heatmap_stratify_by: ""                 # Demographics column to split heatmaps by (e.g., "sex", "phenotype", "tissue", or "" for unstratified)
+# ------------------------------------------------------------------------------
+# Submodule 5.1: Core Summary Tables & Reports
+# ------------------------------------------------------------------------------
+enable_summary_tables: "on"                                   # Switch: "on" or "off"
 
-# Shannon Entropy (H) & Shannon Evenness (J) Plots:
-entropy_plots: "off"                    # Switch: "on" or "off" for spatial entropy distribution plots (H, J, H vs J)
+# ------------------------------------------------------------------------------
+# Submodule 5.2: Taxonomic Distribution & Landscape Plots
+# ------------------------------------------------------------------------------
+enable_taxonomy_plots: "on"                                   # Switch: "on" or "off"
+stats_taxonomic_group_level: "species"                        # Primary group rank: "species", "genus", "family", "order", "realm", "accession"
+taxonomy_stratify: "off"                                      # "on" to stratify taxonomy plots by demographic variable
+enable_broken_axis_taxonomy: "on"                             # "on" to generate broken-axis plots alongside standard non-broken plots
+enable_family_background_overlay: "on"                        # "on" to draw translucent tinted rectangles grouping genera into families
+sample_enrichment_plots: "on"                                 # "on" to generate sample enrichment overlay plots (all_samples & clean_samples)
 
-# Demographics Stratification for Taxonomy Bar Plots:
-taxonomy_stratify: "off"                # Switch: "on" or "off" to generate demographic-stratified taxonomy bar plots (using heatmap_stratify_by)
+# ------------------------------------------------------------------------------
+# Submodule 5.3: Cohort Demographics Plots (Prioritized from OLD script)
+# ------------------------------------------------------------------------------
+enable_demographics_plots: "on"                               # Switch: "on" or "off" (strictly without broken axes)
 
-# Sample Enrichment Horizontal Bar Plot Settings:
-sample_enrichment_plots: "off"             # Switch: "on" or "off" to generate sample enrichment overlay plots
-sample_label_filter_file: ""               # Path to text file containing target sample labels (one per line, e.g., BSMN_sorted_labels.txt)
-sample_label_filtered_plots: "off"         # Switch: "on" or "off" to generate matching & non-matching sample label plots
+# ------------------------------------------------------------------------------
+# Submodule 5.4: Abundance & Multi-Virus Density Distributions (Merged from Mod 7)
+# ------------------------------------------------------------------------------
+enable_abundance_distributions: "on"                          # Switch: "on" or "off"
+reads_panel_a_loglog: "on"                                    # Log-log scale for Reads Panel A
+reads_panel_b_log_y: "on"                                     # Log-Y scale for Reads Panel B
+log_scale_read_cutoff: 30                                     # Threshold to trigger log scale for read counts (default: 30)
+copy_number_panel_a_loglog: "on"                              # Log-log scale for Copy Number Panel A
+copy_number_panel_b_log_y: "on"                               # Log-Y scale for Copy Number Panel B
+log_scale_copy_number_cutoff: 0.1                             # Threshold to trigger log scale for copy numbers (default: 0.1)
+enable_multi_virus_density_plot: "on"                         # "on" to output ..._copy_number_multi_density.tiff
+multi_density_top_n_viruses: 15                               # Max top viruses to render (0 for all)
+multi_density_x_scale: "log"                                  # "log" or "linear" for copy number X-axis
+prelim_prevalence_cutoff_pct: 5.0                             # Prevalence % cutoff differentiating noise vs virome/infection
+prelim_mean_read_cutoff: 6.0                                  # Mean read count cutoff differentiating noise vs virome/infection
 
-# Taxonomic Grouping Setting for Heatmaps, Aggregated Summary TSVs, and Bar Plots:
-# Options: "species", "genus", "family", "realm", or "none" (default: "species")
-stats_taxonomic_group_level: "species"
+# ------------------------------------------------------------------------------
+# Submodule 5.5: Cross-Sample Heatmaps & Ubiquitous Virus Reporting
+# ------------------------------------------------------------------------------
+enable_heatmaps: "on"                                         # Switch: "on" or "off"
+heatmap_read_counts: "off"                                    # Switch: "on" or "off" for read counts heatmap
+heatmap_copy_number: "off"                                    # Switch: "on" or "off" for copy number heatmap
+heatmap_min_reads_cutoff: 3                                   # Min reads threshold for heatmap inclusion
+heatmap_stratify_by: ""                                       # Demographics column to split heatmaps by (e.g., "sex", "phenotype", "")
+heatmap_exclude_viruses: []                                   # List of accessions to exclude (e.g. ["NC_001806.2", "NC_007605.1"])
+
+# ------------------------------------------------------------------------------
+# Submodule 5.6: Spatial Uniformity & Entropy Plots
+# ------------------------------------------------------------------------------
+enable_spatial_entropy_plots: "on"                            # Switch: "on" or "off"
+enable_entropy_boxplot_h: "on"                                # Outputs ..._shannon_entropy_H.tiff (multi-virus comparative boxplot)
+enable_evenness_boxplot_j: "on"                               # Outputs ..._pielou_evenness_J.tiff
+enable_evenness_vs_breadth_scatter: "on"                      # Evenness (J) vs. Physical Breadth 2D scatter
+
+# ------------------------------------------------------------------------------
+# Submodule 5.7: Coverage Depth, Hotspots & Artifact Exclusion (Saved in coverage_plots/)
+# ------------------------------------------------------------------------------
+enable_coverage_qc_plots: "on"                                # Switch: "on" or "off"
+coverage_artifact_peak_fold_threshold: 5.0                   # Bin mean depth > 5x genome-wide median triggers artifact flag
+coverage_artifact_min_sample_recurrence: 3                    # Detected in >= 3 samples to be flagged as cohort artifact region
+per_sample_coverage_plots: "on"                               # "on" to generate individual sample raw + binned dual-panel plots
 
 
 

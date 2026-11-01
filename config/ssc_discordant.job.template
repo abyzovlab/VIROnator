@@ -100,7 +100,11 @@ if [ -z "${PHASE}" ] || [ "${PHASE}" = "none" ] || [ "${PHASE}" = "0" ]; then
     PHASE_SUBDIR=""
 else
     PHASE_CLEAN="${PHASE#phase}"
-    PHASE_SUBDIR="phase${PHASE_CLEAN}"
+    if [[ "${PHASE_CLEAN}" =~ ^[0-9]+(-[0-9]+)?$ ]]; then
+        PHASE_SUBDIR="phase${PHASE_CLEAN}"
+    else
+        PHASE_SUBDIR="${PHASE}"
+    fi
 fi
 
 if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ] || [ "${PROJECT}" = "none" ]; then

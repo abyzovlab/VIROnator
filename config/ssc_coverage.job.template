@@ -104,7 +104,12 @@ fi
 if [ -z "${PHASE}" ] || [ "${PHASE}" = "none" ] || [ "${PHASE}" = "0" ]; then
     PHASE_SUBDIR=""
 else
-    PHASE_SUBDIR="phase${PHASE}"
+    PHASE_CLEAN="${PHASE#phase}"
+    if [[ "${PHASE_CLEAN}" =~ ^[0-9]+(-[0-9]+)?$ ]]; then
+        PHASE_SUBDIR="phase${PHASE_CLEAN}"
+    else
+        PHASE_SUBDIR="${PHASE}"
+    fi
 fi
 
 if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ] || [ "${PROJECT}" = "none" ]; then
@@ -127,7 +132,7 @@ OUT_FILE="${COVERAGE_DIR}/${SAMPLE}_coverage.tsv"
 mkdir -p "${COVERAGE_DIR}"
 
 echo "[DIAGNOSTIC] SAMPLE: ${SAMPLE}"
-echo "[DIAGNOSTIC] PHASE: phase${PHASE}"
+echo "[DIAGNOSTIC] PHASE: ${PHASE_SUBDIR}"
 echo "[DIAGNOSTIC] PROJECT: ${PROJECT:-base}"
 echo "[DIAGNOSTIC] OUTPUT DIRECTORY: ${COVERAGE_DIR}"
 echo "[DIAGNOSTIC] OUTPUT FILE: ${OUT_FILE}"
@@ -136,37 +141,12 @@ DATASET="{dataset}"
 RAW_METADATA="{raw_metadata_path}"
 META_SEP="{metadata_separator}"
 SAMPLE_COL="{sample_id_column}"
-ENABLE_SPECIMEN="{enable_specimen}"
-ENABLE_TISSUE="{enable_tissue}"
-ENABLE_CELL="{enable_cell}"
-ENABLE_SEX="{enable_sex}"
-ENABLE_RACE="{enable_race}"
-ENABLE_CLINIC_NUMBER="{enable_clinic_number}"
-ENABLE_AGE="{enable_age}"
-ENABLE_PHENOTYPE="{enable_phenotype}"
-ENABLE_CONTAMINATION_STATUS="{enable_contamination_status}"
-ENABLE_COLLECTION_ID="{enable_collection_id}"
-ENABLE_PRINCIPAL_INVESTIGATOR="{enable_principal_investigator}"
-ENABLE_COVERAGE_SUPPL="{enable_coverage_suppl}"
-ENABLE_PHENOTYPE_SUPPL="{enable_phenotype_suppl}"
-ENABLE_CASE="{enable_case}"
-ENABLE_PRINCIPAL_INVESTIGATOR_SUPPL="{enable_principal_investigator_suppl}"
+PHASE_COL="{phase_column}"
+PROJECT_COL="{project_column}"
 
-SPECIMEN="Unknown"
-TISSUE="Unknown"
-CELL="Unknown"
-SEX="Unknown"
-RACE="Unknown"
-CLINIC_NUMBER="Unknown"
-AGE="Unknown"
-PHENOTYPE="Unknown"
-CONTAMINATION_STATUS="Unknown"
-COLLECTION_ID="Unknown"
-PRINCIPAL_INVESTIGATOR="Unknown"
-COVERAGE_SUPPL="Unknown"
-PHENOTYPE_SUPPL="Unknown"
-CASE_ID="Unknown"
-PRINCIPAL_INVESTIGATOR_SUPPL="Unknown"
+TMP_META="${COVERAGE_DIR}/.meta_${SAMPLE}_$$"
+META_HEADER=""
+META_ROW=""
 
 if [ -f "${RAW_METADATA}" ]; then
     echo "[DIAGNOSTIC] Querying metadata from ${RAW_METADATA} (separator: ${META_SEP})..."
@@ -190,43 +170,38 @@ if [ -f "${RAW_METADATA}" ]; then
         head -n 1 "${RAW_METADATA}" | grep -q $'\t' && DELIM="\t" || DELIM=","
     fi
 
-    # Parse metadata using awk
-    READ_VARS=$(awk -F "${DELIM}" -v key="${LOOKUP_KEY}" -v raw_s="${SAMPLE}" -v s_col="${SAMPLE_COL}" \
-        -v e_spec="${ENABLE_SPECIMEN}" -v e_tissue="${ENABLE_TISSUE}" -v e_cell="${ENABLE_CELL}" \
-        -v e_sex="${ENABLE_SEX}" -v e_race="${ENABLE_RACE}" -v e_cn="${ENABLE_CLINIC_NUMBER}" -v e_age="${ENABLE_AGE}" \
-        -v e_pheno="${ENABLE_PHENOTYPE}" -v e_contam="${ENABLE_CONTAMINATION_STATUS}" -v e_coll="${ENABLE_COLLECTION_ID}" \
-        -v e_pi="${ENABLE_PRINCIPAL_INVESTIGATOR}" -v e_cov_suppl="${ENABLE_COVERAGE_SUPPL}" -v e_pheno_suppl="${ENABLE_PHENOTYPE_SUPPL}" \
-        -v e_case="${ENABLE_CASE}" -v e_pi_suppl="${ENABLE_PRINCIPAL_INVESTIGATOR_SUPPL}" '
+    # Parse ALL metadata columns using awk (matching sampleID, phase, and project cumulatively)
+    awk -F "${DELIM}" -v key="${LOOKUP_KEY}" -v raw_s="${SAMPLE}" \
+        -v s_col="${SAMPLE_COL}" -v p_col="${PHASE_COL}" -v prj_col="${PROJECT_COL}" \
+        -v cur_phase="${PHASE_CLEAN:-${PHASE}}" -v cur_proj="${PROJECT}" \
+        -v tmp_base="${TMP_META}" '
         function clean(val) {
             gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", val)
             return val
         }
         function esc(val) {
-            gsub(/[^A-Za-z0-9_.\ -]/, "_", val)
+            gsub(/[\t\r\n]/, " ", val)
             return val
         }
         NR == 1 {
             for (i=1; i<=NF; i++) {
                 h = tolower(clean($i))
-                if (h == tolower(s_col)) s_idx = i
-                if (h == "specimen") spec_idx = i
-                if (h == "tissue") tissue_idx = i
-                if (h == "cell" || h == "cell_line") cell_idx = i
-                if (h == "sex") sex_idx = i
-                if (h == "race") race_idx = i
-                if (h == "clinic_number" || h == "clinic_no" || h == "clinical_number") cn_idx = i
-                if (h == "age") age_idx = i
-                if (h == "phenotype") pheno_idx = i
-                if (h == "contamination_status" || h == "contamination") contam_idx = i
-                if (h == "collection_id" || h == "collection") coll_idx = i
-                if (h == "principal_investigator" || h == "pi") pi_idx = i
-                if (h == "coverage_suppl" || h == "coverage_supplementary" || h == "suppl_coverage") cov_suppl_idx = i
-                if (h == "phenotype_suppl" || h == "phenotype_supplementary" || h == "suppl_phenotype") pheno_suppl_idx = i
-                if (h == "case" || h == "case_id" || h == "individual" || h == "individual_id" || h == "subject" || h == "subject_id") case_idx = i
-                if (h == "principal_investigator_suppl" || h == "principal_investigator_supplementary" || h == "suppl_principal_investigator" || h == "pi_suppl") pi_suppl_idx = i
+                raw_headers[i] = clean($i)
+                if (h == tolower(s_col) || (!s_idx && (h == "sample" || h == "sample_id" || h == "sscid" || h == "id"))) s_idx = i
+                if (h == tolower(p_col) || (!phase_idx && (h == "phase" || h == "cohort_phase"))) phase_idx = i
+                if (h == tolower(prj_col) || (!proj_idx && (h == "project" || h == "study" || h == "batch"))) proj_idx = i
             }
             if (!s_idx) s_idx = 1
-            print "[AWK DIAGNOSTIC] Header parsed. Indices -> sample(" s_col "):" s_idx ", specimen:" spec_idx ", tissue:" tissue_idx ", cell:" cell_idx ", sex:" sex_idx ", race:" race_idx ", clinic_number:" cn_idx ", age:" age_idx ", phenotype:" pheno_idx ", contamination_status:" contam_idx ", collection_id:" coll_idx ", principal_investigator:" pi_idx ", coverage_suppl:" cov_suppl_idx ", phenotype_suppl:" pheno_suppl_idx ", case:" case_idx ", principal_investigator_suppl:" pi_suppl_idx > "/dev/stderr"
+            
+            meta_count = 0
+            for (i=1; i<=NF; i++) {
+                h = tolower(raw_headers[i])
+                if (i != s_idx && i != phase_idx && i != proj_idx && h != "coverage" && h != "mapped_reads" && h != "read_size" && h != "human_genome_size" && h != "cram_url") {
+                    meta_count++
+                    meta_indices[meta_count] = i
+                    meta_names[meta_count] = raw_headers[i]
+                }
+            }
             next
         }
         {
@@ -234,79 +209,101 @@ if [ -f "${RAW_METADATA}" ]; then
             m_val = r_val
             sub(/^0+/, "", m_val)
             
-            if (r_val == raw_s || r_val == key || m_val == key) {
-                spec = (e_spec == "on" && spec_idx && clean($spec_idx) != "") ? clean($spec_idx) : "Unknown"
-                tissue = (e_tissue == "on" && tissue_idx && clean($tissue_idx) != "") ? clean($tissue_idx) : "Unknown"
-                cell = (e_cell == "on" && cell_idx && clean($cell_idx) != "") ? clean($cell_idx) : "Unknown"
-                sex = (e_sex == "on" && sex_idx && clean($sex_idx) != "") ? clean($sex_idx) : "Unknown"
-                race = (e_race == "on" && race_idx && clean($race_idx) != "") ? clean($race_idx) : "Unknown"
-                cn = (e_cn == "on" && cn_idx && clean($cn_idx) != "") ? clean($cn_idx) : "Unknown"
-                age = (e_age == "on" && age_idx && clean($age_idx) != "") ? clean($age_idx) : "Unknown"
-                pheno = (e_pheno == "on" && pheno_idx && clean($pheno_idx) != "") ? clean($pheno_idx) : "Unknown"
-                contam = (e_contam == "on" && contam_idx && clean($contam_idx) != "") ? clean($contam_idx) : "Unknown"
-                coll = (e_coll == "on" && coll_idx && clean($coll_idx) != "") ? clean($coll_idx) : "Unknown"
-                pi_val = (e_pi == "on" && pi_idx && clean($pi_idx) != "") ? clean($pi_idx) : "Unknown"
-                cov_suppl = (e_cov_suppl == "on" && cov_suppl_idx && clean($cov_suppl_idx) != "") ? clean($cov_suppl_idx) : "Unknown"
-                pheno_suppl = (e_pheno_suppl == "on" && pheno_suppl_idx && clean($pheno_suppl_idx) != "") ? clean($pheno_suppl_idx) : "Unknown"
-                case_val = (e_case == "on" && case_idx && clean($case_idx) != "") ? clean($case_idx) : "Unknown"
-                pi_suppl_val = (e_pi_suppl == "on" && pi_suppl_idx && clean($pi_suppl_idx) != "") ? clean($pi_suppl_idx) : "Unknown"
-
-                print "[AWK DIAGNOSTIC] MATCH FOUND on row " NR "! sample_val=\"" r_val "\"" > "/dev/stderr"
-                print "[AWK DIAGNOSTIC] EXTRACTED -> SPECIMEN: " spec " | TISSUE: " tissue " | CELL: " cell " | SEX: " sex " | RACE: " race " | CLINIC_NUMBER: " cn " | AGE: " age " | PHENOTYPE: " pheno " | CONTAMINATION_STATUS: " contam " | COLLECTION_ID: " coll " | PRINCIPAL_INVESTIGATOR: " pi_val " | COVERAGE_SUPPL: " cov_suppl " | PHENOTYPE_SUPPL: " pheno_suppl " | CASE: " case_val " | PRINCIPAL_INVESTIGATOR_SUPPL: " pi_suppl_val > "/dev/stderr"
-
-                print "SPECIMEN=\"" esc(spec) "\"; TISSUE=\"" esc(tissue) "\"; CELL=\"" esc(cell) "\"; SEX=\"" esc(sex) "\"; RACE=\"" esc(race) "\"; CLINIC_NUMBER=\"" esc(cn) "\"; AGE=\"" esc(age) "\"; PHENOTYPE=\"" esc(pheno) "\"; CONTAMINATION_STATUS=\"" esc(contam) "\"; COLLECTION_ID=\"" esc(coll) "\"; PRINCIPAL_INVESTIGATOR=\"" esc(pi_val) "\"; COVERAGE_SUPPL=\"" esc(cov_suppl) "\"; PHENOTYPE_SUPPL=\"" esc(pheno_suppl) "\"; CASE_ID=\"" esc(case_val) "\"; PRINCIPAL_INVESTIGATOR_SUPPL=\"" esc(pi_suppl_val) "\";"
-                found = 1
-                exit
+            s_match = (r_val == raw_s || r_val == key || m_val == key)
+            if (s_match) {
+                p_match = 1
+                if (phase_idx && cur_phase != "" && cur_phase != "none" && cur_phase != "base" && cur_phase != "0") {
+                    row_p = clean($phase_idx)
+                    gsub(/^[Pp]hase/, "", row_p)
+                    tgt_p = cur_phase
+                    gsub(/^[Pp]hase/, "", tgt_p)
+                    if (tolower(row_p) != tolower(tgt_p)) p_match = 0
+                }
+                proj_match = 1
+                if (proj_idx && cur_proj != "" && cur_proj != "none" && cur_proj != "base") {
+                    row_prj = tolower(clean($proj_idx))
+                    if (row_prj != tolower(cur_proj)) proj_match = 0
+                }
+                if (p_match && proj_match) {
+                    found = 1
+                    for (m=1; m<=meta_count; m++) {
+                        idx = meta_indices[m]
+                        val = (idx <= NF) ? clean($idx) : ""
+                        meta_vals[m] = (val != "" && val != "NONE") ? esc(val) : "Unknown"
+                    }
+                    print "[AWK DIAGNOSTIC] CUMULATIVE MATCH FOUND on row " NR "! sample_val=\"" r_val "\" phase_val=\"" (phase_idx ? clean($phase_idx) : "N/A") "\" project_val=\"" (proj_idx ? clean($proj_idx) : "N/A") "\"" > "/dev/stderr"
+                    exit
+                }
             }
         }
         END {
+            hdr_str = ""
+            for (m=1; m<=meta_count; m++) {
+                hdr_str = (m == 1) ? meta_names[m] : (hdr_str "\t" meta_names[m])
+            }
+            print hdr_str > (tmp_base "_hdr.tmp")
+            
+            row_str = ""
+            for (m=1; m<=meta_count; m++) {
+                val = found ? meta_vals[m] : "Unknown"
+                row_str = (m == 1) ? val : (row_str "\t" val)
+            }
+            print row_str > (tmp_base "_row.tmp")
+            
             if (!found) {
-                print "[AWK DIAGNOSTIC] Checked " NR " rows. NO MATCH FOUND for key \"" key "\"" > "/dev/stderr"
+                print "[AWK DIAGNOSTIC] Checked " NR " rows. NO MATCH FOUND for key \"" key "\" (phase=\"" cur_phase "\", project=\"" cur_proj "\"). Metadata columns will default to Unknown." > "/dev/stderr"
             }
         }
-    ' "${RAW_METADATA}")
+    ' "${RAW_METADATA}"
 
-    if [ -n "${READ_VARS}" ]; then
-        eval "${READ_VARS}"
-    else
-        echo "[DIAGNOSTIC] No row matching sample '${LOOKUP_KEY}' found in ${RAW_METADATA}"
+    if [ -f "${TMP_META}_hdr.tmp" ] && [ -s "${TMP_META}_hdr.tmp" ]; then
+        META_HEADER=$(cat "${TMP_META}_hdr.tmp")
+        META_ROW=$(cat "${TMP_META}_row.tmp")
+        rm -f "${TMP_META}_hdr.tmp" "${TMP_META}_row.tmp"
+        echo "[DIAGNOSTIC] Metadata attributes extracted successfully (${META_HEADER})"
     fi
 else
-    echo "[DIAGNOSTIC WARNING] Metadata file not found on worker node: '${RAW_METADATA}'"
+    echo "[DIAGNOSTIC WARNING] Metadata file not found: '${RAW_METADATA}'. Proceeding without external metadata annotations."
 fi
 
-echo "[DIAGNOSTIC] FINAL ASSIGNED METADATA -> SPECIMEN: ${SPECIMEN} | TISSUE: ${TISSUE} | CELL: ${CELL} | SEX: ${SEX} | RACE: ${RACE} | CLINIC_NUMBER: ${CLINIC_NUMBER} | AGE: ${AGE} | PHENOTYPE: ${PHENOTYPE} | CONTAMINATION_STATUS: ${CONTAMINATION_STATUS} | COLLECTION_ID: ${COLLECTION_ID} | PRINCIPAL_INVESTIGATOR: ${PRINCIPAL_INVESTIGATOR} | COVERAGE_SUPPL: ${COVERAGE_SUPPL} | PHENOTYPE_SUPPL: ${PHENOTYPE_SUPPL} | CASE: ${CASE_ID} | PRINCIPAL_INVESTIGATOR_SUPPL: ${PRINCIPAL_INVESTIGATOR_SUPPL}"
-
-# Locating human CRAM on mounted filesystem (/mnt/disks/lab)
-echo "[DIAGNOSTIC] Locating human CRAM file on mounted filesystem (${DATA_DIR})..."
+# Locating human CRAM on mounted filesystem (${BASE_INPUT_DIR})
+echo "[DIAGNOSTIC] Locating human alignment file for '${SAMPLE}' (Phase: '${PHASE_SUBDIR}', Project: '${PROJECT}')..."
 
 CRAM=""
-# Candidate paths depending on whether PHASE and/or PROJECT are set
-PHASE_CLEAN="${PHASE#phase}"
-if [ -n "${PHASE_CLEAN}" ] && [ "${PHASE_CLEAN}" != "none" ] && [ "${PHASE_CLEAN}" != "0" ]; then
-    if [ -n "${PROJECT}" ] && [ "${PROJECT}" != "base" ] && [ "${PROJECT}" != "none" ]; then
-        # Direct project paths under phase
-        [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT}/${SAMPLE}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT}/${SAMPLE}/${TARGET_FILENAME}"
-        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${PROJECT}/${TARGET_FILENAME}"
-        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT}/Sample_${SAMPLE}/analysis/${TARGET_FILENAME}"
-        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${PROJECT}/${TARGET_FILENAME}"
-    else
-        # Direct base paths under phase
-        [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${SAMPLE}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${SAMPLE}/${TARGET_FILENAME}"
-        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/${TARGET_FILENAME}"
-        [ -z "${CRAM}" ] && [ -f "${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${TARGET_FILENAME}" ] && CRAM="${BASE_INPUT_DIR}/phase${PHASE_CLEAN}/CRAM/${TARGET_FILENAME}"
-    fi
-else
-    if [ -n "${PROJECT}" ] && [ "${PROJECT}" != "base" ] && [ "${PROJECT}" != "none" ]; then
-        CRAM="${BASE_INPUT_DIR}/${PROJECT}/${TARGET_FILENAME}"
-    else
-        CRAM="${BASE_INPUT_DIR}/${TARGET_FILENAME}"
-    fi
+
+# 1. Determine search root based on Phase (if Phase is configured and directory exists)
+SEARCH_ROOT="${BASE_INPUT_DIR}"
+if [ -n "${PHASE_SUBDIR}" ] && [ -d "${BASE_INPUT_DIR}/${PHASE_SUBDIR}" ]; then
+    SEARCH_ROOT="${BASE_INPUT_DIR}/${PHASE_SUBDIR}"
 fi
 
-# Fallback search if candidate path does not exist
-if [ -z "${CRAM}" ] || [ ! -f "${CRAM}" ]; then
-    CRAM=$(find "${BASE_INPUT_DIR}" -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
+# 2. Priority 1: Fast direct candidate paths (0 ms check)
+if [ -n "${PROJECT}" ] && [ "${PROJECT}" != "base" ] && [ "${PROJECT}" != "none" ]; then
+    [ -f "${SEARCH_ROOT}/${PROJECT}/${TARGET_FILENAME}" ] && CRAM="${SEARCH_ROOT}/${PROJECT}/${TARGET_FILENAME}"
+    [ -z "${CRAM}" ] && [ -f "${SEARCH_ROOT}/${PROJECT}/${SAMPLE}/${TARGET_FILENAME}" ] && CRAM="${SEARCH_ROOT}/${PROJECT}/${SAMPLE}/${TARGET_FILENAME}"
+    [ -z "${CRAM}" ] && [ -f "${SEARCH_ROOT}/${SAMPLE}/${TARGET_FILENAME}" ] && CRAM="${SEARCH_ROOT}/${SAMPLE}/${TARGET_FILENAME}"
+else
+    [ -f "${SEARCH_ROOT}/${TARGET_FILENAME}" ] && CRAM="${SEARCH_ROOT}/${TARGET_FILENAME}"
+    [ -z "${CRAM}" ] && [ -f "${SEARCH_ROOT}/${SAMPLE}/${TARGET_FILENAME}" ] && CRAM="${SEARCH_ROOT}/${SAMPLE}/${TARGET_FILENAME}"
+fi
+
+# 3. Priority 2: Sequence-aware lookup honoring Phase -> Project -> Target File
+# Handles arbitrary nesting (e.g. CRAM/, Sample_XXX/, analysis/, etc.) without hardcoded folder names
+if [ -z "${CRAM}" ] && [ -n "${PROJECT}" ] && [ "${PROJECT}" != "base" ] && [ "${PROJECT}" != "none" ]; then
+    echo "[DIAGNOSTIC] Performing sequence-aware lookup (*${PROJECT}*/*${TARGET_FILENAME}) under ${SEARCH_ROOT}..."
+    CRAM=$(find "${SEARCH_ROOT}" -type f -path "*${PROJECT}*${TARGET_FILENAME}" 2>/dev/null | head -n 1)
+fi
+
+# 4. Priority 3: Scoped search within Phase directory
+if [ -z "${CRAM}" ] && [ "${SEARCH_ROOT}" != "${BASE_INPUT_DIR}" ]; then
+    echo "[DIAGNOSTIC] Scoped search within phase directory (${SEARCH_ROOT}) for ${TARGET_FILENAME}..."
+    CRAM=$(find "${SEARCH_ROOT}" -type f -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
+fi
+
+# 5. Priority 4: Fallback search across entire BASE_INPUT_DIR
+if [ -z "${CRAM}" ]; then
+    echo "[DIAGNOSTIC] Fallback search across BASE_INPUT_DIR (${BASE_INPUT_DIR}) for ${TARGET_FILENAME}..."
+    CRAM=$(find "${BASE_INPUT_DIR}" -type f -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
 fi
 
 echo "[DIAGNOSTIC] RESOLVED CRAM FILE: ${CRAM}"
@@ -369,81 +366,22 @@ echo "[DIAGNOSTIC] CALCULATED COVERAGE: ${COVERAGE}"
 
 READ_SIZE=150
 
-# Dynamically assemble TSV header and row values based on active metadata switches
-HEADER_COLS=("sample" "coverage" "mapped_reads" "read_size" "human_genome_size")
-ROW_COLS=("${SAMPLE}" "${COVERAGE}" "${MAPPED_READS}" "${READ_SIZE}" "${GENOME_SIZE}")
+# Core coverage and provenance columns
+CORE_HEADERS=("sample" "coverage" "mapped_reads" "read_size" "human_genome_size" "phase" "project" "cram_url")
+CORE_VALUES=("${SAMPLE}" "${COVERAGE}" "${MAPPED_READS}" "${READ_SIZE}" "${GENOME_SIZE}" "${PHASE_SUBDIR}" "${PROJECT:-base}" "${CRAM_URL:-NONE}")
 
-if [ "${ENABLE_SPECIMEN}" = "on" ]; then
-    HEADER_COLS+=("specimen")
-    ROW_COLS+=("${SPECIMEN}")
-fi
-if [ "${ENABLE_TISSUE}" = "on" ]; then
-    HEADER_COLS+=("tissue")
-    ROW_COLS+=("${TISSUE}")
-fi
-if [ "${ENABLE_CELL}" = "on" ]; then
-    HEADER_COLS+=("cell")
-    ROW_COLS+=("${CELL}")
-fi
-if [ "${ENABLE_SEX}" = "on" ]; then
-    HEADER_COLS+=("sex")
-    ROW_COLS+=("${SEX}")
-fi
-if [ "${ENABLE_RACE}" = "on" ]; then
-    HEADER_COLS+=("race")
-    ROW_COLS+=("${RACE}")
-fi
-if [ "${ENABLE_CLINIC_NUMBER}" = "on" ]; then
-    HEADER_COLS+=("clinic_number")
-    ROW_COLS+=("${CLINIC_NUMBER}")
-fi
-if [ "${ENABLE_AGE}" = "on" ]; then
-    HEADER_COLS+=("age")
-    ROW_COLS+=("${AGE}")
-fi
-if [ "${ENABLE_PHENOTYPE}" = "on" ]; then
-    HEADER_COLS+=("phenotype")
-    ROW_COLS+=("${PHENOTYPE}")
-fi
-if [ "${ENABLE_CONTAMINATION_STATUS}" = "on" ]; then
-    HEADER_COLS+=("contamination_status")
-    ROW_COLS+=("${CONTAMINATION_STATUS}")
-fi
-if [ "${ENABLE_COLLECTION_ID}" = "on" ]; then
-    HEADER_COLS+=("collection_id")
-    ROW_COLS+=("${COLLECTION_ID}")
-fi
-if [ "${ENABLE_PRINCIPAL_INVESTIGATOR}" = "on" ]; then
-    HEADER_COLS+=("principal_investigator")
-    ROW_COLS+=("${PRINCIPAL_INVESTIGATOR}")
-fi
-if [ "${ENABLE_COVERAGE_SUPPL}" = "on" ]; then
-    HEADER_COLS+=("coverage_suppl")
-    ROW_COLS+=("${COVERAGE_SUPPL}")
-fi
-if [ "${ENABLE_PHENOTYPE_SUPPL}" = "on" ]; then
-    HEADER_COLS+=("phenotype_suppl")
-    ROW_COLS+=("${PHENOTYPE_SUPPL}")
-fi
-if [ "${ENABLE_CASE}" = "on" ]; then
-    HEADER_COLS+=("case")
-    ROW_COLS+=("${CASE_ID}")
-fi
-if [ "${ENABLE_PRINCIPAL_INVESTIGATOR_SUPPL}" = "on" ]; then
-    HEADER_COLS+=("principal_investigator_suppl")
-    ROW_COLS+=("${PRINCIPAL_INVESTIGATOR_SUPPL}")
-fi
-
-HEADER_COLS+=("phase" "project" "cram_url")
-ROW_COLS+=("phase${PHASE}" "${PROJECT:-base}" "${CRAM_URL:-NONE}")
-
-HEADER_LINE=$(IFS=$'\t'; echo "${HEADER_COLS[*]}")
-ROW_LINE=$(IFS=$'\t'; echo "${ROW_COLS[*]}")
+CORE_HEADER_STR=$(IFS=$'\t'; echo "${CORE_HEADERS[*]}")
+CORE_ROW_STR=$(IFS=$'\t'; echo "${CORE_VALUES[*]}")
 
 # Output individual sample coverage TSV
 echo "[DIAGNOSTIC] Writing output file: ${OUT_FILE}..."
-echo "${HEADER_LINE}" > "${OUT_FILE}"
-echo "${ROW_LINE}" >> "${OUT_FILE}"
+if [ -n "${META_HEADER}" ]; then
+    printf "%s\t%s\n" "${CORE_HEADER_STR}" "${META_HEADER}" > "${OUT_FILE}"
+    printf "%s\t%s\n" "${CORE_ROW_STR}" "${META_ROW}" >> "${OUT_FILE}"
+else
+    printf "%s\n" "${CORE_HEADER_STR}" > "${OUT_FILE}"
+    printf "%s\n" "${CORE_ROW_STR}" >> "${OUT_FILE}"
+fi
 
 echo "[DIAGNOSTIC] Output File Size: $(ls -lh "${OUT_FILE}")"
 echo "=== END COVERAGE CALCULATION (SUCCESS) ==="
