@@ -295,13 +295,13 @@ if [ -z "${CRAM}" ] && [ -n "${PROJECT}" ] && [ "${PROJECT}" != "base" ] && [ "$
 fi
 
 # 4. Priority 3: Scoped search within Phase directory
-if [ -z "${CRAM}" ] && [ "${SEARCH_ROOT}" != "${BASE_INPUT_DIR}" ]; then
-    echo "[DIAGNOSTIC] Scoped search within phase directory (${SEARCH_ROOT}) for ${TARGET_FILENAME}..."
-    CRAM=$(find "${SEARCH_ROOT}" -type f -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
+if [ -z "${CRAM}" ] && [ -n "${PHASE_SUBDIR}" ] && [ -d "${BASE_INPUT_DIR}/${PHASE_SUBDIR}" ]; then
+    echo "[DIAGNOSTIC] Scoped search within phase directory (${BASE_INPUT_DIR}/${PHASE_SUBDIR}) for ${TARGET_FILENAME}..."
+    CRAM=$(find "${BASE_INPUT_DIR}/${PHASE_SUBDIR}" -type f -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
 fi
 
-# 5. Priority 4: Fallback search across entire BASE_INPUT_DIR
-if [ -z "${CRAM}" ]; then
+# 5. Priority 4: Fallback search across entire BASE_INPUT_DIR (ONLY when phase is NOT specified)
+if [ -z "${CRAM}" ] && [ -z "${PHASE_SUBDIR}" ]; then
     echo "[DIAGNOSTIC] Fallback search across BASE_INPUT_DIR (${BASE_INPUT_DIR}) for ${TARGET_FILENAME}..."
     CRAM=$(find "${BASE_INPUT_DIR}" -type f -name "${TARGET_FILENAME}" 2>/dev/null | head -n 1)
 fi
