@@ -200,7 +200,8 @@ def load_metadata(filepath, sample_id, phase, project, sample_col="sample", phas
     
     target_phase_clean = str(phase).strip().lower()
     if target_phase_clean.startswith("phase"):
-        target_phase_clean = target_phase_clean[5:]
+        rest = target_phase_clean[5:]
+        target_phase_clean = rest if re.match(r"^[0-9]+(-[0-9]+)?$", rest) else rest
 
     if not os.path.exists(filepath):
         return default_depth, default_genome_size, meta_dict
@@ -227,7 +228,7 @@ def load_metadata(filepath, sample_id, phase, project, sample_col="sample", phas
             
             # Check configured sample column first, then fallbacks
             row_sample = ""
-            sample_candidates = [sample_col.strip().lower(), "sample", "sample_id", "sscid", "sfari_id", "id", "sampleid"]
+            sample_candidates = [sample_col.strip().lower(), "sample_name", "sample", "sample_id", "sscid", "sfari_id", "id", "sampleid"]
             for k in sample_candidates:
                 if k in row and row[k]:
                     row_sample = row[k].replace(".sorted", "").replace("Sample_", "").strip().lower()
@@ -239,7 +240,11 @@ def load_metadata(filepath, sample_id, phase, project, sample_col="sample", phas
             # Check configured phase column, then fallbacks
             phase_key = phase_col.strip().lower()
             row_phase = str(row.get(phase_key, row.get("phase", ""))).strip().lower()
-            row_phase_clean = row_phase[5:] if row_phase.startswith("phase") else row_phase
+            if row_phase.startswith("phase"):
+                rest = row_phase[5:]
+                row_phase_clean = rest if re.match(r"^[0-9]+(-[0-9]+)?$", rest) else rest
+            else:
+                row_phase_clean = row_phase
 
             # Check configured project column, then fallbacks
             proj_key = project_col.strip().lower()
@@ -265,10 +270,10 @@ def load_metadata(filepath, sample_id, phase, project, sample_col="sample", phas
             else:
                 phase_match = (row_phase_clean == target_phase_clean or not row_phase or row_phase in ["phase", "none", "base", "0", "", "all"])
 
-            if project_key and project_key not in ["none", "base", "0", "", "all"] and row.get("project"):
+            if project_key and project_key not in ["none", "base", "0", "", "all"] and (proj_key in row or "project" in row):
                 project_match = (row_project == project_key)
             else:
-                project_match = (row_project == project_key or not row_project or row_project in ["phase", "none", "base", "0", "", "all"])
+                project_match = True
 
             # Exact sample match
             if row_sample == clean_sample and phase_match and project_match:
@@ -541,7 +546,16 @@ def main():
     args = parse_args()
     
     project_label = args.project.strip() if args.project.strip() else "base"
-    phase_label = f"phase{args.phase}" if not str(args.phase).startswith("phase") else str(args.phase)
+    p_str = str(args.phase).strip()
+    if not p_str or p_str.lower() in ["none", "base", "0", ""]:
+        phase_label = "base"
+    elif p_str.lower().startswith("phase"):
+        rest = p_str[5:]
+        phase_label = f"phase{rest}" if re.match(r"^[0-9]+(-[0-9]+)?$", rest) else rest
+    elif re.match(r"^[0-9]+(-[0-9]+)?$", p_str):
+        phase_label = f"phase{p_str}"
+    else:
+        phase_label = p_str
     
     print("=== VIROnator Reporting Diagnostic ===")
     print(f"Sample ID:        {args.sample_id}")
