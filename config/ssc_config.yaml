@@ -22,6 +22,8 @@ project: ""
 # COMMON / JOINT VARIABLES (Global parameters used across modules)
 # ==============================================================================
 data_dir: "/mnt/disks/lab"
+# Note: data_subdir is ONLY needed for Modules 0, 1, and 2 (Human Alignment, Coverage Calculation, Unmapped Extraction).
+# Downstream modules (Module 3 Viral Alignment, Module 4 Reporting, etc.) do NOT use data_subdir.
 # data_subdir: "tertiary/SSC_hg38/WGS"  # Middle subdirectory path inside data_dir (set to "" for flat datasets)
 data_subdir: "whole_genome/bb1000_2013/raw/bam"
 # data_subdir: "tertiary/s203958.TS_mosaicism/integrated/raw_data/BSMN_download"
@@ -190,6 +192,20 @@ ref_cram_decoder: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla
 viral_db_alignment: "off"  # Switch: "on" or "off"
 contamination_quantification: "off"  # Switch: "on" to blacklist plasmid/mouse reads from viral BAM & output 3-column .count TSVs
 
+# Header Variables Used in Viral DB Alignment (VIROnator):
+# - dataset: "SSC"
+# - genome_build: "hg38"
+# - phase: ""                                                        # Set to "" if phase is specified in sample list tokens (e.g. 1+SSC+sample)
+# - project: ""                                                      # Set to "" if project is specified in sample list tokens
+# - output_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"     # Destination bucket for viral alignment CRAMs (mounts to output_dir)
+# - output_dir: "/mnt/disks/staff"
+# - unmapped_out_dirname: "{dataset}_{genome_build}_unmapped"        # Input directory containing unmapped CRAMs (from Module 2)
+# - vironator_out_dirname: "{dataset}_{genome_build}_vironator"      # Output directory for viral alignment CRAMs (defined in header)
+# - vironator_jobexec_dirname: "jobexec_vironator_{dataset}_{genome_build}" # Jobexec orchestration directory (defined in header)
+# - samples_list: "samples_SSC_hg38_extended.txt"                    # Sample list containing SAMPLE or PHASE+PROJECT+SAMPLE tokens
+# - ref_dir: "/mnt/disks/staff/refs"                                 # Mount point for reference FASTA databases and BED files
+# - scripts_dir: "/mnt/disks/staff/scripts"                          # Mount point for helper scripts (init_ref.sh, etc.)
+
 # Alignment References and Databases (relative to ref_dir /mnt/disks/staff/refs/)
 ref_cram_decoder: "GRCh38_full_analysis_set_plus_decoy_hla.fa" # Reference FASTA used to decode input CRAM
 # ref_cram_decoder: "/mnt/disks/staff/refs/hs37d5.fa"
@@ -227,6 +243,21 @@ dual_mode: "off"  # "on" to output BOTH clean (subtracted) and raw (unsubtracted
 # MODULE 4: REPORTING MODULE (Viral Quantification & Consolidated Multi-Source Report)
 # ==============================================================================
 reporting_module: "off"  # Switch: "on" or "off" master switch for reporting module
+
+# Header Variables Used in Reporting Module:
+# - dataset: "SSC"
+# - genome_build: "hg38"
+# - phase: ""                                                        # Set to "" if phase is specified in sample list tokens (e.g. 1+SSC+sample)
+# - project: ""                                                      # Set to "" if project is specified in sample list tokens
+# - output_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"     # Destination bucket for reports & logs (mounts to output_dir)
+# - output_dir: "/mnt/disks/staff"
+# - vironator_out_dirname: "{dataset}_{genome_build}_vironator"      # Input directory containing viral alignment CRAMs (from Module 3)
+# - reports_out_dirname: "{dataset}_{genome_build}_reports"          # Output directory for per-sample viral TSV reports (defined in header)
+# - reporting_jobexec_dirname: "jobexec_reporting_{dataset}_{genome_build}" # Jobexec orchestration directory (defined in header)
+# - samples_list: "samples_SSC_hg38_extended.txt"                    # Sample list containing SAMPLE or PHASE+PROJECT+SAMPLE tokens
+# - ref_dir: "/mnt/disks/staff/refs"                                 # Mount point for reference FASTA databases, BED files, and metadata
+# - scripts_dir: "/mnt/disks/staff/scripts"                          # Mount point for helper scripts (generate_report.py, etc.)
+# - machine_type: "n1-standard-4"                                    # VM instance type for reporting job execution
 
 # ------------------------------------------------------------------------------
 # Submodule 4A: Database Taxonomy Index Builder
