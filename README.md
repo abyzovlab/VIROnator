@@ -455,14 +455,14 @@ kraken_build_submodule: "on"              # Switch: "on" compiles ssc_kraken_bui
 kraken_build_script: "ssc_kraken_build.job"
 kraken_build_jobexec_dirname: "jobexec_kraken_build_{dataset}_{genome_build}"
 kraken_build_task_name: "kraken2_db_build"
-kraken_build_exec_threads: 32             # CPU threads for kraken2-build execution (20–32 threads)
+kraken_build_exec_threads: 32             # CPU threads for kraken2-build execution
 
 # Input GCS Paths for Reference FASTA and NCBI Taxonomy:
 kraken_build_source_fasta: "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.renamed_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"
 kraken_build_taxonomy_gcs: "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified/taxonomy"
 
 # Local Working Directory on Attached Disk & Target GCS Upload Destination:
-kraken_build_db_dir: "/mnt/disks/staff/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified"
+kraken_build_db_dir: "/mnt/disks/staff/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified"
 kraken_build_dest_gcs: "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified"
 ```
 

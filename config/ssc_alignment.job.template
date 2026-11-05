@@ -50,7 +50,7 @@ tool=bwa
 
 # outputs to copy to the log_bucket ( bare path assumes local_storage_output, $JOBEXEC_OUTPUT 
 # prefix is the same. $JOBEXEC_PROCESS copies from local_storage_path )
-#log="$JOBEXEC_PROCESS/${job_identifier}_system_stats"
+log=*.log
 
 ####
 #### Post-Job Configuration
@@ -70,6 +70,17 @@ clear_input=true
 # commands and scripts (executed in sequence). Executing in $JOBEXEC_PROCESS. 
 commands_start
 
+# Strict shell execution
+set -eo pipefail
+
+# Persistent Logging Setup: capture all stdout and stderr
+LOG_GCS_DEST="{output_bucket}/{vironator_jobexec_dirname}/logs"
+LOCAL_LOG="software_[SAMPLE]_$(date +%Y%m%d_%H%M%S).log"
+exec > >(tee -a "${LOCAL_LOG}") 2>&1
+
+# Error & Exit Trap: guaranteed log delivery to staff mount and GCS bucket
+trap 'EXIT_CODE=$?; echo "[$(date)] Job finished with exit code ${EXIT_CODE}"; if [ -f "${LOCAL_LOG}" ]; then if [ -n "${OUT_DIR:-}" ] && [ -d "${OUT_DIR:-}" ]; then cp -f "${LOCAL_LOG}" "${OUT_DIR}/software.log" 2>/dev/null || true; fi; gsutil -m cp "${LOCAL_LOG}" "gs://${LOG_GCS_DEST}/" 2>/dev/null || true; fi; exit ${EXIT_CODE}' EXIT
+
 # Set PATH to include shared /mnt/disks/staff/bin mount
 export PATH="/mnt/disks/staff/bin:${PATH}"
 
@@ -78,8 +89,6 @@ if command -v module >/dev/null 2>&1 || [ -f /usr/share/modules/init/bash ]; the
     [ -f /usr/share/modules/init/bash ] && . /usr/share/modules/init/bash 2>/dev/null || true
     module load samtools bwa python 2>/dev/null || true
 fi
-
-set -ex
 
 echo "Start: $(date)"
 
@@ -224,10 +233,35 @@ echo "ALIGN ONLY: ${ALIGN_ONLY}"
 echo "FILTER ONLY: ${FILTER_ONLY}"
 echo "CONTAMINATION QUANTIFICATION: ${CONTAMINATION_QUANTIFICATION}"
 
-# Ensure output and log directories exist
+# Ensure output directory exists
 mkdir -p "${OUT_DIR}"
-LOG_FILE="${OUT_DIR}/software.log"
-exec > >(tee -a "${LOG_FILE}") 2>&1
+
+# Validation 1: Verify at least one execution switch is enabled
+if [ "${ALIGN_AND_FILTER}" != "on" ] && [ "${ALIGN_ONLY}" != "on" ] && [ "${FILTER_ONLY}" != "on" ]; then
+    echo "=========================================================================================="
+    echo "[FATAL ERROR] All VIROnator alignment execution switches are turned 'off'!"
+    echo "Current settings:"
+    echo "  align_and_filter: '${ALIGN_AND_FILTER}'"
+    echo "  align_only:       '${ALIGN_ONLY}'"
+    echo "  filter_only:      '${FILTER_ONLY}'"
+    echo "Please set align_and_filter: \"on\" (or align_only / filter_only) in config/ssc_config.yaml"
+    echo "and recompile with Snakemake before running jobexec."
+    echo "=========================================================================================="
+    exit 1
+fi
+
+# Validation 2: Verify input unmapped CRAM file exists
+if [ ! -f "${INPUT_CRAM}" ]; then
+    echo "=========================================================================================="
+    echo "[FATAL ERROR] Input unmapped CRAM file does not exist:"
+    echo "  Expected path: '${INPUT_CRAM}'"
+    echo "Possible causes:"
+    echo "  1. Phase 1 Unmapped Extraction has not completed for sample '${SAMPLE}'."
+    echo "  2. Dataset or Phase mismatch in config/ssc_config.yaml (e.g. MCBiobank vs fromNorgan)."
+    echo "  3. Mount issue with output_bucket (/mnt/disks/staff)."
+    echo "=========================================================================================="
+    exit 1
+fi
 
 # ==============================================================================
 # PART 1: ALIGNMENT TO VIRAL DATABASE & COMBINED REFERENCE (optional)

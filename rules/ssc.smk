@@ -1074,7 +1074,7 @@ rule generate_kraken_build_job_file:
             .replace("{kraken_build_source_fasta}", str(config.get("kraken_build_source_fasta", "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.renamed_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa")))
             .replace("{kraken_build_taxonomy_gcs}", str(config.get("kraken_build_taxonomy_gcs", "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified/taxonomy")))
             .replace("{kraken_build_dest_gcs}", str(config.get("kraken_build_dest_gcs", "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified")))
-            .replace("{kraken_build_db_dir}", str(config.get("kraken_build_db_dir", "/mnt/disks/staff/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified")))
+            .replace("{kraken_build_db_dir}", str(config.get("kraken_build_db_dir", "/mnt/disks/staff/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified")))
             .replace("{kraken_build_exec_threads}", str(config.get("kraken_build_exec_threads", 32)))
         )
 

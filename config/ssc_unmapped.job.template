@@ -52,7 +52,7 @@ tool=samtools
 
 # outputs to copy to the log_bucket ( bare path assumes local_storage_output, $JOBEXEC_OUTPUT 
 # prefix is the same. $JOBEXEC_PROCESS copies from local_storage_path )
-#log="$JOBEXEC_PROCESS/${job_identifier}_system_stats"
+log=*.log
 
 ####
 #### Post-Job Configuration
@@ -72,8 +72,18 @@ clear_input=true
 # commands and scripts (executed in sequence). Executing in $JOBEXEC_PROCESS. 
 commands_start
 
+# Strict shell execution
+set -eo pipefail
+
+# Persistent Logging Setup: capture all stdout and stderr
+LOG_GCS_DEST="{output_bucket}/{unmapped_jobexec_dirname}/logs"
+LOCAL_LOG="unmapped_[SAMPLE]_$(date +%Y%m%d_%H%M%S).log"
+exec > >(tee -a "${LOCAL_LOG}") 2>&1
+
+# Error & Exit Trap: guaranteed log delivery to staff mount and GCS bucket
+trap 'EXIT_CODE=$?; echo "[$(date)] Job finished with exit code ${EXIT_CODE}"; if [ -f "${LOCAL_LOG}" ]; then if [ -n "${OUT_DIR:-}" ] && [ -d "${OUT_DIR:-}" ]; then cp -f "${LOCAL_LOG}" "${OUT_DIR}/extraction.log" 2>/dev/null || true; fi; gsutil -m cp "${LOCAL_LOG}" "gs://${LOG_GCS_DEST}/" 2>/dev/null || true; fi; exit ${EXIT_CODE}' EXIT
+
 export PATH="/mnt/disks/staff/bin:${PATH}"
-set -ex
 
 echo "Start: $(date)"
 
@@ -198,6 +208,20 @@ OUT_CRAM="${OUT_DIR}/${SAMPLE}.unmapped.cram"
 
 echo "INPUT CRAM: ${CRAM}"
 echo "OUTPUT CRAM: ${OUT_CRAM}"
+
+if [ -z "${CRAM}" ] || [ ! -f "${CRAM}" ]; then
+    echo "=========================================================================================="
+    echo "[FATAL ERROR] Source input CRAM/BAM file not found for sample '${SAMPLE}'!"
+    echo "  Target filename pattern: '${TARGET_FILENAME}'"
+    echo "  Base input directory:    '${BASE_INPUT_DIR}'"
+    echo "  Phase subdirectory:      '${PHASE_SUBDIR}'"
+    echo "  Project:                 '${PROJECT_CLEAN}'"
+    echo "Please check data_bucket, data_dir, data_subdir, and input file patterns in ssc_config.yaml."
+    echo "=========================================================================================="
+    exit 1
+fi
+
+mkdir -p "${OUT_DIR}"
 
 # Configure REF_PATH so samtools can resolve CRAM references in ref_dir
 export REF_PATH="/mnt/disks/staff/refs/%s:/mnt/disks/staff/refs/%s.fa"
