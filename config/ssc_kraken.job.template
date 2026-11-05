@@ -22,8 +22,8 @@ log_bucket=gs://{output_bucket}/{kraken_jobexec_dirname}/logs
 ####
 
 repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
-tool=kraken2/2.1.2
 tool=samtools
+# kraken2 binary loaded from /mnt/disks/staff/bin/
 
 ####
 #### Post-Job Configuration

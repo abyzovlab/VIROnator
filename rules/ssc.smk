@@ -172,13 +172,13 @@ rule generate_resources_config:
         with open(output.kraken_config, "w") as f:
             f.write(kraken_content)
 
-        # 10. Kraken2 Custom Database Build config (Single worker VM with 3000 GB persistent storage)
-        kb_machine = str(config.get("kraken_build_machine_type", config.get("machine_type", "n2-standard-64")))
-        kb_threads = str(config.get("kraken_build_threads", config.get("threads", 64)))
-        kb_memory = str(config.get("kraken_build_memory", config.get("memory", 256)))
-        kb_nodes = str(config.get("kraken_build_nodes", 10000))
-        kb_storage = str(config.get("kraken_build_storage", 3000))
-        kb_boot_storage = str(config.get("kraken_build_boot_storage", 100))
+        # 10. Kraken2 Custom Database Build config
+        kb_machine = str(config.get("kraken_build_machine_type", config.get("machine_type", "n2-standard-128")))
+        kb_threads = str(config.get("kraken_build_threads", config.get("threads", 128)))
+        kb_memory = str(config.get("kraken_build_memory", config.get("memory", 512)))
+        kb_nodes = str(config.get("kraken_build_nodes", config.get("nodes", 11000)))
+        kb_storage = str(config.get("kraken_build_storage", config.get("storage", 6000)))
+        kb_boot_storage = str(config.get("kraken_build_boot_storage", config.get("boot_storage", 250)))
         kb_task = str(config.get("kraken_build_task_name", "kraken2_db_build"))
 
         kraken_build_sub = (
