@@ -1,0 +1,253 @@
+# =========================================================================================================================
+# VIROnator Module: Kraken2 Taxonomic Profiling Job Template (kraken2/2.1.2)
+# Classifies raw paired-end sequencing reads against a pre-built Kraken2 k-mer database
+# (e.g. combined Human Viral Reference + Plasmids hash table).
+# Generates per-sample taxonomic reports (.report) and optional read-level classification files (.output).
+# =========================================================================================================================
+
+job_name={dataset}_KRAKEN2
+job_identifier={dataset}_[SAMPLE]
+machine_type={machine_type}
+
+####
+#### Buckets
+####
+
+input_bucket=gs://{output_bucket}/{kraken_jobexec_dirname}/input
+output_bucket=gs://{output_bucket}/{kraken_jobexec_dirname}/output
+log_bucket=gs://{output_bucket}/{kraken_jobexec_dirname}/logs
+
+####
+#### Tools
+####
+
+repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
+tool=kraken2/2.1.2
+tool=samtools
+
+####
+#### Post-Job Configuration
+####
+
+clear_output=true
+clear_input=true 
+
+####
+#### Script to run
+####
+
+commands_start
+
+export PATH="/mnt/disks/staff/bin:${PATH}"
+
+# Automatically load environment modules if Lmod/Modules are available on node
+if command -v module >/dev/null 2>&1 || [ -f /usr/share/modules/init/bash ]; then
+    [ -f /usr/share/modules/init/bash ] && . /usr/share/modules/init/bash 2>/dev/null || true
+    module load kraken2/2.1.2 samtools python 2>/dev/null || module load kraken2 2>/dev/null || true
+fi
+
+set -ex
+
+echo "Start: $(date)"
+
+# Tool resolution for kraken2
+KRAKEN_BIN="{kraken_bin}"
+if [ ! -x "${KRAKEN_BIN}" ] && ! command -v "${KRAKEN_BIN}" >/dev/null 2>&1; then
+    if [ -x "/mnt/disks/staff/bin/kraken2" ]; then
+        KRAKEN_BIN="/mnt/disks/staff/bin/kraken2"
+    elif [ -x "/usr/local/biotools/kraken2/2.1.2/bin/kraken2" ]; then
+        KRAKEN_BIN="/usr/local/biotools/kraken2/2.1.2/bin/kraken2"
+        export PATH="/usr/local/biotools/kraken2/2.1.2/bin:${PATH}"
+    elif command -v kraken2 >/dev/null 2>&1; then
+        KRAKEN_BIN="kraken2"
+    else
+        echo "[ERROR] kraken2 executable not found in PATH, /mnt/disks/staff/bin/, or /usr/local/biotools/kraken2/2.1.2/bin! Aborting."
+        exit 1
+    fi
+fi
+
+# Detect thread allocation (use configured value or max hardware threads)
+THREADS="{threads}"
+if [ -z "${THREADS}" ] || [ "${THREADS}" = "0" ] || [ "${THREADS}" = "auto" ]; then
+    THREADS=$(nproc 2>/dev/null || echo 16)
+fi
+
+# Kraken2 Database verification
+KRAKEN_DB="{kraken_db}"
+if [ ! -d "${KRAKEN_DB}" ]; then
+    echo "[ERROR] Kraken2 database directory not found at '${KRAKEN_DB}'! Aborting."
+    exit 1
+fi
+if [ ! -f "${KRAKEN_DB}/hash.k2d" ]; then
+    echo "[ERROR] Kraken2 database index file '${KRAKEN_DB}/hash.k2d' is missing! Aborting."
+    exit 1
+fi
+
+PHASE="{phase}"
+PROJECT="{project}"
+
+# Support plus delimiter (PHASE+PROJECT+SAMPLE or PHASE+SAMPLE) in sample list
+RAW_SAMPLE="[SAMPLE]"
+if [[ "${RAW_SAMPLE}" == *"+"* ]]; then
+    IFS='+' read -r -a PARTS <<< "${RAW_SAMPLE}"
+    if [ ${#PARTS[@]} -ge 3 ]; then
+        PHASE="${PARTS[0]}"
+        PROJECT="${PARTS[1]}"
+        SAMPLE="${PARTS[2]}"
+    elif [ ${#PARTS[@]} -eq 2 ]; then
+        PHASE="${PARTS[0]}"
+        PROJECT=""
+        SAMPLE="${PARTS[1]}"
+    fi
+    echo "[PARSER] Extracted from token -> PHASE: '${PHASE}', PROJECT: '${PROJECT}', SAMPLE: '${SAMPLE}'"
+else
+    SAMPLE="${RAW_SAMPLE}"
+fi
+
+DATA_DIR_RAW="{data_dir}"
+DATA_DIR="${DATA_DIR_RAW%/}"
+DATA_SUBDIR_RAW="{data_subdir}"
+DATA_SUBDIR="${DATA_SUBDIR_RAW#/}"
+DATA_SUBDIR="${DATA_SUBDIR%/}"
+FASTQ_SUFFIX="{fastq_suffix}"
+
+# Assemble candidate base search directory
+if [ -n "${DATA_SUBDIR}" ] && [ "${DATA_SUBDIR}" != "none" ]; then
+    SEARCH_BASE="${DATA_DIR}/${DATA_SUBDIR}"
+else
+    SEARCH_BASE="${DATA_DIR}"
+fi
+
+# Directory paths for outputs
+if [ -z "${PHASE}" ] || [ "${PHASE}" = "none" ] || [ "${PHASE}" = "0" ]; then
+    PHASE_SUBDIR=""
+else
+    PHASE_CLEAN="${PHASE#phase}"
+    if [[ "${PHASE_CLEAN}" =~ ^[0-9]+(-[0-9]+)?$ ]]; then
+        PHASE_SUBDIR="phase${PHASE_CLEAN}"
+    else
+        PHASE_SUBDIR="${PHASE}"
+    fi
+fi
+
+if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ] || [ "${PROJECT}" = "none" ]; then
+    PROJECT_SUBDIR=""
+else
+    PROJECT_SUBDIR="${PROJECT}"
+fi
+
+if [ -n "${PHASE_SUBDIR}" ] && [ -n "${PROJECT_SUBDIR}" ]; then
+    REL_OUT_DIR="{kraken_out_dirname}/${PHASE_SUBDIR}/${PROJECT_SUBDIR}"
+elif [ -n "${PHASE_SUBDIR}" ]; then
+    REL_OUT_DIR="{kraken_out_dirname}/${PHASE_SUBDIR}"
+elif [ -n "${PROJECT_SUBDIR}" ]; then
+    REL_OUT_DIR="{kraken_out_dirname}/${PROJECT_SUBDIR}"
+else
+    REL_OUT_DIR="{kraken_out_dirname}"
+fi
+
+# If phase/project subdirectory exists inside SEARCH_BASE, narrow search base
+if [ -n "${PHASE_SUBDIR}" ] && [ -d "${SEARCH_BASE}/${PHASE_SUBDIR}" ]; then
+    SEARCH_BASE="${SEARCH_BASE}/${PHASE_SUBDIR}"
+elif [ -n "${PHASE}" ] && [ -d "${SEARCH_BASE}/${PHASE}" ]; then
+    SEARCH_BASE="${SEARCH_BASE}/${PHASE}"
+fi
+if [ -n "${PROJECT_SUBDIR}" ] && [ -d "${SEARCH_BASE}/${PROJECT_SUBDIR}" ]; then
+    SEARCH_BASE="${SEARCH_BASE}/${PROJECT_SUBDIR}"
+fi
+
+echo "=================================================================="
+echo "Sample ID:        ${SAMPLE}"
+echo "Phase:            ${PHASE_SUBDIR:-none}"
+echo "Project:          ${PROJECT_SUBDIR:-none}"
+echo "Search Base:      ${SEARCH_BASE}"
+echo "Output Rel Dir:   ${REL_OUT_DIR}"
+echo "Kraken2 DB:       ${KRAKEN_DB}"
+echo "Threads:          ${THREADS}"
+echo "=================================================================="
+
+# 1. Expand pattern templates to find Read 1 and Read 2 for this sample
+SEARCH_R1_PATTERN=$(echo "{fastq_r1_pattern}" | sed "s/{sample}/${SAMPLE}/g; s/{suffix}/${FASTQ_SUFFIX}/g")
+SEARCH_R2_PATTERN=$(echo "{fastq_r2_pattern}" | sed "s/{sample}/${SAMPLE}/g; s/{suffix}/${FASTQ_SUFFIX}/g")
+
+echo "Looking for Read 1 matching: ${SEARCH_R1_PATTERN}"
+echo "Looking for Read 2 matching: ${SEARCH_R2_PATTERN}"
+
+FQ1=$(find "${SEARCH_BASE}" -type f -name "${SEARCH_R1_PATTERN}" 2>/dev/null | head -n 1)
+FQ2=$(find "${SEARCH_BASE}" -type f -name "${SEARCH_R2_PATTERN}" 2>/dev/null | head -n 1)
+
+# Fallback: if not found in SEARCH_BASE, search full DATA_DIR
+if [ -z "${FQ1}" ] || [ ! -f "${FQ1}" ]; then
+    echo "[INFO] Not found in ${SEARCH_BASE}, searching full data mount ${DATA_DIR}..."
+    FQ1=$(find "${DATA_DIR}" -type f -name "${SEARCH_R1_PATTERN}" 2>/dev/null | head -n 1)
+    FQ2=$(find "${DATA_DIR}" -type f -name "${SEARCH_R2_PATTERN}" 2>/dev/null | head -n 1)
+fi
+
+echo "Resolved FQ1: ${FQ1}"
+echo "Resolved FQ2: ${FQ2}"
+
+if [ -z "${FQ1}" ] || [ ! -f "${FQ1}" ]; then
+    echo "[ERROR] Could not resolve Read 1 FASTQ for sample '${SAMPLE}' matching '${SEARCH_R1_PATTERN}'. Aborting."
+    exit 1
+fi
+
+# 2. Output directory setup
+OUT_DIR="{output_dir}/${REL_OUT_DIR}"
+mkdir -p "${OUT_DIR}"
+
+OUT_REPORT="${OUT_DIR}/${SAMPLE}_kraken2_report.txt"
+OUT_CLASSIFIED="${OUT_DIR}/${SAMPLE}_kraken2_output.txt"
+
+echo "Output Report: ${OUT_REPORT}"
+
+# 3. Assemble Kraken2 CLI flags
+KRAKEN_FLAGS="--db ${KRAKEN_DB} --threads ${THREADS} --report ${OUT_REPORT}"
+
+CONFIDENCE="{kraken_confidence}"
+if [ -n "${CONFIDENCE}" ] && [ "${CONFIDENCE}" != "0.0" ] && [ "${CONFIDENCE}" != "0" ]; then
+    KRAKEN_FLAGS="${KRAKEN_FLAGS} --confidence ${CONFIDENCE}"
+fi
+
+QUICK_MODE="{kraken_quick_mode}"
+if [ "${QUICK_MODE}" = "on" ] || [ "${QUICK_MODE}" = "true" ]; then
+    KRAKEN_FLAGS="${KRAKEN_FLAGS} --quick"
+fi
+
+MEMORY_MAPPING="{kraken_memory_mapping}"
+if [ "${MEMORY_MAPPING}" = "on" ] || [ "${MEMORY_MAPPING}" = "true" ]; then
+    KRAKEN_FLAGS="${KRAKEN_FLAGS} --memory-mapping"
+fi
+
+SAVE_OUTPUT="{kraken_save_classified_reads}"
+if [ "${SAVE_OUTPUT}" = "on" ] || [ "${SAVE_OUTPUT}" = "true" ]; then
+    KRAKEN_FLAGS="${KRAKEN_FLAGS} --output ${OUT_CLASSIFIED}"
+else
+    KRAKEN_FLAGS="${KRAKEN_FLAGS} --output /dev/null"
+fi
+
+# 4. Execute Kraken2 Classification
+echo "$(date) Running Kraken2 taxonomic classification..."
+
+if [ -n "${FQ2}" ] && [ -f "${FQ2}" ]; then
+    echo "Running in PAIRED-END mode..."
+    "${KRAKEN_BIN}" ${KRAKEN_FLAGS} --paired "${FQ1}" "${FQ2}"
+else
+    echo "Running in SINGLE-END mode..."
+    "${KRAKEN_BIN}" ${KRAKEN_FLAGS} "${FQ1}"
+fi
+
+# 5. Report verification
+if [ ! -s "${OUT_REPORT}" ]; then
+    echo "[ERROR] Generated Kraken2 report is empty or missing: ${OUT_REPORT}"
+    exit 1
+fi
+echo "$(date) Kraken2 classification completed successfully: ${OUT_REPORT}"
+head -n 20 "${OUT_REPORT}"
+
+# 6. Synchronize output to GCS bucket if configured
+if [ -n "{output_bucket}" ]; then
+    echo "[INFO] Syncing Kraken2 outputs to GCS bucket: gs://{output_bucket}/${REL_OUT_DIR}/"
+    gsutil -q cp "${OUT_DIR}/${SAMPLE}_kraken2*" "gs://{output_bucket}/${REL_OUT_DIR}/" 2>/dev/null || true
+fi
+
+echo "End: $(date)"

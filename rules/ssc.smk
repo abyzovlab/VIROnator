@@ -76,6 +76,7 @@ rule generate_job_file:
             .replace("{unmapped_out_dirname}", str(config["unmapped_out_dirname"]))
             .replace("{unmapped_jobexec_dirname}", str(config["unmapped_jobexec_dirname"]))
             .replace("{machine_type}", str(config.get("machine_type", "n2-standard-16")))
+            .replace("{samtools_threads}", str(config.get("samtools_threads", min(16, int(config.get("threads", 4))))))
         )
         
         with open(output.job, "w") as f:
@@ -97,7 +98,9 @@ rule generate_resources_config:
         flag_comparison_config="config/batch_jobexec_flag_comparison.config",
         refinement_config="config/batch_jobexec_refinement.config",
         discordant_config="config/batch_jobexec_discordant.config",
-        human_alignment_config="config/batch_jobexec_human_alignment.config"
+        human_alignment_config="config/batch_jobexec_human_alignment.config",
+        kraken_config="config/batch_jobexec_kraken.config",
+        kraken_build_config="config/batch_jobexec_kraken_build.config"
     run:
         with open(input.template, "r") as f:
             template_content = f.read()
@@ -164,8 +167,44 @@ rule generate_resources_config:
         with open(output.human_alignment_config, "w") as f:
             f.write(human_alignment_content)
 
+        # 9. Kraken2 Taxonomic Profiling config
+        kraken_content = base_sub.replace("{jobexec_dirname}", resolve_jobexec("kraken_jobexec_dirname", "jobexec_kraken"))
+        with open(output.kraken_config, "w") as f:
+            f.write(kraken_content)
+
+        # 10. Kraken2 Custom Database Build config (Single worker VM with 3000 GB persistent storage)
+        kb_machine = str(config.get("kraken_build_machine_type", config.get("machine_type", "n2-standard-64")))
+        kb_threads = str(config.get("kraken_build_threads", config.get("threads", 64)))
+        kb_memory = str(config.get("kraken_build_memory", config.get("memory", 256)))
+        kb_nodes = str(config.get("kraken_build_nodes", 10000))
+        kb_storage = str(config.get("kraken_build_storage", 3000))
+        kb_boot_storage = str(config.get("kraken_build_boot_storage", 100))
+        kb_task = str(config.get("kraken_build_task_name", "kraken2_db_build"))
+
+        kraken_build_sub = (
+            template_content.replace("{output_bucket}", str(config["output_bucket"]))
+            .replace("{data_bucket}", str(config["data_bucket"]))
+            .replace("{gcp_account}", str(config["gcp_account"]))
+            .replace("{pi}", str(config["pi"]))
+            .replace("{pau}", str(config["pau"]))
+            .replace("{task_name}", kb_task)
+            .replace("{machine_type}", kb_machine)
+            .replace("{threads}", kb_threads)
+            .replace("{memory}", kb_memory)
+            .replace("{nodes}", kb_nodes)
+            .replace("{storage}", kb_storage)
+            .replace("{boot_storage}", kb_boot_storage)
+        )
+        kraken_build_content = kraken_build_sub.replace("{jobexec_dirname}", resolve_jobexec("kraken_build_jobexec_dirname", "jobexec_kraken_build_{dataset}_{genome_build}"))
+        with open(output.kraken_build_config, "w") as f:
+            f.write(kraken_build_content)
+
         # Active default config based on active module switch
-        if config.get("human_alignment_module", "off") == "on":
+        if (config.get("kraken_profiling_submodule", "off") == "on" or config.get("kraken_module", "off") == "on"):
+            active_content = kraken_content
+        elif config.get("kraken_build_submodule", "off") == "on":
+            active_content = kraken_build_content
+        elif config.get("human_alignment_module", "off") == "on":
             active_content = human_alignment_content
         elif config.get("discordant_module", "off") == "on":
             active_content = discordant_content
@@ -258,7 +297,8 @@ rule generate_align_job_file:
             .replace("{mouse_contigs_path}", os.path.join(config["ref_dir"], config.get("mouse_contigs_file", "mm39_modified.renamed.contigs.txt")))
             .replace("{contamination_quantification}", str(config.get("contamination_quantification", "off")))
             .replace("{bwa_bin}", str(config["bwa_bin"]))
-            .replace("{bwa_threads}", str(config.get("bwa_threads", 20)))
+            .replace("{bwa_threads}", str(config.get("bwa_threads", config.get("threads", 20))))
+            .replace("{samtools_threads}", str(config.get("samtools_threads", min(16, int(config.get("threads", 8))))))
             .replace("{python_bin}", str(config.get("python_bin", "python3")))
             .replace("{exogene_python_dir}", str(config["scripts_dir"]))
             .replace("{init_ref_script_path}", os.path.join(config["scripts_dir"], config["init_ref_script"]))
@@ -939,6 +979,103 @@ rule generate_human_alignment_job_file:
             .replace("{fastq_r2_pattern}", str(config.get("fastq_r2_pattern", "{sample}_L001_R2_001.{suffix}")))
             .replace("{output_dir}", str(config.get("output_dir", "/mnt/disks/staff")))
             .replace("{human_alignment_out_dirname}", human_align_out)
+        )
+
+        with open(output.job, "w") as f:
+            f.write(formatted_content)
+
+rule create_kraken_directory:
+    """
+    Initializes the target kraken output directory on GCS using gsutil if not already initialized.
+    """
+    input:
+        placeholder=config["placeholder_file"],
+        config_file="config/ssc_config.yaml"
+    output:
+        token="config/kraken_dir.created"
+    shell:
+        """
+        TARGET_PATH="gs://{config[output_bucket]}/{config[kraken_out_dirname]}/{phase_part}{project_part}test.txt"
+        if ! gsutil -q stat "$TARGET_PATH"; then
+            gsutil cp {input.placeholder} "$TARGET_PATH"
+        fi
+        touch {output.token}
+        """
+
+rule generate_kraken_job_file:
+    """
+    Module: Generates ssc_kraken.job from ssc_kraken.job.template.
+    """
+    input:
+        template="config/ssc_kraken.job.template",
+        config_file="config/ssc_config.yaml"
+    output:
+        job="config/ssc_kraken.job"
+    run:
+        with open(input.template, "r") as f:
+            content = f.read()
+
+        ds = str(config.get("dataset", "DATASET"))
+        gb = str(config.get("genome_build", "hg38"))
+        kraken_out = str(config.get("kraken_out_dirname", "{dataset}_{genome_build}_kraken")).replace("{dataset}", ds).replace("{genome_build}", gb)
+        kraken_jobexec = str(config.get("kraken_jobexec_dirname", "jobexec_kraken_{dataset}_{genome_build}")).replace("{dataset}", ds).replace("{genome_build}", gb)
+
+        formatted_content = (
+            content.replace("{dataset}", ds)
+            .replace("{genome_build}", gb)
+            .replace("{phase}", str(config.get("phase", "")))
+            .replace("{project}", str(config.get("project", "")))
+            .replace("{output_bucket}", str(config["output_bucket"]))
+            .replace("{machine_type}", str(config.get("machine_type", "n2-standard-64")))
+            .replace("{kraken_jobexec_dirname}", kraken_jobexec)
+            .replace("{kraken_bin}", str(config.get("kraken_bin", "kraken2")))
+            .replace("{threads}", str(config.get("kraken_threads", config.get("threads", 64))))
+            .replace("{kraken_db}", str(config.get("kraken_db", os.path.join(config.get("ref_dir", "/mnt/disks/staff/refs"), "kraken2_human_viral_plasmids"))))
+            .replace("{data_dir}", str(config.get("data_dir", "/mnt/disks/lab")))
+            .replace("{data_subdir}", str(config.get("data_subdir", "")))
+            .replace("{fastq_suffix}", str(config.get("kraken_input_suffix", config.get("fastq_suffix", "fastq.gz"))))
+            .replace("{fastq_r1_pattern}", str(config.get("kraken_fastq_r1_pattern", config.get("fastq_r1_pattern", "{sample}_L001_R1_001.{suffix}"))))
+            .replace("{fastq_r2_pattern}", str(config.get("kraken_fastq_r2_pattern", config.get("fastq_r2_pattern", "{sample}_L001_R2_001.{suffix}"))))
+            .replace("{output_dir}", str(config.get("output_dir", "/mnt/disks/staff")))
+            .replace("{kraken_out_dirname}", kraken_out)
+            .replace("{kraken_confidence}", str(config.get("kraken_confidence", "0.0")))
+            .replace("{kraken_quick_mode}", str(config.get("kraken_quick_mode", "off")))
+            .replace("{kraken_memory_mapping}", str(config.get("kraken_memory_mapping", "off")))
+            .replace("{kraken_save_classified_reads}", str(config.get("kraken_save_classified_reads", "off")))
+        )
+
+        with open(output.job, "w") as f:
+            f.write(formatted_content)
+
+rule generate_kraken_build_job_file:
+    """
+    Module 0B: Generates ssc_kraken_build.job from ssc_kraken_build.job.template.
+    Configures a single worker VM job to build a custom Kraken2 v2.1.2 database
+    with 3000 GB persistent storage on /mnt/disks/staff.
+    """
+    input:
+        template="config/ssc_kraken_build.job.template",
+        config_file="config/ssc_config.yaml"
+    output:
+        job="config/ssc_kraken_build.job"
+    run:
+        with open(input.template, "r") as f:
+            content = f.read()
+
+        ds = str(config.get("dataset", "DATASET"))
+        gb = str(config.get("genome_build", "hg38"))
+        kb_jobexec = str(config.get("kraken_build_jobexec_dirname", "jobexec_kraken_build_{dataset}_{genome_build}")).replace("{dataset}", ds).replace("{genome_build}", gb)
+        kb_machine = str(config.get("kraken_build_machine_type", config.get("machine_type", "n2-standard-64")))
+
+        formatted_content = (
+            content.replace("{output_bucket}", str(config["output_bucket"]))
+            .replace("{kraken_build_jobexec_dirname}", kb_jobexec)
+            .replace("{machine_type}", kb_machine)
+            .replace("{kraken_build_source_fasta}", str(config.get("kraken_build_source_fasta", "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.renamed_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa")))
+            .replace("{kraken_build_taxonomy_gcs}", str(config.get("kraken_build_taxonomy_gcs", "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified/taxonomy")))
+            .replace("{kraken_build_dest_gcs}", str(config.get("kraken_build_dest_gcs", "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified")))
+            .replace("{kraken_build_db_dir}", str(config.get("kraken_build_db_dir", "/mnt/disks/staff/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified")))
+            .replace("{kraken_build_exec_threads}", str(config.get("kraken_build_exec_threads", 32)))
         )
 
         with open(output.job, "w") as f:

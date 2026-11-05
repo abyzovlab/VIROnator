@@ -2,7 +2,8 @@
 
 This tool works modularly to process and align sequencing datasets. It consists of sequential modules whose parameters and execution are fully controlled by the user via the configuration file (`config/ssc_config.yaml`):
 
-0. **Module 0: Human Genome Alignment Module:** Aligns paired-end FASTQ reads directly to the GRCh38 human reference genome using multithreaded BWA-MEM and streams output into sorted, indexed CRAM files.
+0A. **Module 0A: Human Genome Alignment Module:** Aligns paired-end FASTQ reads directly to the GRCh38 human reference genome using multithreaded BWA-MEM and streams output into sorted, indexed CRAM files.
+0B. **Module 0B: Kraken2 Taxonomic Profiling Module:** Classifies paired-end sequencing reads against a custom Kraken2 k-mer database (`kraken2/2.1.2`) to establish orthogonal taxonomic calls directly comparable with VIROnator and CZ-ID.
 1. **Module 1: Coverage Calculation Module:** Calculates per-sample human genome sequencing read depth and coverage metrics.
 2. **Module 2: Unmapped Extraction Module:** Extracts unmapped human reads from CRAM files to preprocess candidate reads for viral detection.
 3. **Module 3: Alignment Module (VIROnator):** Maps candidate reads to the viral database, filters out decoy/RNA sequences, and runs targeted BED filtering.
@@ -220,7 +221,7 @@ snakemake --cores 1
 
 ### Phase 3: Execute the Workflow
 
-#### Module 0: Human Genome Alignment Module (`ssc_human_alignment.job`)
+#### Module 0A: Human Genome Alignment Module (`ssc_human_alignment.job`)
 Aligns raw paired-end FASTQ reads directly to the GRCh38 human reference genome using multithreaded BWA-MEM and streams output into coordinate-sorted, indexed CRAM files (`.cram` and `.cram.crai`).
 
 ```bash
@@ -229,6 +230,33 @@ batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_human_alignment.
 Or directly via `jobexec`:
 ```bash
 jobexec batch config/batch_jobexec_human_alignment.config config/ssc_human_alignment.job <SAMPLE_LIST>
+```
+
+#### Module 0B: Kraken2 Taxonomic Profiling & Custom Database Build (`kraken2/2.1.2`)
+
+Module 0B enables running Kraken2 k-mer classification on raw or unmapped reads prior to coverage analysis. It includes an automated **submodule** for building custom Kraken2 databases on a dedicated worker VM:
+
+##### Submodule 0B.1: Custom Kraken2 Database Build Job (`ssc_kraken_build.job`)
+Builds a custom Kraken2 v2.1.2 hash table on a single temporary GCP worker node equipped with **3000 GB attached persistent storage** (`/mnt/disks/staff`) and **100 GB boot storage**, bypassing home directory quotas (15 GB) and GCS I/O latency:
+
+1. **Compile Build Job and Resource Configuration**:
+   ```bash
+   snakemake config/batch_jobexec_kraken_build.config config/ssc_kraken_build.job --cores 1
+   ```
+
+2. **Execute on Worker VM (No Samples Argument Required)**:
+   ```bash
+   # Launch via batchRun:
+   batchRun -config config/batch_jobexec_kraken_build.config -non-spot config/ssc_kraken_build.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
+
+   # Or launch directly via jobexec:
+   jobexec run config/batch_jobexec_kraken_build.config config/ssc_kraken_build.job
+   ```
+
+##### Submodule 0B.2: Kraken2 Taxonomic Profiling Batch Job (`ssc_kraken.job`)
+Runs parallel k-mer classification across sequencing cohorts:
+```bash
+jobexec batch config/batch_jobexec_kraken.config config/ssc_kraken.job <SAMPLE_LIST>
 ```
 
 #### Module 1: Coverage Calculation Module (`ssc_coverage.job`)

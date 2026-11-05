@@ -6,6 +6,7 @@ include: "rules/ssc.smk"
 
 # Validate samples_list file only if batch job modules requiring samples are active
 batch_modules_active = any([
+    (config.get("kraken_profiling_submodule", "off") == "on" or config.get("kraken_module", "off") == "on"),
     config.get("human_alignment_module", "off") == "on",
     config.get("unmapped_extraction", "off") == "on",
     config.get("viral_db_alignment", "off") == "on",
@@ -37,6 +38,8 @@ targets = []
 # Always target the resource configurations compilation
 targets.extend([
     "config/batch_jobexec_resources.config",
+    "config/batch_jobexec_kraken.config",
+    "config/batch_jobexec_kraken_build.config",
     "config/batch_jobexec_unmapped.config",
     "config/batch_jobexec_vironator.config",
     "config/batch_jobexec_reporting.config",
@@ -48,7 +51,16 @@ targets.extend([
     "config/ssc_coverage.job"
 ])
 
-# Module 0: Human Genome Alignment (FASTQ -> CRAM via BWA-MEM)
+# Submodule 0B.1: Kraken2 Custom Database Build Job (Single VM Job on GCP)
+if config.get("kraken_build_submodule", "off") == "on":
+    targets.append("config/ssc_kraken_build.job")
+
+# Submodule 0B.2: Kraken2 Taxonomic Profiling (kraken2/2.1.2)
+if config.get("kraken_profiling_submodule", "off") == "on" or config.get("kraken_module", "off") == "on":
+    targets.append("config/kraken_dir.created")
+    targets.append("config/ssc_kraken.job")
+
+# Module 0A: Human Genome Alignment (FASTQ -> CRAM via BWA-MEM)
 if config.get("human_alignment_module", "off") == "on":
     targets.append("config/ssc_human_alignment.job")
 

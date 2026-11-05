@@ -81,6 +81,10 @@ echo "Start: $(date)"
 REF_CRAM_DECODER="{ref_cram_decoder}"
 PHASE="{phase}"
 PROJECT="{project}"
+SAMTOOLS_THREADS="{samtools_threads}"
+if [ -z "${SAMTOOLS_THREADS}" ] || [ "${SAMTOOLS_THREADS}" = "0" ]; then
+    SAMTOOLS_THREADS=4
+fi
 # Support plus delimiter (PHASE+PROJECT+SAMPLE or PHASE+SAMPLE) in sample list
 RAW_SAMPLE="[SAMPLE]"
 if [[ "${RAW_SAMPLE}" == *"+"* ]]; then
@@ -206,7 +210,7 @@ if [ -d "/mnt/disks/staff/refs" ]; then
 fi
 
 echo "$(date) Starting extraction: ${SAMPLE}"
-samtools view -@ 4 -T "${REF_CRAM_DECODER}" -F 256 --rf 12 -C -o "${OUT_CRAM}" "${CRAM}"
+samtools view -@ "${SAMTOOLS_THREADS}" -T "${REF_CRAM_DECODER}" -F 256 --rf 12 -C -o "${OUT_CRAM}" "${CRAM}"
 status=$?
 echo "$(date) samtools exit code: ${status}"
 

@@ -49,12 +49,12 @@ gcp_account: "vaults6-m277455-p-1733249128@ml-fpt-rsa-aproject1-p-581c.iam.gserv
 pi: "MDJ"
 pau: 0
 task_name: "mdj_test"
-machine_type: "n2-standard-64"  # GCP Instance type (e.g. n1-standard-4, n2-standard-8, n2-standard-16)
-threads: 64                     # CPU threads per worker node
-memory: 256                      # Memory (RAM) in GB per worker node
-nodes: 3000                     # Max node count
-storage: 0                      # Additional persistent storage in GB
-boot_storage: 50                # Boot storage in GB
+machine_type: "n2-standard-128"  # GCP Instance type (e.g. n1-standard-4, n2-standard-8, n2-standard-16)
+threads: 128                     # CPU threads per worker node
+memory: 512                      # Memory (RAM) in GB per worker node
+nodes: 10000                     # Max node count
+storage: 6000                      # Additional persistent storage in GB
+boot_storage: 250                # Boot storage in GB
 
 # GCS output folder names (located inside output_dir)
 unmapped_out_dirname: "{dataset}_{genome_build}_unmapped"
@@ -62,6 +62,7 @@ vironator_out_dirname: "{dataset}_{genome_build}_vironator"
 reports_out_dirname: "{dataset}_{genome_build}_reports"
 coverage_out_dirname: "{dataset}_{genome_build}_coverage"
 human_alignment_out_dirname: "{dataset}_{genome_build}_human_alignment"
+kraken_out_dirname: "{dataset}_{genome_build}_kraken"
 
 # Jobexec orchestrator folder names (located in output_bucket)
 unmapped_jobexec_dirname: "jobexec_unmapped_{dataset}_{genome_build}"
@@ -69,6 +70,7 @@ vironator_jobexec_dirname: "jobexec_vironator_{dataset}_{genome_build}"
 reporting_jobexec_dirname: "jobexec_reporting_{dataset}_{genome_build}"
 coverage_jobexec_dirname: "jobexec_coverage_{dataset}_{genome_build}"
 human_alignment_jobexec_dirname: "jobexec_human_alignment_{dataset}_{genome_build}"
+kraken_jobexec_dirname: "jobexec_kraken_{dataset}_{genome_build}"
 
 # Path to the sample metadata list.
 # - If you specify a RELATIVE path (e.g., "samples_p2_base"), Snakemake dynamically 
@@ -96,7 +98,7 @@ scripts_dir: "/mnt/disks/staff/scripts"
 
 
 # ==============================================================================
-# MODULE 0: HUMAN GENOME ALIGNMENT (FASTQ -> CRAM via BWA-MEM)
+# MODULE 0A: HUMAN GENOME ALIGNMENT (FASTQ -> CRAM via BWA-MEM)
 # ==============================================================================
 human_alignment_module: "off"             # Master switch: "on" or "off"
 human_alignment_script: "ssc_human_alignment.job"
@@ -127,6 +129,61 @@ fastq_r2_pattern: "{sample}_L001_R2_001.{suffix}"
 # output_dir: "/mnt/disks/staff"
 # human_alignment_out_dirname: "{dataset}_{genome_build}_human_alignment"
 # human_alignment_jobexec_dirname: "jobexec_human_alignment_{dataset}_{genome_build}"
+
+
+# ==============================================================================
+# MODULE 0B: KRAKEN2 TAXONOMIC CLASSIFICATION MODULE (kraken2/2.1.2)
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# SUBMODULE 0B.1: KRAKEN2 CUSTOM DATABASE BUILD (Single Worker VM Job)
+# Builds a custom Kraken2 v2.1.2 hash table on a dedicated GCP VM.
+# Inherits machine_type, threads, memory, nodes, storage, and boot_storage from header.
+# ------------------------------------------------------------------------------
+kraken_build_submodule: "off"             # Switch: "on" or "off" to compile ssc_kraken_build.job & config
+kraken_build_script: "ssc_kraken_build.job"
+kraken_build_jobexec_dirname: "jobexec_kraken_build_{dataset}_{genome_build}"
+kraken_build_task_name: "kraken2_db_build"
+kraken_build_exec_threads: 32             # CPU threads for kraken2-build execution (20–32 threads)
+
+# Input GCS Paths for Reference FASTA and NCBI Taxonomy:
+kraken_build_source_fasta: "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.renamed_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"
+kraken_build_taxonomy_gcs: "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified/taxonomy"
+
+# Local Working Directory on Attached Disk & Target GCS Upload Destination:
+kraken_build_db_dir: "/mnt/disks/staff/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified"
+kraken_build_dest_gcs: "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified"
+
+# ------------------------------------------------------------------------------
+# SUBMODULE 0B.2: KRAKEN2 SAMPLE PROFILING & TAXONOMIC QUANTIFICATION
+# Runs k-mer taxonomic classification directly on raw sequencing reads prior to coverage
+# ------------------------------------------------------------------------------
+kraken_profiling_submodule: "off"         # Switch: "on" or "off" to run Kraken2 batch profiling job
+kraken_module: "off"                      # Alias switch (kept for backward compatibility)
+kraken_script: "ssc_kraken.job"
+
+# Pre-built Kraken2 Database Directory (stored on staff GCS mount)
+# Built from combined Human Viral reference + SnapGene plasmids + mouse
+kraken_db: "/mnt/disks/staff/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified"
+
+# Computational Resources & Binary Resolution
+# Inherits machine_type & threads from header (or set kraken_threads to override)
+# Cluster module path: /usr/local/biotools/kraken2/2.1.2/bin/kraken2
+# Worker VM mount path: /mnt/disks/staff/bin/kraken2
+kraken_bin: "kraken2"                     # Executable name, /mnt/disks/staff/bin/kraken2, or /usr/local/biotools/kraken2/2.1.2/bin/kraken2
+kraken_confidence: 0.0                    # Confidence score threshold (0.0 - 1.0, default 0.0)
+kraken_quick_mode: "off"                  # "on" to run quick mode (-q)
+kraken_memory_mapping: "off"              # "on" to avoid loading whole DB into RAM
+kraken_save_classified_reads: "off"       # "on" to save per-read classified output, "off" for report only
+
+# Input FASTQ Extension & Naming Patterns (Supports {sample} and {suffix}):
+# Inherits data_dir and data_subdir from header variables.
+fastq_suffix: "fastq.gz"
+fastq_r1_pattern: "{sample}_L001_R1_001.{suffix}"
+# fastq_r1_pattern: "{sample}_L1_R1.{suffix}"
+fastq_r2_pattern: "{sample}_L001_R2_001.{suffix}"
+# fastq_r2_pattern: "{sample}_L1_R2.{suffix}"
+
 
 
 # ==============================================================================
@@ -227,7 +284,12 @@ mouse_contigs_file: "mm39_modified.renamed.contigs.txt"
 
 # Tool paths and script names (scripts are stored in scripts_dir)
 bwa_bin: "/mnt/disks/staff/bin/bwa"
-bwa_threads: 20        # Number of CPU threads per BWA alignment process (e.g. 16, 20, 32, 64)
+bwa_threads: 32        # Number of CPU threads per BWA alignment process (e.g. 16, 20, 32, 64)
+# bwa_threads: 64      # High-performance BWA alignment on 128-core node
+# bwa_threads: 96      # Maximum performance for BWA on 128-core node (leaves headroom for OS/IO)
+samtools_threads: 16   # Number of CPU threads per samtools sort/view/fastq/index operation (e.g. 4, 8, 16, 24)
+# samtools_threads: 24 # High-throughput samtools on 128-core node
+# samtools_threads: 32 # Maximum throughput for samtools (above 32 threads, disk I/O & BAM compression saturate)
 python_bin: "python3"
 init_ref_script: "init_ref.sh"
 combined_refs_dir: ""  # Output folder for combined reference (resolves directly to ref_dir)

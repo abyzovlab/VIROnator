@@ -4,7 +4,8 @@ A tool for sensitive detection and quantitative reporting of viral presence in h
 
 This workflow works modularly to process and align sequencing datasets. It consists of sequential modules whose parameters and execution are fully controlled by the user via the configuration file (`config/ssc_config.yaml`):
 
-1. **Standalone Utility:** Reference Sanitization & BED Generation (`rename_fasta_contigs.sh`)
+0. **Module 0A:** Human Genome Alignment Module (`ssc_human_alignment.job`)
+1. **Module 0B:** Kraken2 Taxonomic Profiling Module (`ssc_kraken.job`)
 2. **Module 1:** Coverage Calculation Module (`ssc_coverage.job`)
 3. **Module 2:** Unmapped Extraction Module (`ssc_unmapped.job`)
 4. **Module 3:** Alignment Module (`ssc_alignment.job`)
@@ -14,6 +15,7 @@ This workflow works modularly to process and align sequencing datasets. It consi
 8. **Module 7:** SAM Flag Comparison Module (`ssc_flag_comparison.job`)
 9. **Module 8:** NCBI RefSeq Refinement Module (`ssc_refinement.job`)
 10. **Module 9:** Heatmaps Module (`generate_heatmap.py`)
+11. **Module 10:** Discordant Reads & Viral Integration Breakpoints Module (`ssc_discordant.job`)
 
 ---
 
@@ -154,7 +156,7 @@ When `generate_report_submodule: "on"` is set, Snakemake compiles `ssc_reporting
 batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_reporting.config -non-spot config/ssc_reporting.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
 
-#### Module 0: Human Genome Alignment Module (`ssc_human_alignment.job`)
+#### Module 0A: Human Genome Alignment Module (`ssc_human_alignment.job`)
 Aligns paired-end FASTQ reads directly to the GRCh38 human reference genome using multithreaded BWA-MEM and streams output into coordinate-sorted, indexed CRAM files (`.cram` and `.cram.crai`).
 ```bash
 # 1. Compile human alignment jobexec cluster files:
@@ -422,3 +424,177 @@ Extracts chimeric discordant read pairs and split reads from unfiltered alignmen
 18. `upstream_distance_bp` — Distance in bp to nearest upstream gene (e.g. `-1420`)
 19. `downstream_element` — Nearest downstream gene symbol (e.g. `MYC`)
 20. `downstream_distance_bp` — Distance in bp to nearest downstream gene (e.g. `+5230`)
+
+---
+
+## Module 0B: Kraken2 Taxonomic Classification Module <small>(kraken2/2.1.2)</small>
+
+The Kraken2 module enables high-throughput, k-mer-based taxonomic classification of raw paired-end sequencing reads prior to the Coverage Calculation Module. This provides an independent, orthogonal benchmark of viral presence and allows direct head-to-head comparison against VIROnator and CZ-ID.
+
+Module 0B consists of two independent submodules controlled by `"on"` / `"off"` switches in `config/ssc_config.yaml`:
+- **Submodule 0B.1: Kraken2 Custom Database Build** (`kraken_build_submodule`): Builds the combined reference database on a dedicated GCP VM.
+- **Submodule 0B.2: Kraken2 Sample Profiling & Taxonomic Quantification** (`kraken_profiling_submodule`): Runs parallel sample classification across cohorts.
+
+---
+
+### Submodule 0B.1: Custom Kraken2 Database Build Job (`ssc_kraken_build.job`)
+
+Before profiling cohorts, the custom reference database (combined Human Viral Reference + SnapGene plasmids + mouse) must be built into a Kraken2 k-mer hash table.
+
+> [!IMPORTANT]
+> **Persistent Disk & Quota Safety**: Kraken2 hash table generation requires high RAM and hundreds of gigabytes of disk space during indexing. Building directly against Google Cloud Storage (GCS FUSE) or within the user `$HOME` directory (15 GB quota) will result in fatal I/O timeouts or quota crashes. The automated build job dynamically allocates a dedicated worker VM using the hardware specifications configured in the YAML header (`n2-standard-128`, 128 cores, 512 GB RAM, 6000 GB persistent storage attached at `/mnt/disks/staff`, 250 GB boot storage). It performs all downloading, FASTA addition, and indexing locally before uploading the completed database directly to:
+> `gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified/`
+
+#### 1. Configure Database Build in `config/ssc_config.yaml`:
+```yaml
+# ------------------------------------------------------------------------------
+# SUBMODULE 0B.1: KRAKEN2 CUSTOM DATABASE BUILD (Single Worker VM Job)
+# Inherits machine_type, threads, memory, nodes, storage, and boot_storage from header
+# ------------------------------------------------------------------------------
+kraken_build_submodule: "on"              # Switch: "on" compiles ssc_kraken_build.job & config
+kraken_build_script: "ssc_kraken_build.job"
+kraken_build_jobexec_dirname: "jobexec_kraken_build_{dataset}_{genome_build}"
+kraken_build_task_name: "kraken2_db_build"
+kraken_build_exec_threads: 32             # CPU threads for kraken2-build execution (20–32 threads)
+
+# Input GCS Paths for Reference FASTA and NCBI Taxonomy:
+kraken_build_source_fasta: "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.renamed_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"
+kraken_build_taxonomy_gcs: "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified/taxonomy"
+
+# Local Working Directory on Attached Disk & Target GCS Upload Destination:
+kraken_build_db_dir: "/mnt/disks/staff/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified"
+kraken_build_dest_gcs: "gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified"
+```
+
+#### 2. Compile Job and Resource Configurations:
+```bash
+snakemake config/batch_jobexec_kraken_build.config config/ssc_kraken_build.job --cores 1
+```
+
+#### 3. Launch Single Worker Build Job (No Samples List Required):
+Because this builds the reference database on a single worker VM, do **not** pass a samples list:
+```bash
+# Option A: Via batchRun (recommended on Mayo/Stanford GCP cluster):
+batchRun -config config/batch_jobexec_kraken_build.config -non-spot config/ssc_kraken_build.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
+
+# Option B: Directly via jobexec:
+jobexec run config/batch_jobexec_kraken_build.config config/ssc_kraken_build.job
+```
+
+---
+
+### Submodule 0B.2: Kraken2 Sample Profiling & Taxonomic Quantification (`ssc_kraken.job`)
+
+Runs parallel k-mer classification directly across cohort FASTQ files prior to coverage analysis.
+
+#### 1. Binary Resolution (`kraken_bin`):
+On the Mayo cluster headnode, Kraken2 is loaded via environment module:
+```bash
+module load kraken2/2.1.2  # Executables in: /usr/local/biotools/kraken2/2.1.2/bin/
+```
+On GCP batch worker VMs, jobs execute within containers. The workflow automatically searches:
+1. `KRAKEN_BIN` specified in `config/ssc_config.yaml`
+2. Shared staff disk: `/mnt/disks/staff/bin/kraken2`
+3. Cluster biotools path: `/usr/local/biotools/kraken2/2.1.2/bin/kraken2`
+4. Container `$PATH`: `kraken2`
+
+*(Best Practice: Copying `/usr/local/biotools/kraken2/2.1.2/bin/*` to `/mnt/disks/staff/bin/` ensures cloud worker containers always have instant, zero-dependency access to kraken binaries).*
+
+#### 2. Configure Sample Profiling in `config/ssc_config.yaml`:
+```yaml
+# ------------------------------------------------------------------------------
+# SUBMODULE 0B.2: KRAKEN2 SAMPLE PROFILING & TAXONOMIC QUANTIFICATION
+# ------------------------------------------------------------------------------
+kraken_profiling_submodule: "on"          # Switch: "on" to generate ssc_kraken.job
+kraken_script: "ssc_kraken.job"
+
+# Pre-built Kraken2 Database Directory (mounted at /mnt/disks/staff/refs/):
+kraken_db: "/mnt/disks/staff/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified"
+
+# Computational Resources & Performance Tuning:
+# Inherits machine_type & threads from header (or set kraken_threads to override)
+kraken_bin: "kraken2"                     # Executable name, /mnt/disks/staff/bin/kraken2, or /usr/local/biotools/kraken2/2.1.2/bin/kraken2
+kraken_confidence: 0.0                    # Confidence score threshold (0.0 - 1.0, default 0.0)
+kraken_quick_mode: "off"                  # "on" to run quick mode (-q)
+kraken_memory_mapping: "off"              # "on" to avoid loading whole DB into RAM
+kraken_save_classified_reads: "off"       # "on" to save per-read classified output, "off" for report only
+
+# Input FASTQ Extension & Naming Patterns (inherits data_dir and data_subdir from header):
+fastq_suffix: "fastq.gz"
+fastq_r1_pattern: "{sample}_L001_R1_001.{suffix}"
+# fastq_r1_pattern: "{sample}_L1_R1.{suffix}"
+fastq_r2_pattern: "{sample}_L001_R2_001.{suffix}"
+# fastq_r2_pattern: "{sample}_L1_R2.{suffix}"
+```
+
+#### 3. Compile and Run Batch Profiling on Cohort:
+```bash
+# 1. Compile kraken job and batch configuration:
+snakemake config/batch_jobexec_kraken.config config/ssc_kraken.job --cores 1
+
+# 2. Submit parallel batch run across samples:
+batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_kraken.config -non-spot config/ssc_kraken.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
+
+# Or directly via jobexec:
+jobexec batch config/batch_jobexec_kraken.config config/ssc_kraken.job <SAMPLE_LIST>
+```
+
+---
+
+### 3. Running the Kraken2 Batch Job via `jobexec`
+
+1. Compile the job and batch configuration:
+   ```bash
+   snakemake -j 1
+   ```
+2. Launch the batch job on the GCP cluster:
+   ```bash
+   jobexec-batch -r config/batch_jobexec_kraken.config config/ssc_kraken.job samples_list.txt
+   ```
+
+---
+
+### 4. Per-Sample Reporting & Cohort Aggregation for Benchmarking
+
+Kraken2 produces a standard 6-column hierarchical report (`<sample>_kraken2_report.txt`):
+- Col 1: Percent of fragments
+- Col 2: Cumulative clade reads rooted at this taxon
+- Col 3: Direct reads assigned strictly to this taxon
+- Col 4: Rank code (`U`, `R`, `D`, `K`, `P`, `C`, `O`, `F`, `G`, `S`)
+- Col 5: NCBI Taxonomic ID
+- Col 6: Indented scientific name
+
+#### Aggregating & Merging with VIROnator and CZ-ID (`parse_kraken_report.py`)
+
+To report results per sample and conveniently compare them side-by-side with VIROnator and CZ-ID, run:
+
+```bash
+python3 scripts/parse_kraken_report.py \
+    --kraken-dir /mnt/disks/staff/MCBiobank_hg38_kraken \
+    --out-report MCBiobank_hg38_kraken2_master_report.tsv \
+    --min-reads 1 \
+    --target-rank S \
+    --filter-viruses-only \
+    --merge-vironator-report OLD/fromNorgan_hg38_master_report.tsv \
+    --tri-output cohort_tri_comparison_master.tsv
+```
+
+#### Generated Tri-Way Comparison Columns (`cohort_tri_comparison_master.tsv`):
+| Column | Description |
+| :--- | :--- |
+| `sample_id` | Cohort sample identifier |
+| `species_taxid` | NCBI Species-level Taxonomic ID |
+| `species_name` | Canonical viral species name |
+| `clinician_reported` | Clinical Gold Standard ground truth diagnosis |
+| `vironator_accession` | Primary accession selected by VIROnator |
+| `vironator_reads` | Mapped reads after in silico plasmid/mouse/decoy decontamination |
+| `vironator_copy_number` | Cumulative viral copy number calculated by VIROnator |
+| `vironator_physical_cov` | Physical coverage percentage of the viral genome |
+| `czid_virus_name` | Viral call reported by CZ-ID |
+| `czid_species_taxid` | Species taxid reported by CZ-ID |
+| `czid_reads` | Total species reads reported by CZ-ID |
+| `kraken_clade_reads` | Cumulative clade reads reported by Kraken2 |
+| `kraken_direct_reads` | Exact direct reads reported by Kraken2 |
+| `kraken_percent` | Percentage of total sequencing reads classified to this clade |
+| `concordance_all_three` | `YES` if called by VIROnator, CZ-ID, and Kraken2; otherwise `NO` |
+

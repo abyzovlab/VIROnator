@@ -1,0 +1,183 @@
+# =========================================================================================================================
+# VIROnator Submodule: Kraken2 Custom Database Build Job Template (kraken2/2.1.2)
+# Builds a custom Kraken2 index from a composite reference FASTA and NCBI taxonomy.
+# Runs on a single temporary GCP worker VM with a large attached local persistent disk (/mnt/disks/staff, 3000 GB).
+# Avoids using GCS directly or $HOME (15 GB quota) for build operations.
+# =========================================================================================================================
+
+job_name=KRAKEN2_DB_BUILD
+job_identifier=KRAKEN2_DB_BUILD
+machine_type=n2-standard-64
+
+####
+#### Buckets
+####
+
+input_bucket=gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/jobexec_kraken_build_MCBiobank_hg38/input
+output_bucket=gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/jobexec_kraken_build_MCBiobank_hg38/output
+log_bucket=gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/jobexec_kraken_build_MCBiobank_hg38/logs
+
+####
+#### Tools
+####
+
+repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
+tool=kraken2/2.1.2
+
+####
+#### Post-Job Configuration
+####
+
+clear_output=false
+clear_input=true 
+
+####
+#### Script to run
+####
+
+commands_start
+
+# Strict shell error handling
+set -euo pipefail
+
+# Persistent Logging Setup on Attached Working Disk
+WORK_DISK="/mnt/disks/staff"
+LOG_DIR="${WORK_DISK}/kraken_build_logs"
+mkdir -p "${LOG_DIR}"
+BUILD_LOG="${LOG_DIR}/kraken2_build_$(date +%Y%m%d_%H%M%S).log"
+LOG_GCS_DEST="ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/jobexec_kraken_build_MCBiobank_hg38/logs"
+
+# Ensure all output is tee-ed to the persistent log file
+exec > >(tee -a "${BUILD_LOG}") 2>&1
+
+echo "=========================================================================================="
+echo " Starting Kraken2 Database Build Job"
+echo " Start Timestamp: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo " Node Hostname  : $(hostname)"
+echo " Working Log    : ${BUILD_LOG}"
+echo "=========================================================================================="
+
+# Error handler: Upload build log to GCS if failure occurs before worker termination
+trap 'EXIT_CODE=$?; if [ ${EXIT_CODE} -ne 0 ]; then echo "[$(date)] [FATAL] Job failed with exit code ${EXIT_CODE}. Uploading diagnostic log to gs://${LOG_GCS_DEST}/..."; gsutil -m cp "${BUILD_LOG}" "gs://${LOG_GCS_DEST}/" 2>/dev/null || true; fi; exit ${EXIT_CODE}' EXIT
+
+# Environment module loading for kraken2
+if command -v module >/dev/null 2>&1 || [ -f /usr/share/modules/init/bash ]; then
+    [ -f /usr/share/modules/init/bash ] && . /usr/share/modules/init/bash 2>/dev/null || true
+    module load kraken2/2.1.2 2>/dev/null || module load kraken2 2>/dev/null || true
+fi
+
+# Tool binary verification
+KRAKEN_BUILD_BIN="kraken2-build"
+if ! command -v "${KRAKEN_BUILD_BIN}" >/dev/null 2>&1; then
+    if [ -x "/mnt/disks/staff/bin/kraken2-build" ]; then
+        KRAKEN_BUILD_BIN="/mnt/disks/staff/bin/kraken2-build"
+    elif [ -x "/usr/local/biotools/kraken2/2.1.2/bin/kraken2-build" ]; then
+        KRAKEN_BUILD_BIN="/usr/local/biotools/kraken2/2.1.2/bin/kraken2-build"
+        export PATH="/usr/local/biotools/kraken2/2.1.2/bin:${PATH}"
+    else
+        echo "[ERROR] kraken2-build executable not found in PATH, /mnt/disks/staff/bin/, or /usr/local/biotools/kraken2/2.1.2/bin! Aborting."
+        exit 1
+    fi
+fi
+echo "[INFO] Using kraken2-build binary: ${KRAKEN_BUILD_BIN}"
+
+# Configure Build Variables
+SOURCE_FASTA_GCS="gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.renamed_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"
+TAXONOMY_GCS="gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified/taxonomy"
+DEST_GCS="gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified"
+DB="/mnt/disks/staff/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified"
+TAXONOMY_DIR="${DB}/taxonomy"
+BUILD_THREADS="32"
+
+FASTA_FILENAME="$(basename "${SOURCE_FASTA_GCS}")"
+LOCAL_FASTA="${WORK_DISK}/${FASTA_FILENAME}"
+
+echo "[INFO] Target Local Database Directory : ${DB}"
+echo "[INFO] Local Taxonomy Directory        : ${TAXONOMY_DIR}"
+echo "[INFO] Source FASTA GCS URI            : ${SOURCE_FASTA_GCS}"
+echo "[INFO] Source Taxonomy GCS URI         : ${TAXONOMY_GCS}"
+echo "[INFO] Target Destination GCS URI      : ${DEST_GCS}"
+echo "[INFO] Build CPU Threads Allocated     : ${BUILD_THREADS}"
+
+# Step 1: Create local directory structure on large attached disk
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [STEP 1/6] Creating local database directories on ${WORK_DISK}..."
+mkdir -p "${TAXONOMY_DIR}"
+
+# Step 2: Copy complete taxonomy directory and source FASTA from GCS
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [STEP 2/6] Copying taxonomy files from GCS (${TAXONOMY_GCS}) to ${TAXONOMY_DIR}/..."
+gsutil -m cp -r "${TAXONOMY_GCS}/*" "${TAXONOMY_DIR}/"
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Copying reference FASTA from GCS to local attached disk (${LOCAL_FASTA})..."
+gsutil -m cp "${SOURCE_FASTA_GCS}" "${LOCAL_FASTA}"
+
+# Step 3: Validate Inputs and inspect resources
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [STEP 3/6] Validating copied input files and inspecting node resources..."
+
+if [ ! -s "${LOCAL_FASTA}" ]; then
+    echo "[ERROR] Source FASTA file is missing or empty at ${LOCAL_FASTA}! Aborting build."
+    exit 1
+fi
+
+REQUIRED_TAXONOMY_FILES=("nodes.dmp" "names.dmp" "nucl_gb.accession2taxid" "nucl_wgs.accession2taxid")
+for req_file in "${REQUIRED_TAXONOMY_FILES[@]}"; do
+    if [ ! -s "${TAXONOMY_DIR}/${req_file}" ]; then
+        echo "[ERROR] Required taxonomy file '${req_file}' is missing or empty in ${TAXONOMY_DIR}! Aborting build."
+        exit 1
+    fi
+done
+
+echo "=== Worker Hardware & Memory Status ==="
+free -h
+echo "=== Attached Disk Space Status ==="
+df -h "${WORK_DISK}"
+echo "=== Input Files Listing ==="
+ls -lh "${LOCAL_FASTA}"
+ls -lh "${TAXONOMY_DIR}"
+
+# Step 4: Add Reference FASTA to Kraken2 Library
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [STEP 4/6] Adding reference FASTA to Kraken2 library (${LOCAL_FASTA} -> ${DB})..."
+"${KRAKEN_BUILD_BIN}" --add-to-library "${LOCAL_FASTA}" --db "${DB}"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Successfully added reference sequence to Kraken2 library."
+
+# Step 5: Build Kraken2 Database
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [STEP 5/6] Building Kraken2 database with ${BUILD_THREADS} threads..."
+"${KRAKEN_BUILD_BIN}" --build --db "${DB}" --threads "${BUILD_THREADS}"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Kraken2 build command completed."
+
+# Verify generated database artifacts
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Verifying database artifacts in ${DB}..."
+REQUIRED_K2D_FILES=("hash.k2d" "opts.k2d" "taxo.k2d")
+for k2d in "${REQUIRED_K2D_FILES[@]}"; do
+    if [ ! -s "${DB}/${k2d}" ]; then
+        echo "[ERROR] Expected Kraken2 database artifact '${k2d}' is missing or empty in ${DB}! Aborting."
+        exit 1
+    fi
+done
+echo "=== Final Kraken2 Database Artifacts ==="
+ls -lh "${DB}"/*.k2d
+
+# Step 6: Upload completed database directory and verify in GCS
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [STEP 6/6] Uploading completed database directory to ${DEST_GCS}/..."
+# Synchronize database files including taxonomy into the destination GCS folder
+gsutil -m rsync -r "${DB}" "${DEST_GCS}"
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Verifying uploaded database in GCS (${DEST_GCS}/)..."
+gsutil ls -lh "${DEST_GCS}/"
+
+for k2d in "${REQUIRED_K2D_FILES[@]}"; do
+    if ! gsutil -q stat "${DEST_GCS}/${k2d}"; then
+        echo "[ERROR] GCS verification failed: '${DEST_GCS}/${k2d}' was not found in destination bucket! Aborting."
+        exit 1
+    fi
+done
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] All database artifacts successfully confirmed in GCS!"
+
+# Upload final build log to GCS
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Preserving build execution log in GCS..."
+gsutil cp "${BUILD_LOG}" "gs://${LOG_GCS_DEST}/"
+
+echo "=========================================================================================="
+echo " Kraken2 Database Build Job Successfully Completed"
+echo " End Timestamp: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo "=========================================================================================="
