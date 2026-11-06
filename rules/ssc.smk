@@ -1059,10 +1059,27 @@ rule generate_kraken_build_job_file:
     output:
         job="config/ssc_kraken_build.job"
     run:
+        import shutil, subprocess
+        staff_scripts = os.path.join(config.get("output_dir", "/mnt/disks/staff"), "scripts")
+        staff_metadata = os.path.join(config.get("output_dir", "/mnt/disks/staff"), "db_metadata")
+        try:
+            os.makedirs(staff_scripts, exist_ok=True)
+            os.makedirs(staff_metadata, exist_ok=True)
+            if os.path.exists("scripts"):
+                shutil.copytree("scripts", staff_scripts, dirs_exist_ok=True)
+            if os.path.exists("config/db_metadata"):
+                shutil.copytree("config/db_metadata", staff_metadata, dirs_exist_ok=True)
+        except Exception:
+            bucket = config.get("output_bucket")
+            if bucket:
+                subprocess.run(f"gsutil -q cp -r scripts/* gs://{bucket}/scripts/ 2>/dev/null || true", shell=True)
+                subprocess.run(f"gsutil -q cp -r config/db_metadata/*.* gs://{bucket}/db_metadata/ 2>/dev/null || true", shell=True)
+
         with open(input.template, "r") as f:
             content = f.read()
 
         ds = str(config.get("dataset", "DATASET"))
+
         gb = str(config.get("genome_build", "hg38"))
         kb_jobexec = str(config.get("kraken_build_jobexec_dirname", "jobexec_kraken_build_{dataset}_{genome_build}")).replace("{dataset}", ds).replace("{genome_build}", gb)
         kb_machine = str(config.get("kraken_build_machine_type", config.get("machine_type", "n2-standard-64")))
