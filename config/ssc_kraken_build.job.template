@@ -111,17 +111,28 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] [STEP 2/6] Preparing NCBI taxonomy in ${TAX
 echo "Checking GCS taxonomy source (${TAXONOMY_GCS})..."
 gsutil -m cp -r "${TAXONOMY_GCS}/*" "${TAXONOMY_DIR}/" 2>/dev/null || true
 
-# 2b. Unpack taxdump archive if present locally
+# 2b. Unpack taxdump archive if present and valid locally
 if [ -f "${TAXONOMY_DIR}/taxdump.tar.gz" ]; then
-    echo "Unpacking ${TAXONOMY_DIR}/taxdump.tar.gz..."
-    tar -xzf "${TAXONOMY_DIR}/taxdump.tar.gz" -C "${TAXONOMY_DIR}/"
+    echo "Verifying integrity of ${TAXONOMY_DIR}/taxdump.tar.gz..."
+    if tar -tzf "${TAXONOMY_DIR}/taxdump.tar.gz" >/dev/null 2>&1; then
+        echo "Unpacking valid taxdump.tar.gz..."
+        tar -xzf "${TAXONOMY_DIR}/taxdump.tar.gz" -C "${TAXONOMY_DIR}/"
+    else
+        echo "[WARNING] Existing taxdump.tar.gz is truncated or corrupted (e.g. partial GCS copy). Deleting to fetch fresh copy..."
+        rm -f "${TAXONOMY_DIR}/taxdump.tar.gz"
+    fi
 fi
 
-# 2c. Decompress any .gz archives (accession2taxid, etc.)
+# 2c. Decompress any valid .gz archives (accession2taxid, etc.)
 for gz_file in "${TAXONOMY_DIR}"/*.gz; do
     if [ -f "${gz_file}" ] && [ "$(basename "${gz_file}")" != "taxdump.tar.gz" ]; then
-        echo "Decompressing $(basename "${gz_file}")..."
-        gunzip -f "${gz_file}" || true
+        if gzip -t "${gz_file}" 2>/dev/null; then
+            echo "Decompressing $(basename "${gz_file}")..."
+            gunzip -f "${gz_file}" || true
+        else
+            echo "[WARNING] Corrupted $(basename "${gz_file}") detected; removing to re-download..."
+            rm -f "${gz_file}"
+        fi
     fi
 done
 
@@ -133,12 +144,20 @@ fi
 
 # 2e. Direct curl/wget fallback for taxdump if still missing (uses -k / --no-check-certificate for institutional proxies)
 if [ ! -s "${TAXONOMY_DIR}/names.dmp" ] || [ ! -s "${TAXONOMY_DIR}/nodes.dmp" ]; then
-    echo "Downloading NCBI taxdump.tar.gz..."
-    curl -k -fsSL "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz" -o "${TAXONOMY_DIR}/taxdump.tar.gz" || \
-        curl -fsSL "http://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz" -o "${TAXONOMY_DIR}/taxdump.tar.gz" || \
-        wget --no-check-certificate -qO "${TAXONOMY_DIR}/taxdump.tar.gz" "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz" || \
-        wget -qO "${TAXONOMY_DIR}/taxdump.tar.gz" "http://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz"
-    tar -xzf "${TAXONOMY_DIR}/taxdump.tar.gz" -C "${TAXONOMY_DIR}/"
+    echo "Downloading fresh NCBI taxdump.tar.gz via HTTPS/HTTP..."
+    rm -f "${TAXONOMY_DIR}/taxdump.tar.gz"*
+    (curl -k -fsSL "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz" -o "${TAXONOMY_DIR}/taxdump.tar.gz.tmp" || \
+     curl -fsSL "http://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz" -o "${TAXONOMY_DIR}/taxdump.tar.gz.tmp" || \
+     wget --no-check-certificate -qO "${TAXONOMY_DIR}/taxdump.tar.gz.tmp" "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz" || \
+     wget -qO "${TAXONOMY_DIR}/taxdump.tar.gz.tmp" "http://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz")
+    
+    if [ -f "${TAXONOMY_DIR}/taxdump.tar.gz.tmp" ] && tar -tzf "${TAXONOMY_DIR}/taxdump.tar.gz.tmp" >/dev/null 2>&1; then
+        mv "${TAXONOMY_DIR}/taxdump.tar.gz.tmp" "${TAXONOMY_DIR}/taxdump.tar.gz"
+        tar -xzf "${TAXONOMY_DIR}/taxdump.tar.gz" -C "${TAXONOMY_DIR}/"
+    else
+        echo "[ERROR] Downloaded taxdump.tar.gz is incomplete or corrupted!"
+        rm -f "${TAXONOMY_DIR}/taxdump.tar.gz.tmp"
+    fi
 fi
 
 # 2f. Ensure accession2taxid mapping files exist
