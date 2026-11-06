@@ -209,10 +209,92 @@ echo "=== Input Files Listing ==="
 ls -lh "${LOCAL_FASTA}"
 ls -lh "${TAXONOMY_DIR}"
 
-# Step 4: Add Reference FASTA to Kraken2 Library
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] [STEP 4/6] Adding reference FASTA to Kraken2 library (${LOCAL_FASTA} -> ${DB})..."
-"${KRAKEN_BUILD_BIN}" --add-to-library "${LOCAL_FASTA}" --db "${DB}"
+# Step 4: Format FASTA Headers with Kraken2 Taxonomy IDs (|kraken:taxid|<ID>)
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [STEP 4/6] Formatting sequence headers with Kraken2 taxonomy IDs..."
+
+FORMATTED_FASTA="${WORK_DISK}/kraken_tagged_${FASTA_FILENAME}"
+SEQID_MAP="${DB}/seqid2taxid.map"
+
+python3 - << 'EOF' "${LOCAL_FASTA}" "${FORMATTED_FASTA}" "${SEQID_MAP}" "${TAXONOMY_DIR}"
+import sys, os
+
+fasta_in = sys.argv[1]
+fasta_out = sys.argv[2]
+map_out = sys.argv[3]
+tax_dir = sys.argv[4]
+
+print(f"[PRE-SCAN] Scanning target sequence headers from {fasta_in}...")
+viral_accs = set()
+with open(fasta_in, 'r') as f:
+    for line in f:
+        if line.startswith('>'):
+            h = line[1:].strip().split()[0]
+            if not h.startswith(('chr', 'HLA-', 'hs38d5', 'decoy', 'mm39', 'SnapGene')):
+                acc = h.split('.')[0]
+                viral_accs.add(acc)
+                viral_accs.add(h)
+
+print(f"[PRE-SCAN] Detected {len(viral_accs)} candidate viral accessions.")
+
+# Load accession to taxid from NCBI mapping files
+viral_map = {}
+for acc_file in ['nucl_gb.accession2taxid', 'nucl_wgs.accession2taxid']:
+    p = os.path.join(tax_dir, acc_file)
+    if os.path.exists(p):
+        print(f"[PRE-SCAN] Searching {acc_file} for viral accessions...")
+        with open(p, 'r') as f:
+            for line in f:
+                parts = line.split('\t')
+                if len(parts) >= 3:
+                    a, v, t = parts[0], parts[1], parts[2]
+                    if a in viral_accs:
+                        viral_map[a] = t
+                    if v in viral_accs:
+                        viral_map[v] = t
+
+print(f"[PRE-SCAN] Successfully resolved {len(viral_map)} viral accessions to NCBI TaxIDs.")
+
+# Tag each header: Human=9606, Mouse=10090, Plasmid=32630, Virus=viral_taxid (or 10239 root)
+n_human, n_mouse, n_plasmid, n_viral = 0, 0, 0, 0
+with open(fasta_in, 'r') as fin, open(fasta_out, 'w') as fout, open(map_out, 'w') as fmap:
+    for line in fin:
+        if line.startswith('>'):
+            header = line[1:].strip()
+            seqid = header.split()[0]
+            rest = header[len(seqid):].strip()
+
+            if seqid.startswith(('chr', 'HLA-', 'hs38d5', 'decoy')):
+                taxid = '9606'   # Homo sapiens
+                n_human += 1
+            elif seqid.startswith('mm39'):
+                taxid = '10090'  # Mus musculus
+                n_mouse += 1
+            elif seqid.startswith('SnapGene'):
+                taxid = '32630'  # Synthetic construct / cloning vector
+                n_plasmid += 1
+            else:
+                acc = seqid.split('.')[0]
+                taxid = viral_map.get(seqid, viral_map.get(acc, '10239'))  # Specific virus or Viruses root (10239)
+                n_viral += 1
+
+            new_header = f">{seqid}|kraken:taxid|{taxid} {rest}".strip()
+            fout.write(new_header + '\n')
+            fmap.write(f"{seqid}\t{taxid}\n")
+            fmap.write(f"{seqid}|kraken:taxid|{taxid}\t{taxid}\n")
+        else:
+            fout.write(line)
+
+print(f"[PRE-SCAN] Tagging complete: {n_human} Human (9606), {n_mouse} Mouse (10090), {n_plasmid} Plasmids (32630), {n_viral} Viruses.")
+EOF
+
+# Copy mapping file into taxonomy directory as well
+cp -f "${SEQID_MAP}" "${TAXONOMY_DIR}/seqid2taxid.map" 2>/dev/null || true
+cp -f "${SEQID_MAP}" "${TAXONOMY_DIR}/acc2taxid.map" 2>/dev/null || true
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Adding taxonomy-tagged reference FASTA to Kraken2 library (${FORMATTED_FASTA} -> ${DB})..."
+"${KRAKEN_BUILD_BIN}" --add-to-library "${FORMATTED_FASTA}" --db "${DB}"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Successfully added reference sequence to Kraken2 library."
+rm -f "${FORMATTED_FASTA}"
 
 # Step 5: Build Kraken2 Database
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] [STEP 5/6] Building Kraken2 database with ${BUILD_THREADS} threads..."
