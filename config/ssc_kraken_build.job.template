@@ -131,26 +131,30 @@ if [ ! -s "${TAXONOMY_DIR}/names.dmp" ] || [ ! -s "${TAXONOMY_DIR}/nodes.dmp" ];
     "${KRAKEN_BUILD_BIN}" --download-taxonomy --db "${DB}" || true
 fi
 
-# 2e. Direct curl/wget fallback for taxdump if still missing
+# 2e. Direct curl/wget fallback for taxdump if still missing (uses -k / --no-check-certificate for institutional proxies)
 if [ ! -s "${TAXONOMY_DIR}/names.dmp" ] || [ ! -s "${TAXONOMY_DIR}/nodes.dmp" ]; then
-    echo "Downloading NCBI taxdump.tar.gz via HTTPS..."
-    curl -fsSL "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz" -o "${TAXONOMY_DIR}/taxdump.tar.gz" || \
-        wget -qO "${TAXONOMY_DIR}/taxdump.tar.gz" "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz"
+    echo "Downloading NCBI taxdump.tar.gz..."
+    curl -k -fsSL "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz" -o "${TAXONOMY_DIR}/taxdump.tar.gz" || \
+        curl -fsSL "http://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz" -o "${TAXONOMY_DIR}/taxdump.tar.gz" || \
+        wget --no-check-certificate -qO "${TAXONOMY_DIR}/taxdump.tar.gz" "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz" || \
+        wget -qO "${TAXONOMY_DIR}/taxdump.tar.gz" "http://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz"
     tar -xzf "${TAXONOMY_DIR}/taxdump.tar.gz" -C "${TAXONOMY_DIR}/"
 fi
 
 # 2f. Ensure accession2taxid mapping files exist
 if [ ! -s "${TAXONOMY_DIR}/nucl_gb.accession2taxid" ]; then
     echo "Downloading nucl_gb.accession2taxid.gz from NCBI..."
-    (curl -fsSL "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz" -o "${TAXONOMY_DIR}/nucl_gb.accession2taxid.gz" || \
-     wget -qO "${TAXONOMY_DIR}/nucl_gb.accession2taxid.gz" "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz") && \
+    (curl -k -fsSL "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz" -o "${TAXONOMY_DIR}/nucl_gb.accession2taxid.gz" || \
+     curl -fsSL "http://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz" -o "${TAXONOMY_DIR}/nucl_gb.accession2taxid.gz" || \
+     wget --no-check-certificate -qO "${TAXONOMY_DIR}/nucl_gb.accession2taxid.gz" "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz") && \
     gunzip -f "${TAXONOMY_DIR}/nucl_gb.accession2taxid.gz" || true
 fi
 
 if [ ! -s "${TAXONOMY_DIR}/nucl_wgs.accession2taxid" ]; then
     echo "Downloading nucl_wgs.accession2taxid.gz from NCBI..."
-    (curl -fsSL "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_wgs.accession2taxid.gz" -o "${TAXONOMY_DIR}/nucl_wgs.accession2taxid.gz" || \
-     wget -qO "${TAXONOMY_DIR}/nucl_wgs.accession2taxid.gz" "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_wgs.accession2taxid.gz") && \
+    (curl -k -fsSL "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_wgs.accession2taxid.gz" -o "${TAXONOMY_DIR}/nucl_wgs.accession2taxid.gz" || \
+     curl -fsSL "http://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_wgs.accession2taxid.gz" -o "${TAXONOMY_DIR}/nucl_wgs.accession2taxid.gz" || \
+     wget --no-check-certificate -qO "${TAXONOMY_DIR}/nucl_wgs.accession2taxid.gz" "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_wgs.accession2taxid.gz") && \
     gunzip -f "${TAXONOMY_DIR}/nucl_wgs.accession2taxid.gz" || true
 fi
 
