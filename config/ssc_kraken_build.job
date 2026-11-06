@@ -82,6 +82,33 @@ if ! command -v "${KRAKEN_BUILD_BIN}" >/dev/null 2>&1; then
 fi
 echo "[INFO] Using kraken2-build binary: ${KRAKEN_BUILD_BIN}"
 
+# Discover and configure NCBI BLAST+ dustmasker for low-complexity sequence masking
+for blast_candidate in \
+    "/mnt/disks/staff/bin/ncbi-blast-2.17.0+/bin" \
+    "/mnt/disks/staff/bin/ncbi-blast-2.17.0+" \
+    "/mnt/disks/staff/bin" \
+    "/usr/local/biotools/ncbi-blast/bin"; do
+    if [ -d "${blast_candidate}" ]; then
+        export PATH="${blast_candidate}:${PATH}"
+    fi
+    if [ -f "${blast_candidate}/dustmasker" ]; then
+        chmod +x "${blast_candidate}/dustmasker" 2>/dev/null || true
+    fi
+done
+
+# Create symlink in /mnt/disks/staff/bin/dustmasker if in subdirectory
+if [ -f "/mnt/disks/staff/bin/ncbi-blast-2.17.0+/bin/dustmasker" ] && [ ! -f "/mnt/disks/staff/bin/dustmasker" ]; then
+    ln -sf "/mnt/disks/staff/bin/ncbi-blast-2.17.0+/bin/dustmasker" "/mnt/disks/staff/bin/dustmasker" 2>/dev/null || true
+elif [ -f "/mnt/disks/staff/bin/ncbi-blast-2.17.0+/dustmasker" ] && [ ! -f "/mnt/disks/staff/bin/dustmasker" ]; then
+    ln -sf "/mnt/disks/staff/bin/ncbi-blast-2.17.0+/dustmasker" "/mnt/disks/staff/bin/dustmasker" 2>/dev/null || true
+fi
+
+if command -v dustmasker >/dev/null 2>&1; then
+    echo "[INFO] Using dustmasker binary: $(command -v dustmasker)"
+else
+    echo "[WARNING] dustmasker not detected in PATH. If absent, --no-masking fallback will be used."
+fi
+
 # Configure Build Variables
 SOURCE_FASTA_GCS="gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.renamed_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"
 TAXONOMY_GCS="gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs/kraken_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified/taxonomy"
@@ -238,8 +265,17 @@ python3 "${TAG_SCRIPT}" "${LOCAL_FASTA}" "${FORMATTED_FASTA}" "${SEQID_MAP}" "${
 cp -f "${SEQID_MAP}" "${TAXONOMY_DIR}/seqid2taxid.map" 2>/dev/null || true
 cp -f "${SEQID_MAP}" "${TAXONOMY_DIR}/acc2taxid.map" 2>/dev/null || true
 
+# Verify dustmasker availability before add-to-library; fallback to --no-masking if missing
+MASKING_OPTS=""
+if command -v dustmasker >/dev/null 2>&1; then
+    echo "[INFO] Low-complexity masking enabled using dustmasker: $(command -v dustmasker)"
+else
+    echo "[WARNING] dustmasker not found in PATH! Falling back to '--no-masking' to ensure build succeeds."
+    MASKING_OPTS="--no-masking"
+fi
+
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Adding taxonomy-tagged reference FASTA to Kraken2 library (${FORMATTED_FASTA} -> ${DB})..."
-"${KRAKEN_BUILD_BIN}" --add-to-library "${FORMATTED_FASTA}" --db "${DB}"
+"${KRAKEN_BUILD_BIN}" --add-to-library "${FORMATTED_FASTA}" --db "${DB}" ${MASKING_OPTS}
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Successfully added reference sequence to Kraken2 library."
 rm -f "${FORMATTED_FASTA}"
 
