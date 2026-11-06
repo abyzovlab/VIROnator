@@ -104,10 +104,61 @@ echo "[INFO] Build CPU Threads Allocated     : ${BUILD_THREADS}"
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] [STEP 1/6] Creating local database directories on ${WORK_DISK}..."
 mkdir -p "${TAXONOMY_DIR}"
 
-# Step 2: Copy complete taxonomy directory and source FASTA from GCS
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] [STEP 2/6] Copying taxonomy files from GCS (${TAXONOMY_GCS}) to ${TAXONOMY_DIR}/..."
-gsutil -m cp -r "${TAXONOMY_GCS}/*" "${TAXONOMY_DIR}/"
+# Step 2: Acquire and unpack NCBI taxonomy (copy from GCS if available, or download directly)
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] [STEP 2/6] Preparing NCBI taxonomy in ${TAXONOMY_DIR}/..."
 
+# 2a. Attempt copy from GCS taxonomy directory if files/archives already exist
+echo "Checking GCS taxonomy source (${TAXONOMY_GCS})..."
+gsutil -m cp -r "${TAXONOMY_GCS}/*" "${TAXONOMY_DIR}/" 2>/dev/null || true
+
+# 2b. Unpack taxdump archive if present locally
+if [ -f "${TAXONOMY_DIR}/taxdump.tar.gz" ]; then
+    echo "Unpacking ${TAXONOMY_DIR}/taxdump.tar.gz..."
+    tar -xzf "${TAXONOMY_DIR}/taxdump.tar.gz" -C "${TAXONOMY_DIR}/"
+fi
+
+# 2c. Decompress any .gz archives (accession2taxid, etc.)
+for gz_file in "${TAXONOMY_DIR}"/*.gz; do
+    if [ -f "${gz_file}" ] && [ "$(basename "${gz_file}")" != "taxdump.tar.gz" ]; then
+        echo "Decompressing $(basename "${gz_file}")..."
+        gunzip -f "${gz_file}" || true
+    fi
+done
+
+# 2d. If core taxonomy (names.dmp / nodes.dmp) is still missing, download from NCBI
+if [ ! -s "${TAXONOMY_DIR}/names.dmp" ] || [ ! -s "${TAXONOMY_DIR}/nodes.dmp" ]; then
+    echo "names.dmp/nodes.dmp not found locally. Running kraken2-build --download-taxonomy..."
+    "${KRAKEN_BUILD_BIN}" --download-taxonomy --db "${DB}" || true
+fi
+
+# 2e. Direct curl/wget fallback for taxdump if still missing
+if [ ! -s "${TAXONOMY_DIR}/names.dmp" ] || [ ! -s "${TAXONOMY_DIR}/nodes.dmp" ]; then
+    echo "Downloading NCBI taxdump.tar.gz via HTTPS..."
+    curl -fsSL "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz" -o "${TAXONOMY_DIR}/taxdump.tar.gz" || \
+        wget -qO "${TAXONOMY_DIR}/taxdump.tar.gz" "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/taxdump.tar.gz"
+    tar -xzf "${TAXONOMY_DIR}/taxdump.tar.gz" -C "${TAXONOMY_DIR}/"
+fi
+
+# 2f. Ensure accession2taxid mapping files exist
+if [ ! -s "${TAXONOMY_DIR}/nucl_gb.accession2taxid" ]; then
+    echo "Downloading nucl_gb.accession2taxid.gz from NCBI..."
+    (curl -fsSL "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz" -o "${TAXONOMY_DIR}/nucl_gb.accession2taxid.gz" || \
+     wget -qO "${TAXONOMY_DIR}/nucl_gb.accession2taxid.gz" "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_gb.accession2taxid.gz") && \
+    gunzip -f "${TAXONOMY_DIR}/nucl_gb.accession2taxid.gz" || true
+fi
+
+if [ ! -s "${TAXONOMY_DIR}/nucl_wgs.accession2taxid" ]; then
+    echo "Downloading nucl_wgs.accession2taxid.gz from NCBI..."
+    (curl -fsSL "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_wgs.accession2taxid.gz" -o "${TAXONOMY_DIR}/nucl_wgs.accession2taxid.gz" || \
+     wget -qO "${TAXONOMY_DIR}/nucl_wgs.accession2taxid.gz" "https://ftp.ncbi.nlm.nih.gov/pub/taxonomy/accession2taxid/nucl_wgs.accession2taxid.gz") && \
+    gunzip -f "${TAXONOMY_DIR}/nucl_wgs.accession2taxid.gz" || true
+fi
+
+# 2g. Sync unpacked taxonomy back to GCS bucket for future reuse
+echo "Synchronizing unpacked taxonomy back to GCS (${TAXONOMY_GCS}/)..."
+gsutil -m rsync -r "${TAXONOMY_DIR}" "${TAXONOMY_GCS}" || true
+
+# Copy reference FASTA from GCS to local attached disk
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Copying reference FASTA from GCS to local attached disk (${LOCAL_FASTA})..."
 gsutil -m cp "${SOURCE_FASTA_GCS}" "${LOCAL_FASTA}"
 
@@ -119,7 +170,7 @@ if [ ! -s "${LOCAL_FASTA}" ]; then
     exit 1
 fi
 
-REQUIRED_TAXONOMY_FILES=("nodes.dmp" "names.dmp" "nucl_gb.accession2taxid" "nucl_wgs.accession2taxid")
+REQUIRED_TAXONOMY_FILES=("nodes.dmp" "names.dmp")
 for req_file in "${REQUIRED_TAXONOMY_FILES[@]}"; do
     if [ ! -s "${TAXONOMY_DIR}/${req_file}" ]; then
         echo "[ERROR] Required taxonomy file '${req_file}' is missing or empty in ${TAXONOMY_DIR}! Aborting build."
