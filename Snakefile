@@ -40,6 +40,7 @@ targets.extend([
     "config/batch_jobexec_resources.config",
     "config/batch_jobexec_kraken.config",
     "config/batch_jobexec_kraken_build.config",
+    "config/batch_jobexec_index_build.config",
     "config/batch_jobexec_unmapped.config",
     "config/batch_jobexec_vironator.config",
     "config/batch_jobexec_reporting.config",
@@ -50,6 +51,10 @@ targets.extend([
     "config/batch_jobexec_human_alignment.config",
     "config/ssc_coverage.job"
 ])
+
+# Module 0C: Reference Concatenation & BWA/Samtools Index Build Job (Single VM Job on GCP)
+if config.get("index_build_module", "off") == "on":
+    targets.append("config/ssc_index_build.job")
 
 # Submodule 0B.1: Kraken2 Custom Database Build Job (Single VM Job on GCP)
 if config.get("kraken_build_submodule", "off") == "on":

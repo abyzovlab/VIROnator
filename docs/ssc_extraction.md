@@ -259,6 +259,36 @@ Runs parallel k-mer classification across sequencing cohorts:
 jobexec batch config/batch_jobexec_kraken.config config/ssc_kraken.job <SAMPLE_LIST>
 ```
 
+#### Module 0C: Reference Concatenation & BWA/Samtools Indexing (`ssc_index_build.job`)
+
+Module 0C runs as a dedicated single-node worker job on Google Cloud using an `n2-standard-16` machine with 64 GB RAM and 200 GB local scratch SSD. It concatenates the multi-species references, runs `bwa index` followed by `samtools faidx`, and uploads all generated references and indices (`.fa`, `.fa.fai`, `.fa.amb`, `.fa.ann`, `.fa.bwt`, `.fa.pac`, `.fa.sa`) directly to `gs://<output_bucket>/refs/` and `/mnt/disks/staff/refs/`.
+
+1. **Enable in Configuration**:
+   In `config/ssc_config.yaml`, set:
+   ```yaml
+   index_build_module: "on"
+   ```
+
+2. **Compile Job & Config Scripts**:
+   ```bash
+   snakemake -f --cores 1
+   ```
+
+3. **Launch Execution (Single Database Build Worker)**:
+   ```bash
+   # Launch via batchRun:
+   batchRun -config config/batch_jobexec_index_build.config -non-spot config/ssc_index_build.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
+
+   # Or launch directly via jobexec:
+   jobexec run config/batch_jobexec_index_build.config config/ssc_index_build.job
+   ```
+
+4. **Monitor Progress**:
+   ```bash
+   gsutil cat gs://<output_bucket>/jobexec_index_build_<genome_build>/logs/*.log | tail -n 30
+   ```
+
+
 #### Module 1: Coverage Calculation Module (`ssc_coverage.job`)
 
 ```bash

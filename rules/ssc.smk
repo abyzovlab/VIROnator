@@ -100,7 +100,8 @@ rule generate_resources_config:
         discordant_config="config/batch_jobexec_discordant.config",
         human_alignment_config="config/batch_jobexec_human_alignment.config",
         kraken_config="config/batch_jobexec_kraken.config",
-        kraken_build_config="config/batch_jobexec_kraken_build.config"
+        kraken_build_config="config/batch_jobexec_kraken_build.config",
+        index_build_config="config/batch_jobexec_index_build.config"
     run:
         with open(input.template, "r") as f:
             template_content = f.read()
@@ -199,8 +200,37 @@ rule generate_resources_config:
         with open(output.kraken_build_config, "w") as f:
             f.write(kraken_build_content)
 
+        # 11. Reference Index Build config
+        ib_machine = str(config.get("index_build_machine_type", "n2-standard-16"))
+        ib_threads = str(config.get("index_build_threads", 16))
+        ib_memory = str(config.get("index_build_memory", 64))
+        ib_nodes = str(config.get("nodes", 11000))
+        ib_storage = str(config.get("index_build_storage", 200))
+        ib_boot_storage = str(config.get("index_build_boot_storage", 50))
+        ib_task = str(config.get("index_build_task_name", "ref_index_build"))
+
+        index_build_sub = (
+            template_content.replace("{output_bucket}", str(config["output_bucket"]))
+            .replace("{data_bucket}", str(config["data_bucket"]))
+            .replace("{gcp_account}", str(config["gcp_account"]))
+            .replace("{pi}", str(config["pi"]))
+            .replace("{pau}", str(config["pau"]))
+            .replace("{task_name}", ib_task)
+            .replace("{machine_type}", ib_machine)
+            .replace("{threads}", ib_threads)
+            .replace("{memory}", ib_memory)
+            .replace("{nodes}", ib_nodes)
+            .replace("{storage}", ib_storage)
+            .replace("{boot_storage}", ib_boot_storage)
+        )
+        index_build_content = index_build_sub.replace("{jobexec_dirname}", resolve_jobexec("index_build_jobexec_dirname", "jobexec_index_build_{genome_build}"))
+        with open(output.index_build_config, "w") as f:
+            f.write(index_build_content)
+
         # Active default config based on active module switch
-        if (config.get("kraken_profiling_submodule", "off") == "on" or config.get("kraken_module", "off") == "on"):
+        if config.get("index_build_module", "off") == "on":
+            active_content = index_build_content
+        elif (config.get("kraken_profiling_submodule", "off") == "on" or config.get("kraken_module", "off") == "on"):
             active_content = kraken_content
         elif config.get("kraken_build_submodule", "off") == "on":
             active_content = kraken_build_content
@@ -1097,6 +1127,56 @@ rule generate_kraken_build_job_file:
 
         with open(output.job, "w") as f:
             f.write(formatted_content)
+
+rule generate_index_build_job_file:
+    """
+    Module 0C: Generates ssc_index_build.job from ssc_index_build.job.template.
+    Configures a single worker VM job to concatenate references and build BWA/samtools indices
+    with large attached local storage and high RAM (inherited from header).
+    """
+    input:
+        template="config/ssc_index_build.job.template",
+        config_file="config/ssc_config.yaml"
+    output:
+        job="config/ssc_index_build.job"
+    run:
+        import shutil, subprocess
+        staff_scripts = os.path.join(config.get("output_dir", "/mnt/disks/staff"), "scripts")
+        try:
+            os.makedirs(staff_scripts, exist_ok=True)
+            if os.path.exists("scripts"):
+                shutil.copytree("scripts", staff_scripts, dirs_exist_ok=True)
+        except Exception:
+            bucket = config.get("output_bucket")
+            if bucket:
+                subprocess.run(f"gsutil -q cp -r scripts/* gs://{bucket}/scripts/ 2>/dev/null || true", shell=True)
+
+        with open(input.template, "r") as f:
+            content = f.read()
+
+        gb = str(config.get("genome_build", "hg38"))
+        ib_jobexec = str(config.get("index_build_jobexec_dirname", "jobexec_index_build_{genome_build}")).replace("{genome_build}", gb)
+        ib_machine = str(config.get("index_build_machine_type", "n2-standard-16"))
+        ib_threads = str(config.get("index_build_threads", 16))
+
+        formatted_content = (
+            content.replace("{output_bucket}", str(config["output_bucket"]))
+            .replace("{index_build_jobexec_dirname}", ib_jobexec)
+            .replace("{machine_type}", ib_machine)
+            .replace("{index_build_threads}", ib_threads)
+            .replace("{build_vir_cont_index}", str(config.get("build_vir_cont_index", "on")))
+            .replace("{build_combined_index}", str(config.get("build_combined_index", "on")))
+            .replace("{ref_human_no_ebv}", str(config.get("ref_human_no_ebv", "GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.renamed.fa")))
+            .replace("{ref_viral_base}", str(config.get("ref_viral_base", "HumanViral_Reference_02-07-2022_modified.renamed.fa")))
+            .replace("{ref_plasmids}", str(config.get("ref_plasmids", "Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized.fa")))
+            .replace("{ref_mouse}", str(config.get("ref_mouse", "mm39_modified.renamed.fa")))
+            .replace("{ref_vir_cont}", str(config.get("ref_vir_cont", "HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa")))
+            .replace("{ref_combined_default}", str(config.get("ref_combined_default", "combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified_HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa")))
+        )
+
+        with open(output.job, "w") as f:
+            f.write(formatted_content)
+
 
 
 

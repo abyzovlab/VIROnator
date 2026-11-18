@@ -71,6 +71,7 @@ reporting_jobexec_dirname: "jobexec_reporting_{dataset}_{genome_build}"
 coverage_jobexec_dirname: "jobexec_coverage_{dataset}_{genome_build}"
 human_alignment_jobexec_dirname: "jobexec_human_alignment_{dataset}_{genome_build}"
 kraken_jobexec_dirname: "jobexec_kraken_{dataset}_{genome_build}"
+index_build_jobexec_dirname: "jobexec_index_build_{genome_build}"
 
 # Path to the sample metadata list.
 # - If you specify a RELATIVE path (e.g., "samples_p2_base"), Snakemake dynamically 
@@ -184,6 +185,27 @@ fastq_r1_pattern: "{sample}_L001_R1_001.{suffix}"
 fastq_r2_pattern: "{sample}_L001_R2_001.{suffix}"
 # fastq_r2_pattern: "{sample}_L1_R2.{suffix}"
 
+# ==============================================================================
+# MODULE 0C: REFERENCE CONCATENATION & BWA / SAMTOOLS INDEXING (Single Worker VM Job)
+# Builds foreign composite (REF_VIR_CONT) and human composite (COMBINED_REF) 
+# references and generates BWA and Samtools FAIDX indices.
+# Uses dedicated 16-core / 64 GB RAM machine with reasonable scratch storage.
+# ==============================================================================
+index_build_module: "off"                # Master switch: "on" or "off" to compile ssc_index_build.job & config
+index_build_script: "ssc_index_build.job"
+index_build_jobexec_dirname: "jobexec_index_build_{genome_build}"
+index_build_task_name: "ref_index_build"
+
+# Dedicated Compute Resources for Indexing (cost-effective 16-core / 64 GB VM):
+index_build_machine_type: "n2-standard-16" # 16 vCPUs (cost-efficient, optimal for BWA indexing)
+index_build_threads: 16                  # 16 CPU threads
+index_build_memory: 64                   # 64 GB RAM (sufficient for human genome BWT construction)
+index_build_storage: 200                 # 200 GB SSD scratch storage (plenty of room for intermediate files)
+index_build_boot_storage: 50             # 50 GB boot storage
+
+# Reference Selection Switches (choose which databases to build and index):
+build_vir_cont_index: "on"               # Concatenate and index REF_VIR_CONT (Viral + Plasmids + Mouse)
+build_combined_index: "on"               # Concatenate and index COMBINED_REF (Human No-EBV + REF_VIR_CONT)
 
 
 # ==============================================================================
