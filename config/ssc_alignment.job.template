@@ -142,9 +142,9 @@ COMBINED_REFS_DIR="{combined_refs_dir_path}"
 
 # Dynamic calculation of COMBINED_REF
 BASENAME_HUMAN=$(basename "${REF_HUMAN_NO_EBV}")
-BASENAME_HUMAN_NOEXT=$(printf '%s' "${BASENAME_HUMAN}" | rev | cut -d'.' -f2- | rev)
+BASENAME_HUMAN_NOEXT=$(printf '%s' "${BASENAME_HUMAN}" | sed -e 's/\.fa$//' -e 's/\.renamed$//')
 BASENAME_VIR_CONT=$(basename "${REF_VIR_CONT}")
-BASENAME_VIR_CONT_NOEXT=$(printf '%s' "${BASENAME_VIR_CONT}" | rev | cut -d'.' -f2- | rev)
+BASENAME_VIR_CONT_NOEXT=$(printf '%s' "${BASENAME_VIR_CONT}" | sed -e 's/\.fa$//' -e 's/\.renamed$//')
 COMBINED_BASENAME="combined_${BASENAME_HUMAN_NOEXT}_${BASENAME_VIR_CONT_NOEXT}.fa"
 COMBINED_REF="${COMBINED_REFS_DIR}/${COMBINED_BASENAME}"
 
@@ -284,9 +284,9 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
 
     # 2. Prepare Combined Database (REF_COMBINED = Human No-EBV + REF_VIR_CONT)
     BASENAME_HUMAN=$(basename "${REF_HUMAN_NO_EBV}")
-    BASENAME_HUMAN_NOEXT=$(printf '%s' "${BASENAME_HUMAN}" | rev | cut -d'.' -f2- | rev)
+    BASENAME_HUMAN_NOEXT=$(printf '%s' "${BASENAME_HUMAN}" | sed -e 's/\.fa$//' -e 's/\.renamed$//')
     BASENAME_VIR_CONT=$(basename "${REF_VIR_CONT}")
-    BASENAME_VIR_CONT_NOEXT=$(printf '%s' "${BASENAME_VIR_CONT}" | rev | cut -d'.' -f2- | rev)
+    BASENAME_VIR_CONT_NOEXT=$(printf '%s' "${BASENAME_VIR_CONT}" | sed -e 's/\.fa$//' -e 's/\.renamed$//')
     COMBINED_BASENAME="combined_${BASENAME_HUMAN_NOEXT}_${BASENAME_VIR_CONT_NOEXT}.fa"
     COMBINED_REF="${COMBINED_REFS_DIR}/${COMBINED_BASENAME}"
 

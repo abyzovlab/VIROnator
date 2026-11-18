@@ -269,17 +269,17 @@ ref_cram_decoder: "GRCh38_full_analysis_set_plus_decoy_hla.fa" # Reference FASTA
 ref_human_full: "GRCh38_full_analysis_set_plus_decoy_hla_modified.renamed.fa"
 ref_human_no_ebv: "GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.renamed.fa"
 ref_viral_base: "HumanViral_Reference_02-07-2022_modified.renamed.fa"
-ref_plasmids: "SnapGene_modified.renamed.fa"
+ref_plasmids: "Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized.fa"
 ref_mouse: "mm39_modified.renamed.fa"
-ref_vir_cont: "HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"
-ref_combined_default: "combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified_HumanViral_Reference_02-07-2022_modified_SnapGene_modified_mm39_modified.fa"
+ref_vir_cont: "HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa"
+ref_combined_default: "combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified_HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa"
 ref_decoy: "GRCh38_Decoy_Reference_4-30-2019_modified.renamed.fa"
 ref_rna: "GRCh38_RNA_Reference_4-30-2019_modified.renamed.fa"
 
 # Reference metadata filenames (stored directly in ref_dir /mnt/disks/staff/refs/)
 viral_contigs_file: "HumanViral_Reference_02-07-2022_modified.renamed.contigs.txt"
 viral_bed_file: "HumanViral_Reference_02-07-2022_modified.renamed.bed"
-plasmid_contigs_file: "SnapGene_modified.renamed.contigs.txt"
+plasmid_contigs_file: "Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized.contigs.txt"
 mouse_contigs_file: "mm39_modified.renamed.contigs.txt"
 
 # Tool paths and script names (scripts are stored in scripts_dir)
