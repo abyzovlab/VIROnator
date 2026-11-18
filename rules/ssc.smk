@@ -201,12 +201,12 @@ rule generate_resources_config:
             f.write(kraken_build_content)
 
         # 11. Reference Index Build config
-        ib_machine = str(config.get("index_build_machine_type", "n2-standard-16"))
-        ib_threads = str(config.get("index_build_threads", 16))
-        ib_memory = str(config.get("index_build_memory", 64))
+        ib_machine = str(config.get("machine_type", "n2-standard-16"))
+        ib_threads = str(config.get("threads", 16))
+        ib_memory = str(config.get("memory", 64))
         ib_nodes = str(config.get("nodes", 11000))
-        ib_storage = str(config.get("index_build_storage", 200))
-        ib_boot_storage = str(config.get("index_build_boot_storage", 50))
+        ib_storage = str(config.get("storage", 200))
+        ib_boot_storage = str(config.get("boot_storage", 50))
         ib_task = str(config.get("index_build_task_name", "ref_index_build"))
 
         index_build_sub = (
@@ -1156,8 +1156,8 @@ rule generate_index_build_job_file:
 
         gb = str(config.get("genome_build", "hg38"))
         ib_jobexec = str(config.get("index_build_jobexec_dirname", "jobexec_index_build_{genome_build}")).replace("{genome_build}", gb)
-        ib_machine = str(config.get("index_build_machine_type", "n2-standard-16"))
-        ib_threads = str(config.get("index_build_threads", 16))
+        ib_machine = str(config.get("machine_type", "n2-standard-16"))
+        ib_threads = str(config.get("threads", 16))
 
         formatted_content = (
             content.replace("{output_bucket}", str(config["output_bucket"]))

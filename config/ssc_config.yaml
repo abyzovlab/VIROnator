@@ -49,12 +49,12 @@ gcp_account: "vaults6-m277455-p-1733249128@ml-fpt-rsa-aproject1-p-581c.iam.gserv
 pi: "MDJ"
 pau: 0
 task_name: "mdj_test"
-machine_type: "n2-standard-128"  # GCP Instance type (e.g. n1-standard-4, n2-standard-8, n2-standard-16)
-threads: 128                     # CPU threads per worker node
-memory: 512                      # Memory (RAM) in GB per worker node
+machine_type: "n2-standard-16"   # GCP Instance type (e.g. n1-standard-4, n2-standard-8, n2-standard-16)
+threads: 16                      # CPU threads per worker node
+memory: 64                       # Memory (RAM) in GB per worker node
 nodes: 11000                     # Max node count
-storage: 6000                      # Additional persistent storage in GB
-boot_storage: 250                # Boot storage in GB
+storage: 200                     # Additional persistent storage in GB
+boot_storage: 50                 # Boot storage in GB
 
 # GCS output folder names (located inside output_dir)
 unmapped_out_dirname: "{dataset}_{genome_build}_unmapped"
@@ -189,19 +189,12 @@ fastq_r2_pattern: "{sample}_L001_R2_001.{suffix}"
 # MODULE 0C: REFERENCE CONCATENATION & BWA / SAMTOOLS INDEXING (Single Worker VM Job)
 # Builds foreign composite (REF_VIR_CONT) and human composite (COMBINED_REF) 
 # references and generates BWA and Samtools FAIDX indices.
-# Uses dedicated 16-core / 64 GB RAM machine with reasonable scratch storage.
+# Inherits machine_type, threads, memory, storage, and boot_storage directly from header!
 # ==============================================================================
 index_build_module: "off"                # Master switch: "on" or "off" to compile ssc_index_build.job & config
 index_build_script: "ssc_index_build.job"
 index_build_jobexec_dirname: "jobexec_index_build_{genome_build}"
 index_build_task_name: "ref_index_build"
-
-# Dedicated Compute Resources for Indexing (cost-effective 16-core / 64 GB VM):
-index_build_machine_type: "n2-standard-16" # 16 vCPUs (cost-efficient, optimal for BWA indexing)
-index_build_threads: 16                  # 16 CPU threads
-index_build_memory: 64                   # 64 GB RAM (sufficient for human genome BWT construction)
-index_build_storage: 200                 # 200 GB SSD scratch storage (plenty of room for intermediate files)
-index_build_boot_storage: 50             # 50 GB boot storage
 
 # Reference Selection Switches (choose which databases to build and index):
 build_vir_cont_index: "on"               # Concatenate and index REF_VIR_CONT (Viral + Plasmids + Mouse)
