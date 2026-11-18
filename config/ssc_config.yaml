@@ -53,8 +53,8 @@ machine_type: "n2-standard-16"   # GCP Instance type (e.g. n1-standard-4, n2-sta
 threads: 16                      # CPU threads per worker node
 memory: 64                       # Memory (RAM) in GB per worker node
 nodes: 11000                     # Max node count
-storage: 200                     # Additional persistent storage in GB
-boot_storage: 50                 # Boot storage in GB
+storage: 0                       # Additional persistent storage in GB
+boot_storage: 0                  # Boot storage in GB
 
 # GCS output folder names (located inside output_dir)
 unmapped_out_dirname: "{dataset}_{genome_build}_unmapped"
@@ -186,9 +186,9 @@ fastq_r2_pattern: "{sample}_L001_R2_001.{suffix}"
 # fastq_r2_pattern: "{sample}_L1_R2.{suffix}"
 
 # ==============================================================================
-# MODULE 0C: REFERENCE CONCATENATION & BWA / SAMTOOLS INDEXING (Single Worker VM Job)
-# Builds foreign composite (REF_VIR_CONT) and human composite (COMBINED_REF) 
-# references and generates BWA and Samtools FAIDX indices.
+# MODULE 0C: BWA & SAMTOOLS REFERENCE INDEXING (Single Worker VM Job)
+# Indexes the foreign composite (ref_vir_index) and human composite (ref_combined_index)
+# databases with BWA and Samtools FAIDX.
 # Inherits machine_type, threads, memory, storage, and boot_storage directly from header!
 # ==============================================================================
 index_build_module: "off"                # Master switch: "on" or "off" to compile ssc_index_build.job & config
@@ -196,13 +196,25 @@ index_build_script: "ssc_index_build.job"
 index_build_jobexec_dirname: "jobexec_index_build_{genome_build}"
 index_build_task_name: "ref_index_build"
 
-# Target Databases to Build and Index:
+# Header Variables Used in Reference Indexing:
+# - genome_build: "hg38"
+# - output_bucket: "ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4"     # Destination bucket where indices are uploaded (gs://output_bucket/refs/)
+# - output_dir: "/mnt/disks/staff"                                     # Mount path for staff disk (/mnt/disks/staff/refs/)
+# - machine_type: "n2-standard-16"                                     # Worker instance machine type
+# - threads: 16                                                        # CPU threads allocated for worker
+# - memory: 64                                                         # Memory in GB allocated for worker
+# - nodes: 11000                                                       # Cluster node capacity limit
+# - storage: 200                                                       # Scratch disk space in GB allocated for local BWA indexing
+# - boot_storage: 50                                                   # Boot disk storage in GB
+# - index_build_jobexec_dirname: "jobexec_index_build_{genome_build}"   # Orchestration folder in output_bucket
+
+# Target References to Index (in ref_dir / GCS refs/):
 ref_vir_index: "HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa"
 ref_combined_index: "combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified_HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa"
 
-# Reference Selection Switches (choose which databases to build and index):
-build_vir_cont_index: "on"               # Concatenate and index ref_vir_index (Viral + Plasmids + Mouse)
-build_combined_index: "on"               # Concatenate and index ref_combined_index (Human No-EBV + ref_vir_index)
+# Indexing Switches (choose which databases to index):
+build_vir_cont_index: "on"               # Index ref_vir_index with BWA and Samtools faidx
+build_combined_index: "on"               # Index ref_combined_index with BWA and Samtools faidx
 
 
 # ==============================================================================

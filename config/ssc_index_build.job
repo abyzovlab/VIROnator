@@ -1,0 +1,195 @@
+# =========================================================================================================================
+# VIROnator Module 0C: Reference Concatenation & BWA/Samtools Indexing Job Template
+# Builds foreign composite (REF_VIR_CONT) and human composite (COMBINED_REF) reference databases and BWA/samtools indices.
+# Runs on a single temporary GCP worker VM with large attached local storage and high memory (from header).
+# Avoids running on small $HOME quotas or direct GCSFuse random-write mounts.
+# =========================================================================================================================
+
+job_name=INDEX_BUILD
+job_identifier=INDEX_BUILD
+machine_type=n2-standard-16
+
+####
+#### Buckets
+####
+
+input_bucket=gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/jobexec_index_build_hg38/input
+output_bucket=gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/jobexec_index_build_hg38/output
+log_bucket=gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/jobexec_index_build_hg38/logs
+
+####
+#### Tools
+####
+
+repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
+tool=samtools
+tool=bwa
+
+####
+#### Post-Job Configuration
+####
+
+clear_output=false
+clear_input=true 
+
+####
+#### Script to run
+####
+
+commands_start
+
+# Strict shell error handling
+set -euo pipefail
+
+# Set PATH to include shared staff bin mount
+export PATH="/mnt/disks/staff/bin:${PATH}"
+
+# Environment module loading if available
+if command -v module >/dev/null 2>&1 || [ -f /usr/share/modules/init/bash ]; then
+    [ -f /usr/share/modules/init/bash ] && . /usr/share/modules/init/bash 2>/dev/null || true
+    module load samtools bwa 2>/dev/null || true
+fi
+
+# Tool binary verification
+BWA_BIN="bwa"
+if ! command -v "${BWA_BIN}" >/dev/null 2>&1; then
+    if [ -x "/mnt/disks/staff/bin/bwa" ]; then
+        BWA_BIN="/mnt/disks/staff/bin/bwa"
+    else
+        echo "[ERROR] bwa executable not found in PATH or /mnt/disks/staff/bin/! Aborting."
+        exit 1
+    fi
+fi
+
+SAMTOOLS_BIN="samtools"
+if ! command -v "${SAMTOOLS_BIN}" >/dev/null 2>&1; then
+    if [ -x "/mnt/disks/staff/bin/samtools" ]; then
+        SAMTOOLS_BIN="/mnt/disks/staff/bin/samtools"
+    else
+        echo "[ERROR] samtools executable not found in PATH or /mnt/disks/staff/bin/! Aborting."
+        exit 1
+    fi
+fi
+
+# Persistent Logging Setup
+LOG_GCS_DEST="ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/jobexec_index_build_hg38/logs"
+LOCAL_LOG="index_build_$(date +%Y%m%d_%H%M%S).log"
+exec > >(tee -a "${LOCAL_LOG}") 2>&1
+
+# Error & Exit Trap: guaranteed log delivery to GCS bucket
+trap 'EXIT_CODE=$?; echo "[$(date)] Index build job finished with exit code ${EXIT_CODE}"; gsutil -m cp "${LOCAL_LOG}" "gs://${LOG_GCS_DEST}/" 2>/dev/null || true; exit ${EXIT_CODE}' EXIT
+
+echo "=========================================================================================="
+echo " Starting Reference Concatenation & BWA/Samtools Index Build Job"
+echo " Start Timestamp: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo " Node Hostname  : $(hostname)"
+echo " BWA Binary     : ${BWA_BIN}"
+echo " Samtools Binary: ${SAMTOOLS_BIN}"
+echo " Log Destination: gs://${LOG_GCS_DEST}/"
+echo "=========================================================================================="
+
+echo "=== Worker Hardware & Memory Status ==="
+free -h
+echo "=== Disk Space Status ==="
+df -h
+
+# Index Build Parameters
+INDEX_THREADS="16"
+BUILD_VIR_CONT="on"
+BUILD_COMBINED="on"
+
+GCS_REF_DIR="gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/refs"
+MOUNT_REF_DIR="/mnt/disks/staff/refs"
+
+# Target reference filenames to index (in GCS_REF_DIR or MOUNT_REF_DIR)
+REF_VIR_INDEX="HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa"
+REF_COMBINED_INDEX="combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified_HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa"
+
+# Setup high-speed local scratch directory on local SSD (never on GCSFuse mount)
+SCRATCH_DIR="/tmp/ref_index_scratch_$$"
+mkdir -p "${SCRATCH_DIR}"
+echo "[INFO] Working in local scratch directory: ${SCRATCH_DIR}"
+
+# Helper function: fetch file from local mount or GCS
+fetch_ref() {
+    local filename="$1"
+    local dest="${SCRATCH_DIR}/${filename}"
+    if [ -s "${dest}" ]; then
+        echo "[INFO] Already cached locally: ${dest}"
+        return 0
+    fi
+    if [ -f "${MOUNT_REF_DIR}/${filename}" ]; then
+        echo "[INFO] Copying from mount ${MOUNT_REF_DIR}/${filename} -> ${dest}..."
+        cp -f "${MOUNT_REF_DIR}/${filename}" "${dest}"
+    else
+        echo "[INFO] Downloading from GCS ${GCS_REF_DIR}/${filename} -> ${dest}..."
+        gsutil -m cp "${GCS_REF_DIR}/${filename}" "${dest}"
+    fi
+}
+
+# ==============================================================================
+# PART 1: INDEX REF_VIR_INDEX (Viral + Plasmids + Mouse Database)
+# ==============================================================================
+if [ "${BUILD_VIR_CONT}" = "on" ]; then
+    echo "------------------------------------------------------------------------------------------"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [PART 1] Indexing REF_VIR_INDEX: ${REF_VIR_INDEX}"
+    echo "------------------------------------------------------------------------------------------"
+
+    fetch_ref "${REF_VIR_INDEX}"
+
+    LOCAL_VIR_CONT="${SCRATCH_DIR}/${REF_VIR_INDEX}"
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating BWA index for ${REF_VIR_INDEX}..."
+    "${BWA_BIN}" index "${LOCAL_VIR_CONT}"
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating Samtools FAIDX index for ${REF_VIR_INDEX}..."
+    "${SAMTOOLS_BIN}" faidx "${LOCAL_VIR_CONT}"
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Uploading ${REF_VIR_INDEX} and indices to ${GCS_REF_DIR}/..."
+    gsutil -m cp "${LOCAL_VIR_CONT}"* "${GCS_REF_DIR}/"
+    if [ -d "${MOUNT_REF_DIR}" ] && [ -w "${MOUNT_REF_DIR}" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Copying to local mount ${MOUNT_REF_DIR}/..."
+        cp -f "${LOCAL_VIR_CONT}"* "${MOUNT_REF_DIR}/" 2>/dev/null || true
+    fi
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] PART 1 COMPLETE: ${REF_VIR_INDEX} successfully indexed and published."
+else
+    echo "[INFO] Skipping PART 1 (build_vir_cont_index is '${BUILD_VIR_CONT}')."
+fi
+
+# ==============================================================================
+# PART 2: INDEX REF_COMBINED_INDEX (Human No-EBV + Viral + Plasmids + Mouse Database)
+# ==============================================================================
+if [ "${BUILD_COMBINED}" = "on" ]; then
+    echo "------------------------------------------------------------------------------------------"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [PART 2] Indexing REF_COMBINED_INDEX: ${REF_COMBINED_INDEX}"
+    echo "------------------------------------------------------------------------------------------"
+
+    fetch_ref "${REF_COMBINED_INDEX}"
+
+    LOCAL_COMBINED="${SCRATCH_DIR}/${REF_COMBINED_INDEX}"
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating BWA index for ${REF_COMBINED_INDEX}..."
+    "${BWA_BIN}" index "${LOCAL_COMBINED}"
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating Samtools FAIDX index for ${REF_COMBINED_INDEX}..."
+    "${SAMTOOLS_BIN}" faidx "${LOCAL_COMBINED}"
+
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Uploading ${REF_COMBINED_INDEX} and indices to ${GCS_REF_DIR}/..."
+    gsutil -m cp "${LOCAL_COMBINED}"* "${GCS_REF_DIR}/"
+    if [ -d "${MOUNT_REF_DIR}" ] && [ -w "${MOUNT_REF_DIR}" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Copying to local mount ${MOUNT_REF_DIR}/..."
+        cp -f "${LOCAL_COMBINED}"* "${MOUNT_REF_DIR}/" 2>/dev/null || true
+    fi
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] PART 2 COMPLETE: ${REF_COMBINED_INDEX} successfully indexed and published."
+else
+    echo "[INFO] Skipping PART 2 (build_combined_index is '${BUILD_COMBINED}')."
+fi
+
+# Cleanup scratch
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Cleaning up scratch files in ${SCRATCH_DIR}..."
+rm -rf "${SCRATCH_DIR}"
+
+echo "=========================================================================================="
+echo " All Reference Indexing Tasks Successfully Completed!"
+echo " Finished at: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+echo "=========================================================================================="

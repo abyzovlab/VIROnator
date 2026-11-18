@@ -101,20 +101,12 @@ BUILD_COMBINED="{build_combined_index}"
 GCS_REF_DIR="gs://{output_bucket}/refs"
 MOUNT_REF_DIR="/mnt/disks/staff/refs"
 
-# Constituent reference filenames (in GCS_REF_DIR or MOUNT_REF_DIR)
-REF_HUMAN_NO_EBV="{ref_human_no_ebv}"
-REF_VIRAL_BASE="{ref_viral_base}"
-REF_PLASMIDS="{ref_plasmids}"
-REF_MOUSE="{ref_mouse}"
-REF_VIR_CONT="{ref_vir_cont}"
-REF_COMBINED="{ref_combined_default}"
+# Target reference filenames to index (in GCS_REF_DIR or MOUNT_REF_DIR)
+REF_VIR_INDEX="{ref_vir_index}"
+REF_COMBINED_INDEX="{ref_combined_index}"
 
-# Setup high-speed local scratch directory on local SSD
+# Setup high-speed local scratch directory on local SSD (never on GCSFuse mount)
 SCRATCH_DIR="/tmp/ref_index_scratch_$$"
-if [ -d "/mnt/disks/staff" ] && [ -w "/mnt/disks/staff" ]; then
-    # Create isolated scratch folder
-    SCRATCH_DIR="/mnt/disks/staff/scratch_index_build_$$"
-fi
 mkdir -p "${SCRATCH_DIR}"
 echo "[INFO] Working in local scratch directory: ${SCRATCH_DIR}"
 
@@ -136,72 +128,59 @@ fetch_ref() {
 }
 
 # ==============================================================================
-# PART 1: BUILD REF_VIR_CONT (Viral + Plasmids + Mouse)
+# PART 1: INDEX REF_VIR_INDEX (Viral + Plasmids + Mouse Database)
 # ==============================================================================
 if [ "${BUILD_VIR_CONT}" = "on" ]; then
     echo "------------------------------------------------------------------------------------------"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [PART 1] Building REF_VIR_CONT: ${REF_VIR_CONT}"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [PART 1] Indexing REF_VIR_INDEX: ${REF_VIR_INDEX}"
     echo "------------------------------------------------------------------------------------------"
 
-    fetch_ref "${REF_VIRAL_BASE}"
-    fetch_ref "${REF_PLASMIDS}"
-    fetch_ref "${REF_MOUSE}"
+    fetch_ref "${REF_VIR_INDEX}"
 
-    LOCAL_VIR_CONT="${SCRATCH_DIR}/${REF_VIR_CONT}"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Concatenating viral, plasmid, and mouse references into ${LOCAL_VIR_CONT}..."
-    cat "${SCRATCH_DIR}/${REF_VIRAL_BASE}" \
-        "${SCRATCH_DIR}/${REF_PLASMIDS}" \
-        "${SCRATCH_DIR}/${REF_MOUSE}" \
-        > "${LOCAL_VIR_CONT}"
+    LOCAL_VIR_CONT="${SCRATCH_DIR}/${REF_VIR_INDEX}"
 
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating BWA index for REF_VIR_CONT..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating BWA index for ${REF_VIR_INDEX}..."
     "${BWA_BIN}" index "${LOCAL_VIR_CONT}"
 
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating Samtools FAIDX index for REF_VIR_CONT..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating Samtools FAIDX index for ${REF_VIR_INDEX}..."
     "${SAMTOOLS_BIN}" faidx "${LOCAL_VIR_CONT}"
 
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Uploading REF_VIR_CONT and indices to ${GCS_REF_DIR}/..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Uploading ${REF_VIR_INDEX} and indices to ${GCS_REF_DIR}/..."
     gsutil -m cp "${LOCAL_VIR_CONT}"* "${GCS_REF_DIR}/"
     if [ -d "${MOUNT_REF_DIR}" ] && [ -w "${MOUNT_REF_DIR}" ]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Copying to local mount ${MOUNT_REF_DIR}/..."
         cp -f "${LOCAL_VIR_CONT}"* "${MOUNT_REF_DIR}/" 2>/dev/null || true
     fi
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] PART 1 COMPLETE: REF_VIR_CONT successfully indexed and published."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] PART 1 COMPLETE: ${REF_VIR_INDEX} successfully indexed and published."
 else
     echo "[INFO] Skipping PART 1 (build_vir_cont_index is '${BUILD_VIR_CONT}')."
 fi
 
 # ==============================================================================
-# PART 2: BUILD COMBINED_REF (Human No-EBV + REF_VIR_CONT)
+# PART 2: INDEX REF_COMBINED_INDEX (Human No-EBV + Viral + Plasmids + Mouse Database)
 # ==============================================================================
 if [ "${BUILD_COMBINED}" = "on" ]; then
     echo "------------------------------------------------------------------------------------------"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [PART 2] Building COMBINED_REF: ${REF_COMBINED}"
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [PART 2] Indexing REF_COMBINED_INDEX: ${REF_COMBINED_INDEX}"
     echo "------------------------------------------------------------------------------------------"
 
-    fetch_ref "${REF_HUMAN_NO_EBV}"
-    LOCAL_VIR_CONT="${SCRATCH_DIR}/${REF_VIR_CONT}"
-    if [ ! -s "${LOCAL_VIR_CONT}" ]; then
-        fetch_ref "${REF_VIR_CONT}"
-    fi
+    fetch_ref "${REF_COMBINED_INDEX}"
 
-    LOCAL_COMBINED="${SCRATCH_DIR}/${REF_COMBINED}"
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Concatenating Human No-EBV and REF_VIR_CONT into ${LOCAL_COMBINED}..."
-    cat "${SCRATCH_DIR}/${REF_HUMAN_NO_EBV}" "${LOCAL_VIR_CONT}" > "${LOCAL_COMBINED}"
+    LOCAL_COMBINED="${SCRATCH_DIR}/${REF_COMBINED_INDEX}"
 
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating BWA index for COMBINED_REF..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating BWA index for ${REF_COMBINED_INDEX}..."
     "${BWA_BIN}" index "${LOCAL_COMBINED}"
 
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating Samtools FAIDX index for COMBINED_REF..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Generating Samtools FAIDX index for ${REF_COMBINED_INDEX}..."
     "${SAMTOOLS_BIN}" faidx "${LOCAL_COMBINED}"
 
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Uploading COMBINED_REF and indices to ${GCS_REF_DIR}/..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Uploading ${REF_COMBINED_INDEX} and indices to ${GCS_REF_DIR}/..."
     gsutil -m cp "${LOCAL_COMBINED}"* "${GCS_REF_DIR}/"
     if [ -d "${MOUNT_REF_DIR}" ] && [ -w "${MOUNT_REF_DIR}" ]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Copying to local mount ${MOUNT_REF_DIR}/..."
         cp -f "${LOCAL_COMBINED}"* "${MOUNT_REF_DIR}/" 2>/dev/null || true
     fi
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] PART 2 COMPLETE: COMBINED_REF successfully indexed and published."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] PART 2 COMPLETE: ${REF_COMBINED_INDEX} successfully indexed and published."
 else
     echo "[INFO] Skipping PART 2 (build_combined_index is '${BUILD_COMBINED}')."
 fi

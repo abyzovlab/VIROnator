@@ -205,8 +205,8 @@ rule generate_resources_config:
         ib_threads = str(config.get("threads", 16))
         ib_memory = str(config.get("memory", 64))
         ib_nodes = str(config.get("nodes", 11000))
-        ib_storage = str(config.get("storage", 200))
-        ib_boot_storage = str(config.get("boot_storage", 50))
+        ib_storage = str(config.get("storage", 0))
+        ib_boot_storage = str(config.get("boot_storage", 0))
         ib_task = str(config.get("index_build_task_name", "ref_index_build"))
 
         index_build_sub = (
@@ -1166,12 +1166,8 @@ rule generate_index_build_job_file:
             .replace("{index_build_threads}", ib_threads)
             .replace("{build_vir_cont_index}", str(config.get("build_vir_cont_index", "on")))
             .replace("{build_combined_index}", str(config.get("build_combined_index", "on")))
-            .replace("{ref_human_no_ebv}", str(config.get("ref_human_no_ebv", "GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.renamed.fa")))
-            .replace("{ref_viral_base}", str(config.get("ref_viral_base", "HumanViral_Reference_02-07-2022_modified.renamed.fa")))
-            .replace("{ref_plasmids}", str(config.get("ref_plasmids", "Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized.fa")))
-            .replace("{ref_mouse}", str(config.get("ref_mouse", "mm39_modified.renamed.fa")))
-            .replace("{ref_vir_cont}", str(config.get("ref_vir_index", config.get("ref_vir_cont", "HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa"))))
-            .replace("{ref_combined_default}", str(config.get("ref_combined_index", config.get("ref_combined_default", "combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified_HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa"))))
+            .replace("{ref_vir_index}", str(config["ref_vir_index"]))
+            .replace("{ref_combined_index}", str(config["ref_combined_index"]))
         )
 
         with open(output.job, "w") as f:
