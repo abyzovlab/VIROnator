@@ -21,7 +21,9 @@ log_bucket=gs://{output_bucket}/{index_build_jobexec_dirname}/logs
 #### Tools
 ####
 
-#repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
+repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
+tool=samtools
+tool=bwa
 
 ####
 #### Post-Job Configuration
