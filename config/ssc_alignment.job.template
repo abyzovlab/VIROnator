@@ -337,33 +337,32 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     
     gzip -cd "${VIRAL_READS}" | cut -f6 | sed s/'[0-9]'//g > "${OUT_DIR}/viral_reads_se.cigar"
     gzip -cd "${VIRAL_READS}" | paste "${OUT_DIR}/viral_reads_se.cigar" - | awk '{print ">"$2"\n"$11}' > "${OUT_DIR}/viral_reads_se.fa"
-    fgrep ">" "${OUT_DIR}/viral_reads_se.fa" | cut -b2- | sort | uniq > "${OUT_DIR}/viral_reads_se.ids"
+    fgrep ">" "${OUT_DIR}/viral_reads_se.fa" | cut -b2- | sed 's|/[12]$||' | sort -u > "${OUT_DIR}/viral_reads_se.ids"
 
     if [ "${CONTAMINATION_QUANTIFICATION}" = "on" ]; then
         echo "Contamination Quantification Submodule: ACTIVE"
         
-        # High-confidence Plasmid candidate IDs (MAPQ >= 20, Primary alignments only)
-        if [ -f "${PLASMID_CONTIGS}" ]; then
-            awk 'NR==FNR{a[$1]; next} ($3 in a) && ($5 >= 20)' "${PLASMID_CONTIGS}" "${TMP_DIR}/viral_reads_se.reads_temp" \
-                | awk '{print $1}' | sed 's|/[12]$||' | sort -u > "${OUT_DIR}/plasmid_reads_se.ids"
-        else
-            touch "${OUT_DIR}/plasmid_reads_se.ids"
+        CLASSIFY_SCRIPT="${EXOGENE_PYTHON_DIR}/classify_contamination_pairs.py"
+        if [ ! -f "${CLASSIFY_SCRIPT}" ]; then
+            CLASSIFY_SCRIPT="/mnt/disks/staff/scripts/classify_contamination_pairs.py"
         fi
 
-        # High-confidence Mouse candidate IDs (MAPQ >= 20, Primary alignments only)
-        if [ -f "${MOUSE_CONTIGS}" ]; then
-            awk 'NR==FNR{a[$1]; next} ($3 in a) && ($5 >= 20)' "${MOUSE_CONTIGS}" "${TMP_DIR}/viral_reads_se.reads_temp" \
-                | awk '{print $1}' | sed 's|/[12]$||' | sort -u > "${OUT_DIR}/mouse_reads_se.ids"
-        else
-            touch "${OUT_DIR}/mouse_reads_se.ids"
-        fi
-
-        # Blacklist Subtraction: viral_clean = viral_raw - (plasmid_ids + mouse_ids)
-        cat "${OUT_DIR}/plasmid_reads_se.ids" "${OUT_DIR}/mouse_reads_se.ids" | sort -u > "${OUT_DIR}/contamination.blacklist"
-        comm -23 <(sort "${OUT_DIR}/viral_reads_se.ids") "${OUT_DIR}/contamination.blacklist" > "${OUT_DIR}/viral_clean.keep"
+        "${PYTHON_BIN}" "${CLASSIFY_SCRIPT}" \
+            --reads-temp "${TMP_DIR}/viral_reads_se.reads_temp" \
+            --viral-contigs "${VIRAL_CONTIGS}" \
+            --plasmid-contigs "${PLASMID_CONTIGS}" \
+            --mouse-contigs "${MOUSE_CONTIGS}" \
+            --min-len 50 \
+            --max-nm 3 \
+            --keep-plasmid-unmapped \
+            --out-clean-keep "${OUT_DIR}/viral_clean.keep" \
+            --out-plasmid-ids "${OUT_DIR}/plasmid_reads_se.ids" \
+            --out-mouse-ids "${OUT_DIR}/mouse_reads_se.ids" \
+            --out-summary "${OUT_DIR}/pair_classification_summary.tsv"
     else
         echo "Contamination Quantification Submodule: OFF (Default viral-only)"
         cat "${OUT_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_clean.keep"
+        touch "${OUT_DIR}/plasmid_reads_se.ids" "${OUT_DIR}/mouse_reads_se.ids"
     fi
     cat "${OUT_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_raw.keep"
 

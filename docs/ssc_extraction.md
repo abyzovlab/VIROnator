@@ -276,6 +276,35 @@ batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_unmapped.config 
 batchRun -multibatch <SAMPLE_LIST> -config config/batch_jobexec_vironator.config -non-spot config/ssc_alignment.job -investigator <INVESTIGATOR_TAG> -pau <PAU_CODE>
 ```
 
+##### Paired-End Contamination Classification Decision Tree (Clean Strategy)
+In Step 2 of Module 3 (`contamination_quantification: "on"`), candidate reads from Step 1 are evaluated as pairs across the foreign reference components (Viral, Plasmid, and Mouse). Each individual mate (R1 or R2) is assigned to one of six categories:
+* **`VIRUS`**: Maps to viral contigs (no QC filter; BWA seed $\ge 30\text{ bp}$).
+* **`PLASMID` (Passes QC)**: Maps to plasmid contigs with **$\text{Aligned Length} \ge 50\text{ bp}$ AND $\text{NM} \le 3$** (ignoring MAPQ).
+* **`WEAK_PLASMID` (Fails QC)**: Maps to plasmid contigs, but $\text{Aligned Length} < 50\text{ bp}$ or $\text{NM} \ge 4$.
+* **`MOUSE` (Passes QC)**: Maps to mouse contigs with **($\text{Aligned Length} \ge 50\text{ bp}$ AND $\text{NM} \le 3$) OR $\text{MAPQ} \ge 20$**.
+* **`WEAK_MOUSE` (Fails QC)**: Maps to mouse contigs, but $\text{Aligned Length} < 50\text{ bp}$, $\text{NM} \ge 4$, AND $\text{MAPQ} < 20$.
+* **`UNMAPPED`**: No alignment found in `REF_VIR_CONT` (or SAM `FLAG & 4`).
+
+###### Decision Matrix (Kept vs. Removed Pairs):
+| Mate 1 | Mate 2 | Action | Biological & Technical Rationale |
+| :--- | :--- | :---: | :--- |
+| **VIRUS** | **VIRUS** | **KEEP** | Confirmed viral sequence (both reads match virus). |
+| **VIRUS** | **MOUSE** *(Passes QC)* | **KEEP** | Host–virus integration junction (provirus integrated into host chromosome). |
+| **VIRUS** | **WEAK_MOUSE** *(Fails QC)* | **KEEP** | Potential divergent integration junction; kept for downstream validation. |
+| **VIRUS** | **UNMAPPED** | **KEEP** | Novel viral insertion or divergent strain. |
+| **VIRUS** | **WEAK_PLASMID** *(Fails QC)* | **KEEP** | Likely short micro-homology; viral signal retained for Step 4/6 validation. |
+| **VIRUS** | **PLASMID** *(Passes QC)* | **REMOVE** | Recombinant vector backbone carrying viral promoter/gene (e.g. CMV/SV40). |
+| **PLASMID** | **PLASMID** | **REMOVE** | Pure plasmid contaminant (e.g. circular vector fragment, resistance gene). |
+| **PLASMID** | **WEAK_PLASMID** | **REMOVE** | Plasmid contaminant with one degraded mate; prevents sub-threshold leakage. |
+| **PLASMID** | **MOUSE / WEAK_MOUSE** | **REMOVE** | Vector–host cloning artifact or transgenic construct. |
+| **PLASMID** | **UNMAPPED** | **KEEP** | Candidate vector–insert junction (can be toggled to REMOVE via `--keep-plasmid-unmapped`). |
+| **MOUSE** | **MOUSE** | **REMOVE** | Host genomic DNA background. |
+| **MOUSE** | **WEAK_MOUSE / UNMAPPED** | **REMOVE** | Host genomic fragment with degraded mate. |
+| **WEAK_PLASMID** | Any Non-Virus | **REMOVE** | Weak vector noise without viral evidence. |
+| **WEAK_MOUSE** | Any Non-Virus | **REMOVE** | Weak host noise without viral evidence. |
+| **UNMAPPED** | **UNMAPPED** | **REMOVE** | Uninformative sequencing noise. |
+
+
 #### Module 4: Reporting Module (`ssc_reporting.job`)
 
 Module 4 consists of **two submodules** that can be independently configured via sub-switches in `config/ssc_config.yaml`:

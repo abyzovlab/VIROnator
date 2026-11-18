@@ -55,9 +55,10 @@ def clean_name(raw: str) -> str:
     s = s.replace("%", "_percent_").replace("#", "_num_")
     s = s.replace("@", "_at_").replace("±", "_plus_minus_")
     s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode("ascii")
-    s = re.sub(r"[^A-Za-z0-9_-]+", "_", s)
+    s = re.sub(r"[^A-Za-z0-9_.-]+", "_", s)
     s = re.sub(r"[-_]+", lambda m: "_" if "_" in m.group(0) else "-", s)
-    s = s.strip("_-")
+    s = re.sub(r"\.{2,}", ".", s)
+    s = s.strip("_.-")
     clean = s or "unnamed_contig"
     if contig_prefix and not clean.startswith(contig_prefix):
         clean = f"{contig_prefix}{clean}"
