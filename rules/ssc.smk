@@ -1170,8 +1170,8 @@ rule generate_index_build_job_file:
             .replace("{ref_viral_base}", str(config.get("ref_viral_base", "HumanViral_Reference_02-07-2022_modified.renamed.fa")))
             .replace("{ref_plasmids}", str(config.get("ref_plasmids", "Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized.fa")))
             .replace("{ref_mouse}", str(config.get("ref_mouse", "mm39_modified.renamed.fa")))
-            .replace("{ref_vir_cont}", str(config.get("ref_vir_cont", "HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa")))
-            .replace("{ref_combined_default}", str(config.get("ref_combined_default", "combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified_HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa")))
+            .replace("{ref_vir_cont}", str(config.get("ref_vir_index", config.get("ref_vir_cont", "HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa"))))
+            .replace("{ref_combined_default}", str(config.get("ref_combined_index", config.get("ref_combined_default", "combined_GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified_HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa"))))
         )
 
         with open(output.job, "w") as f:
