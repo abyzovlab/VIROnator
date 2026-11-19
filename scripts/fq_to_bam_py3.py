@@ -9,7 +9,7 @@ import time
 RLIST   = sys.argv[1]
 OUT_R1  = sys.argv[2]
 OUT_R2  = sys.argv[3]
-OUT_CNT = sys.argv[4]
+OUT_CNT = sys.argv[4] if len(sys.argv) > 4 else None
 
 def get_file_handle(fn, rw='r'):
     if fn[-6:].lower() == '.fq.gz' or fn[-9:].lower() == '.fastq.gz':
@@ -99,8 +99,9 @@ print(nWritten, 'read pairs written', '('+str(int(time.time()-tt))+' sec)')
 fo_2.close()
 fo_1.close()
 
-fo_0 = open(OUT_CNT, 'w')
-fo_0.write(str(nWritten))
-fo_0.close()
+if OUT_CNT:
+    fo_0 = open(OUT_CNT, 'w')
+    fo_0.write(str(nWritten))
+    fo_0.close()
 
 
