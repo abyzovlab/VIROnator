@@ -152,6 +152,9 @@ ALIGN_AND_FILTER="{align_and_filter}"
 ALIGN_ONLY="{align_only}"
 FILTER_ONLY="{filter_only}"
 CONTAMINATION_QUANTIFICATION="{contamination_quantification}"
+CONTAMINATION_MIN_MAPQ="{contamination_min_mapq}"
+CONTAMINATION_MAX_NM="{contamination_max_nm}"
+CONTAMINATION_MIN_LEN="{contamination_min_len}"
 DUAL_MODE="{dual_mode}"
 PHASE="{phase}"
 PROJECT="{project}"
@@ -244,7 +247,11 @@ echo "ALIGN ONLY: ${ALIGN_ONLY}"
 echo "FILTER ONLY: ${FILTER_ONLY}"
 echo "CONTAMINATION QUANTIFICATION: ${CONTAMINATION_QUANTIFICATION}"
 
-# Ensure output directory exists
+# Ensure output directory exists and clean up any leftover files from prior runs
+if [ -d "${OUT_DIR}" ]; then
+    echo "[CLEANUP] Purging previous run artifacts from ${OUT_DIR}..."
+    find "${OUT_DIR}" -mindepth 1 -delete 2>/dev/null || rm -rf "${OUT_DIR:?}"/*
+fi
 mkdir -p "${OUT_DIR}"
 
 # Validation 1: Verify at least one execution switch is enabled
@@ -358,28 +365,30 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
             CLASSIFY_SCRIPT="/mnt/disks/staff/scripts/classify_contamination_pairs.py"
         fi
 
+        READS_SUMMARY_FILE="${OUT_DIR}/distribution_reads_summary_mapq${CONTAMINATION_MIN_MAPQ}_nm${CONTAMINATION_MAX_NM}_len${CONTAMINATION_MIN_LEN}.tsv"
+        PAIRS_SUMMARY_FILE="${OUT_DIR}/distribution_pairs_summary_mapq${CONTAMINATION_MIN_MAPQ}_nm${CONTAMINATION_MAX_NM}_len${CONTAMINATION_MIN_LEN}.tsv"
+        DISCARDED_IDS_GZ="${OUT_DIR}/discarded_read_ids.tsv.gz"
+
         "${PYTHON_BIN}" "${CLASSIFY_SCRIPT}" \
             --reads-temp "${TMP_DIR}/viral_reads_se.reads_temp" \
             --viral-contigs "${VIRAL_CONTIGS}" \
             --plasmid-contigs "${PLASMID_CONTIGS}" \
             --mouse-contigs "${MOUSE_CONTIGS}" \
-            --min-len 50 \
-            --max-nm 3 \
-            --keep-plasmid-unmapped \
+            --min-len "${CONTAMINATION_MIN_LEN}" \
+            --max-nm "${CONTAMINATION_MAX_NM}" \
+            --min-mapq "${CONTAMINATION_MIN_MAPQ}" \
             --out-clean-keep "${OUT_DIR}/viral_clean.keep" \
-            --out-plasmid-ids "${OUT_DIR}/plasmid_reads_se.ids" \
-            --out-mouse-ids "${OUT_DIR}/mouse_reads_se.ids" \
-            --out-summary "${OUT_DIR}/pair_classification_summary.tsv"
+            --out-discarded-ids-gz "${DISCARDED_IDS_GZ}" \
+            --out-reads-summary "${READS_SUMMARY_FILE}" \
+            --out-pairs-summary "${PAIRS_SUMMARY_FILE}"
     else
         echo "Contamination Quantification Submodule: OFF (Default viral-only)"
         cat "${OUT_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_clean.keep"
-        touch "${OUT_DIR}/plasmid_reads_se.ids" "${OUT_DIR}/mouse_reads_se.ids"
+        touch "${OUT_DIR}/discarded_read_ids.tsv.gz"
     fi
     cat "${OUT_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_raw.keep"
 
     echo "[DIAGNOSTIC] Step 2 viral_reads_se.ids count: $(wc -l < "${OUT_DIR}/viral_reads_se.ids" 2>/dev/null || echo 0)"
-    echo "[DIAGNOSTIC] Step 2 plasmid_reads_se.ids count: $(wc -l < "${OUT_DIR}/plasmid_reads_se.ids" 2>/dev/null || echo 0)"
-    echo "[DIAGNOSTIC] Step 2 mouse_reads_se.ids count: $(wc -l < "${OUT_DIR}/mouse_reads_se.ids" 2>/dev/null || echo 0)"
     echo "[DIAGNOSTIC] Step 2 viral_clean.keep count: $(wc -l < "${OUT_DIR}/viral_clean.keep" 2>/dev/null || echo 0)"
 
     echo "STEP 2 DONE"
@@ -388,73 +397,16 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     echo "STEP 3) RETRIEVING MATES"
     # Mode 1: Clean viral reads (plasmid/mouse subtracted)
     samtools view -@ "${SAMTOOLS_THREADS}" -F 2048 -T "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
-        | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/viral_clean.keep" "${OUT_DIR}/viral_clean_1.fq" "${OUT_DIR}/viral_clean_2.fq" "${OUT_DIR}/totalReads.count"
+        | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/viral_clean.keep" "${OUT_DIR}/viral_clean_1.fq" "${OUT_DIR}/viral_clean_2.fq"
 
     # Mode 2: Raw viral reads (unsubtracted, if DUAL_MODE=on)
     if [ "${DUAL_MODE}" = "on" ]; then
         samtools view -@ "${SAMTOOLS_THREADS}" -F 2048 -T "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
-            | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/viral_raw.keep" "${OUT_DIR}/viral_raw_1.fq" "${OUT_DIR}/viral_raw_2.fq" "${OUT_DIR}/totalReads_raw.count"
-        rm -f "${OUT_DIR}/totalReads_raw.count"
+            | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/viral_raw.keep" "${OUT_DIR}/viral_raw_1.fq" "${OUT_DIR}/viral_raw_2.fq"
     fi
-
-    TOTAL_PAIRS=$(cat "${OUT_DIR}/totalReads.count" 2>/dev/null || echo "0")
-    if [ -z "${TOTAL_PAIRS}" ] || [ "${TOTAL_PAIRS}" -eq 0 ]; then
-        TOTAL_PAIRS_VAL=1
-    else
-        TOTAL_PAIRS_VAL="${TOTAL_PAIRS}"
-    fi
-
-    # Unmapped pairs calculation (both mates unmapped or flag bit 4 set in unmapped CRAM)
-    UNMAPPED_RAW=$(samtools view -@ "${SAMTOOLS_THREADS}" -c -f 4 -F 2048 -T "${REF_CRAM_DECODER}" "${INPUT_CRAM}" 2>/dev/null || echo "0")
-    UNMAPPED_PAIRS=$(( UNMAPPED_RAW / 2 ))
-    UNMAPPED_FRAC=$(awk -v cnt="${UNMAPPED_PAIRS}" -v tot="${TOTAL_PAIRS_VAL}" 'BEGIN {printf "%.6f", (tot > 0 ? cnt/tot : 0)}')
-    printf "%d\t%d\t%s\n" "${UNMAPPED_PAIRS}" "${TOTAL_PAIRS}" "${UNMAPPED_FRAC}" > "${OUT_DIR}/unmapped_pairs.count"
 
     echo "[DIAGNOSTIC] Step 3 viral_clean_1.fq size: $(ls -lh "${OUT_DIR}/viral_clean_1.fq" 2>/dev/null | awk '{print $5}') | lines: $(wc -l < "${OUT_DIR}/viral_clean_1.fq" 2>/dev/null || echo 0)"
     echo "[DIAGNOSTIC] Step 3 viral_clean_2.fq size: $(ls -lh "${OUT_DIR}/viral_clean_2.fq" 2>/dev/null | awk '{print $5}') | lines: $(wc -l < "${OUT_DIR}/viral_clean_2.fq" 2>/dev/null || echo 0)"
-    echo "[DIAGNOSTIC] Step 3 totalReads.count: ${TOTAL_PAIRS}"
-    echo "[DIAGNOSTIC] Step 3 unmapped_pairs.count: ${UNMAPPED_PAIRS}"
-
-    # Recover contamination statistics & CRAM output files if submodule is active
-    if [ "${CONTAMINATION_QUANTIFICATION}" = "on" ]; then
-        if [ -s "${OUT_DIR}/plasmid_reads_se.ids" ]; then
-            samtools view -@ "${SAMTOOLS_THREADS}" -F 2048 -T "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
-                | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/plasmid_reads_se.ids" "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq" "${OUT_DIR}/plasmid_raw.count"
-            
-            # Align plasmid pairs and convert to sorted CRAM
-            "${BWA_BIN}" mem -Y -k 30 -t "${BWA_THREADS}" "${REF_VIR_CONT}" "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq" 2>> "${OUT_DIR}/bwa.log" \
-                | samtools view -@ "${SAMTOOLS_THREADS}" -C -T "${REF_VIR_CONT}" - \
-                | samtools sort -@ "${SAMTOOLS_THREADS}" -o "${OUT_DIR}/plasmid_hits.sorted.cram" -
-            samtools index -@ "${SAMTOOLS_THREADS}" "${OUT_DIR}/plasmid_hits.sorted.cram"
-
-            rm -f "${OUT_DIR}/plasmid_1.fq" "${OUT_DIR}/plasmid_2.fq"
-            PLASMID_PAIRS=$(cat "${OUT_DIR}/plasmid_raw.count" 2>/dev/null || echo "0")
-            rm -f "${OUT_DIR}/plasmid_raw.count"
-        else
-            PLASMID_PAIRS=0
-        fi
-        PLASMID_FRAC=$(awk -v cnt="${PLASMID_PAIRS}" -v tot="${TOTAL_PAIRS_VAL}" 'BEGIN {printf "%.6f", (tot > 0 ? cnt/tot : 0)}')
-        printf "%d\t%d\t%s\n" "${PLASMID_PAIRS}" "${TOTAL_PAIRS}" "${PLASMID_FRAC}" > "${OUT_DIR}/plasmid_pairs.count"
-
-        if [ -s "${OUT_DIR}/mouse_reads_se.ids" ]; then
-            samtools view -@ "${SAMTOOLS_THREADS}" -F 2048 -T "${REF_CRAM_DECODER}" "${INPUT_CRAM}" \
-                | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/fq_to_bam_py3.py" "${OUT_DIR}/mouse_reads_se.ids" "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq" "${OUT_DIR}/mouse_raw.count"
-            
-            # Align mouse pairs and convert to sorted CRAM
-            "${BWA_BIN}" mem -Y -k 30 -t "${BWA_THREADS}" "${REF_VIR_CONT}" "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq" 2>> "${OUT_DIR}/bwa.log" \
-                | samtools view -@ "${SAMTOOLS_THREADS}" -C -T "${REF_VIR_CONT}" - \
-                | samtools sort -@ "${SAMTOOLS_THREADS}" -o "${OUT_DIR}/mouse_hits.sorted.cram" -
-            samtools index -@ "${SAMTOOLS_THREADS}" "${OUT_DIR}/mouse_hits.sorted.cram"
-
-            rm -f "${OUT_DIR}/mouse_1.fq" "${OUT_DIR}/mouse_2.fq"
-            MOUSE_PAIRS=$(cat "${OUT_DIR}/mouse_raw.count" 2>/dev/null || echo "0")
-            rm -f "${OUT_DIR}/mouse_raw.count"
-        else
-            MOUSE_PAIRS=0
-        fi
-        MOUSE_FRAC=$(awk -v cnt="${MOUSE_PAIRS}" -v tot="${TOTAL_PAIRS_VAL}" 'BEGIN {printf "%.6f", (tot > 0 ? cnt/tot : 0)}')
-        printf "%d\t%d\t%s\n" "${MOUSE_PAIRS}" "${TOTAL_PAIRS}" "${MOUSE_FRAC}" > "${OUT_DIR}/mouse_pairs.count"
-    fi
     echo "STEP 3 DONE"
 
     # 5. Step 4: Alignment to combined reference & decoy/RNA filtering

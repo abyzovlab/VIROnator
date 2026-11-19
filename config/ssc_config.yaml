@@ -278,7 +278,13 @@ ref_cram_decoder: "/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla
 # MODULE 3: VIRAL DB ALIGNMENT MODULE (VIROnator)
 # ==============================================================================
 viral_db_alignment: "off"  # Switch: "on" or "off"
-contamination_quantification: "off"  # Switch: "on" to blacklist plasmid/mouse reads from viral BAM & output 3-column .count TSVs
+contamination_quantification: "off"  # Switch: "on" to classify & blacklist vector/mouse reads from viral BAM and output distribution summaries
+
+# Contamination Classification & Decision-Tree Thresholds
+# Used by Step 2 classify_contamination_pairs.py to discern confident vs weak contaminants
+contamination_min_mapq: 20   # Minimum MAPQ for confident host (mouse) alignment (default: 20)
+contamination_max_nm: 3      # Maximum NM edit distance for confident vector/host match (default: 3, for NM <= 3)
+contamination_min_len: 50    # Minimum aligned match length in bp for confident vector/host match (default: 50)
 
 # Header Variables Used in Viral DB Alignment (VIROnator):
 # - dataset: "SSC"
