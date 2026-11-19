@@ -315,10 +315,12 @@ mouse_contigs_file: "mm39_modified.renamed.contigs.txt"
 
 # Tool paths and script names (scripts are stored in scripts_dir)
 bwa_bin: "/mnt/disks/staff/bin/bwa"
-bwa_threads: 32        # Number of CPU threads per BWA alignment process (e.g. 16, 20, 32, 64)
+bwa_threads: 14        # Number of CPU threads per BWA alignment process on 16-core node
+# bwa_threads: 32        # Standard BWA alignment on 32-core or 64-core node
 # bwa_threads: 64      # High-performance BWA alignment on 128-core node
 # bwa_threads: 96      # Maximum performance for BWA on 128-core node (leaves headroom for OS/IO)
-samtools_threads: 16   # Number of CPU threads per samtools sort/view/fastq/index operation (e.g. 4, 8, 16, 24)
+samtools_threads: 4    # Number of CPU threads per samtools sort/view/fastq/index operation on 16-core node
+# samtools_threads: 16   # Standard samtools on 32-core or 64-core node
 # samtools_threads: 24 # High-throughput samtools on 128-core node
 # samtools_threads: 32 # Maximum throughput for samtools (above 32 threads, disk I/O & BAM compression saturate)
 python_bin: "python3"
