@@ -18,12 +18,18 @@ bad_rname = {}
 for line in input_stream:
     if len(line) and line[0] != '#' and line[0] != '@':
         splt  = line.strip().split('\t')
+        if len(splt) < 11:
+            continue
         cigar = splt[5]
-        letters = re.split(r"\d+",cigar)[1:]
-        numbers = [int(n) for n in re.findall(r"\d+",cigar)]
+        if cigar == "*":
+            continue
+        letters = re.split(r"\d+", cigar)[1:]
+        numbers = [int(n) for n in re.findall(r"\d+", cigar)]
         readlen = len(splt[9])
+        if readlen == 0 or len(letters) != len(numbers):
+            continue
         matchlen = sum([numbers[n] for n in range(len(numbers)) if letters[n] in 'M='])
-        matchPercent = 100.*(float(matchlen)/float(readlen))
+        matchPercent = 100. * (float(matchlen) / float(readlen))
         if matchPercent >= thresh_percent:
             bad_rname[splt[0]] = True
         #sys.stderr.write(' '.join([str(n) for n in [cigar, matchlen, readlen, matchPercent]])+'\n')

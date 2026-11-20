@@ -133,20 +133,21 @@ fi
 # Smart fallback lookup if exact VIRONATOR_DIR is missing
 if [ ! -d "${VIRONATOR_DIR}" ]; then
     VIRONATOR_BASE="{output_dir}/{vironator_out_dirname}"
-    FOUND_SAMPLE_DIR=$(find "${VIRONATOR_BASE}" -mindepth 1 -maxdepth 3 -type d -name "${SAMPLE}" 2>/dev/null | head -n 1)
+    # Strictly match exact sample directory name only
+    FOUND_SAMPLE_DIR=$(find "${VIRONATOR_BASE}" -mindepth 1 -maxdepth 3 -type d -name "${SAMPLE}" 2>/dev/null | awk -v tgt="${SAMPLE}" '{
+        n = split($0, a, "/");
+        if (a[n] == tgt) { print $0; exit }
+    }')
     if [ -n "${FOUND_SAMPLE_DIR}" ] && [ -d "${FOUND_SAMPLE_DIR}" ]; then
-        echo "[DIAGNOSTIC] Exact VIRONATOR_DIR not found (${VIRONATOR_DIR}), found via smart lookup: ${FOUND_SAMPLE_DIR}"
+        echo "[DIAGNOSTIC] Exact VIRONATOR_DIR not found (${VIRONATOR_DIR}), found strictly matched directory via lookup: ${FOUND_SAMPLE_DIR}"
         VIRONATOR_DIR="${FOUND_SAMPLE_DIR}"
-        # Secondary auto-inference: if PHASE was not explicitly provided (no + token or yaml phase),
-        # automatically mirror the relative subfolder hierarchy of the found VIRONATOR_DIR into REPORT_DIR
-        if [ -z "${PHASE_SUBDIR}" ] && [ -z "${PROJECT_SUBDIR}" ]; then
-            PARENT_DIR=$(dirname "${FOUND_SAMPLE_DIR}")
-            REL_SUBDIR="${PARENT_DIR#${VIRONATOR_BASE}}"
-            REL_SUBDIR="${REL_SUBDIR#/}"
-            if [ -n "${REL_SUBDIR}" ]; then
-                REPORT_DIR="{output_dir}/{reports_out_dirname}/${REL_SUBDIR}/${SAMPLE}"
-                echo "[DIAGNOSTIC] Auto-inferred subfolder from vironator dir -> REPORT_DIR: ${REPORT_DIR}"
-            fi
+        # Always mirror the relative subfolder hierarchy of the found VIRONATOR_DIR into REPORT_DIR
+        PARENT_DIR=$(dirname "${FOUND_SAMPLE_DIR}")
+        REL_SUBDIR="${PARENT_DIR#${VIRONATOR_BASE}}"
+        REL_SUBDIR="${REL_SUBDIR#/}"
+        if [ -n "${REL_SUBDIR}" ]; then
+            REPORT_DIR="{output_dir}/{reports_out_dirname}/${REL_SUBDIR}/${SAMPLE}"
+            echo "[DIAGNOSTIC] Auto-inferred subfolder from vironator dir -> REPORT_DIR: ${REPORT_DIR}"
         fi
     fi
 fi

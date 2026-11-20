@@ -221,16 +221,13 @@ if [ ! -f "${INPUT_CRAM}" ]; then
     if [ -n "${FOUND_CRAM}" ] && [ -f "${FOUND_CRAM}" ]; then
         echo "[DIAGNOSTIC] Exact path not found (${INPUT_CRAM}), found strictly matched file via lookup: ${FOUND_CRAM}"
         INPUT_CRAM="${FOUND_CRAM}"
-        # Secondary auto-inference: if PHASE was not explicitly provided (no + token or yaml phase),
-        # automatically mirror the relative subfolder hierarchy of the found unmapped CRAM
-        if [ -z "${PHASE_SUBDIR}" ] && [ -z "${PROJECT_SUBDIR}" ]; then
-            PARENT_DIR=$(dirname "${FOUND_CRAM}")
-            REL_SUBDIR="${PARENT_DIR#${UNMAPPED_BASE}}"
-            REL_SUBDIR="${REL_SUBDIR#/}"
-            if [ -n "${REL_SUBDIR}" ]; then
-                OUT_DIR="/mnt/disks/staff/BSMN_hg38_vironator/${REL_SUBDIR}/${SAMPLE}"
-                echo "[DIAGNOSTIC] Auto-inferred subfolder from unmapped CRAM -> OUT_DIR: ${OUT_DIR}"
-            fi
+        # Always mirror the relative subfolder hierarchy of the found unmapped CRAM
+        PARENT_DIR=$(dirname "${FOUND_CRAM}")
+        REL_SUBDIR="${PARENT_DIR#${UNMAPPED_BASE}}"
+        REL_SUBDIR="${REL_SUBDIR#/}"
+        if [ -n "${REL_SUBDIR}" ]; then
+            OUT_DIR="/mnt/disks/staff/BSMN_hg38_vironator/${REL_SUBDIR}/${SAMPLE}"
+            echo "[DIAGNOSTIC] Auto-inferred subfolder from unmapped CRAM -> OUT_DIR: ${OUT_DIR}"
         fi
     fi
 fi
@@ -361,9 +358,15 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     echo "STEP 2) FILTERING"
     VIRAL_READS="${TMP_DIR}/viral_reads_se.reads.gz"
     
-    gzip -cd "${VIRAL_READS}" | cut -f6 | sed s/'[0-9]'//g > "${OUT_DIR}/viral_reads_se.cigar"
-    gzip -cd "${VIRAL_READS}" | paste "${OUT_DIR}/viral_reads_se.cigar" - | awk '{print ">"$2"\n"$11}' > "${OUT_DIR}/viral_reads_se.fa"
-    fgrep ">" "${OUT_DIR}/viral_reads_se.fa" | cut -b2- | sed 's|/[12]$||' | sort -u > "${OUT_DIR}/viral_reads_se.ids"
+    # Process intermediate filtering files locally in TMP_DIR to avoid GCSFuse latency/missing file errors
+    gzip -cd "${VIRAL_READS}" | cut -f6 | sed s/'[0-9]'//g > "${TMP_DIR}/viral_reads_se.cigar"
+    gzip -cd "${VIRAL_READS}" | paste "${TMP_DIR}/viral_reads_se.cigar" - | awk '{print ">"$2"\n"$11}' > "${TMP_DIR}/viral_reads_se.fa"
+    fgrep ">" "${TMP_DIR}/viral_reads_se.fa" | cut -b2- | sed 's|/[12]$||' | sort -u > "${TMP_DIR}/viral_reads_se.ids"
+
+    # Copy intermediate outputs to OUT_DIR for persistent archiving
+    cp -f "${TMP_DIR}/viral_reads_se.cigar" "${OUT_DIR}/viral_reads_se.cigar" 2>/dev/null || true
+    cp -f "${TMP_DIR}/viral_reads_se.fa" "${OUT_DIR}/viral_reads_se.fa" 2>/dev/null || true
+    cp -f "${TMP_DIR}/viral_reads_se.ids" "${OUT_DIR}/viral_reads_se.ids" 2>/dev/null || true
 
     if [ "${CONTAMINATION_QUANTIFICATION}" = "on" ]; then
         echo "Contamination Quantification Submodule: ACTIVE"
@@ -391,12 +394,12 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
             --out-pairs-summary "${PAIRS_SUMMARY_FILE}"
     else
         echo "Contamination Quantification Submodule: OFF (Default viral-only)"
-        cat "${OUT_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_clean.keep"
+        cat "${TMP_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_clean.keep"
         touch "${OUT_DIR}/discarded_read_ids.tsv.gz"
     fi
-    cat "${OUT_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_raw.keep"
+    cat "${TMP_DIR}/viral_reads_se.ids" > "${OUT_DIR}/viral_raw.keep"
 
-    echo "[DIAGNOSTIC] Step 2 viral_reads_se.ids count: $(wc -l < "${OUT_DIR}/viral_reads_se.ids" 2>/dev/null || echo 0)"
+    echo "[DIAGNOSTIC] Step 2 viral_reads_se.ids count: $(wc -l < "${TMP_DIR}/viral_reads_se.ids" 2>/dev/null || echo 0)"
     echo "[DIAGNOSTIC] Step 2 viral_clean.keep count: $(wc -l < "${OUT_DIR}/viral_clean.keep" 2>/dev/null || echo 0)"
 
     echo "STEP 2 DONE"
@@ -431,13 +434,18 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
         samtools index -@ "${SAMTOOLS_THREADS}" "${OUT_DIR}/Viral_raw.sort.bam"
     fi
 
-    # Align to Decoys & RNA
+    # Align to Decoys & RNA using local TMP_DIR copy with guard
     echo "ALIGN TO DECOYS"
-    "${BWA_BIN}" mem -Y -k 30 -t "${BWA_THREADS}" "${REF_RNA}" "${OUT_DIR}/viral_reads_se.fa" 2> "${OUT_DIR}/errors.log" \
-        | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/aln_match_filter_py3.py" 90 > "${OUT_DIR}/rna_hits.ids" 2>> "${OUT_DIR}/errors.log"
-    
-    "${BWA_BIN}" mem -Y -k 30 -t "${BWA_THREADS}" "${REF_DECOY}" "${OUT_DIR}/viral_reads_se.fa" 2>> "${OUT_DIR}/errors.log" \
-        | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/aln_match_filter_py3.py" 90 > "${OUT_DIR}/decoy_hits.ids" 2>> "${OUT_DIR}/errors.log"
+    if [ -s "${TMP_DIR}/viral_reads_se.fa" ]; then
+        "${BWA_BIN}" mem -Y -k 30 -t "${BWA_THREADS}" "${REF_RNA}" "${TMP_DIR}/viral_reads_se.fa" 2> "${OUT_DIR}/errors.log" \
+            | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/aln_match_filter_py3.py" 90 > "${OUT_DIR}/rna_hits.ids" 2>> "${OUT_DIR}/errors.log" || true
+        
+        "${BWA_BIN}" mem -Y -k 30 -t "${BWA_THREADS}" "${REF_DECOY}" "${TMP_DIR}/viral_reads_se.fa" 2>> "${OUT_DIR}/errors.log" \
+            | "${PYTHON_BIN}" "${EXOGENE_PYTHON_DIR}/aln_match_filter_py3.py" 90 > "${OUT_DIR}/decoy_hits.ids" 2>> "${OUT_DIR}/errors.log" || true
+    else
+        echo "[INFO] viral_reads_se.fa is empty; skipping decoy/RNA alignment."
+        touch "${OUT_DIR}/rna_hits.ids" "${OUT_DIR}/decoy_hits.ids" "${OUT_DIR}/errors.log"
+    fi
     
     sort "${OUT_DIR}/rna_hits.ids" "${OUT_DIR}/decoy_hits.ids" | uniq > "${OUT_DIR}/bad.list"
     
