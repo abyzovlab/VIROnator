@@ -212,9 +212,14 @@ fi
 # Smart fallback lookup if exact INPUT_CRAM is missing
 if [ ! -f "${INPUT_CRAM}" ]; then
     UNMAPPED_BASE="/mnt/disks/staff/BSMN_hg38_unmapped"
-    FOUND_CRAM=$(find "${UNMAPPED_BASE}" -name "${SAMPLE}.unmapped.cram" 2>/dev/null | head -n 1)
+    TARGET_FILENAME="${SAMPLE}.unmapped.cram"
+    # Strictly match exact filename only, rejecting any prefix/substring matches
+    FOUND_CRAM=$(find "${UNMAPPED_BASE}" -type f -name "${TARGET_FILENAME}" 2>/dev/null | awk -v tgt="${TARGET_FILENAME}" '{
+        n = split($0, a, "/");
+        if (a[n] == tgt) { print $0; exit }
+    }')
     if [ -n "${FOUND_CRAM}" ] && [ -f "${FOUND_CRAM}" ]; then
-        echo "[DIAGNOSTIC] Exact path not found (${INPUT_CRAM}), found via smart lookup: ${FOUND_CRAM}"
+        echo "[DIAGNOSTIC] Exact path not found (${INPUT_CRAM}), found strictly matched file via lookup: ${FOUND_CRAM}"
         INPUT_CRAM="${FOUND_CRAM}"
         # Secondary auto-inference: if PHASE was not explicitly provided (no + token or yaml phase),
         # automatically mirror the relative subfolder hierarchy of the found unmapped CRAM
@@ -328,6 +333,7 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
     # Create local temporary working directory on native node disk (/tmp) to prevent GCS FUSE stale file handle errors
     TMP_DIR="/tmp/vironator_${SAMPLE}"
     mkdir -p "${TMP_DIR}"
+    mkdir -p "${OUT_DIR}"
 
     # 3. Step 1: Alignment to foreign reference database (REF_VIR_CONT)
     echo "STEP 1) ALIGNMENT TO FOREIGN REFERENCE DATABASE"
@@ -337,21 +343,23 @@ if [ "${ALIGN_AND_FILTER}" = "on" ] || [ "${ALIGN_ONLY}" = "on" ]; then
         | awk '$3 != "*"' \
         > "${TMP_DIR}/viral_reads_se.reads_temp"
 
-    cp "${TMP_DIR}/viral_reads_se.reads_temp" "${OUT_DIR}/viral_reads_se.reads_temp" 2>/dev/null || true
-
-    # Filter temp mapping against viral contig names
+    # Filter temp mapping against viral contig names into local scratch disk first
     awk 'NR==FNR{a[$1]; next} $3 in a' "${VIRAL_CONTIGS}" "${TMP_DIR}/viral_reads_se.reads_temp" \
         | gzip -c \
-        > "${OUT_DIR}/viral_reads_se.reads.gz"
+        > "${TMP_DIR}/viral_reads_se.reads.gz"
+
+    mkdir -p "${OUT_DIR}"
+    cp -f "${TMP_DIR}/viral_reads_se.reads_temp" "${OUT_DIR}/viral_reads_se.reads_temp" 2>/dev/null || true
+    cp -f "${TMP_DIR}/viral_reads_se.reads.gz" "${OUT_DIR}/viral_reads_se.reads.gz" 2>/dev/null || true
 
     echo "[DIAGNOSTIC] Step 1 viral_reads_se.reads_temp size: $(ls -lh "${TMP_DIR}/viral_reads_se.reads_temp" 2>/dev/null | awk '{print $5}') | lines: $(wc -l < "${TMP_DIR}/viral_reads_se.reads_temp" 2>/dev/null || echo 0)"
-    echo "[DIAGNOSTIC] Step 1 viral_reads_se.reads.gz size: $(ls -lh "${OUT_DIR}/viral_reads_se.reads.gz" 2>/dev/null | awk '{print $5}') | lines: $(zcat "${OUT_DIR}/viral_reads_se.reads.gz" 2>/dev/null | wc -l || echo 0)"
+    echo "[DIAGNOSTIC] Step 1 viral_reads_se.reads.gz size: $(ls -lh "${TMP_DIR}/viral_reads_se.reads.gz" 2>/dev/null | awk '{print $5}') | lines: $(zcat "${TMP_DIR}/viral_reads_se.reads.gz" 2>/dev/null | wc -l || echo 0)"
 
     echo "STEP 1 DONE"
 
     # 3. Step 2: Read Filtering & Contamination Submodule
     echo "STEP 2) FILTERING"
-    VIRAL_READS="${OUT_DIR}/viral_reads_se.reads.gz"
+    VIRAL_READS="${TMP_DIR}/viral_reads_se.reads.gz"
     
     gzip -cd "${VIRAL_READS}" | cut -f6 | sed s/'[0-9]'//g > "${OUT_DIR}/viral_reads_se.cigar"
     gzip -cd "${VIRAL_READS}" | paste "${OUT_DIR}/viral_reads_se.cigar" - | awk '{print ">"$2"\n"$11}' > "${OUT_DIR}/viral_reads_se.fa"
