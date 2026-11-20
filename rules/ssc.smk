@@ -361,7 +361,7 @@ rule create_reports_directory:
         token="config/reports_dir.created"
     shell:
         """
-        TARGET_PATH="gs://{config[output_bucket]}/{config[reports_out_dirname]}/phase{config[phase]}/{project_part}test.txt"
+        TARGET_PATH="gs://{config[output_bucket]}/{config[reports_out_dirname]}/{phase_part}{project_part}test.txt"
         if ! gsutil -q stat "$TARGET_PATH"; then
             gsutil cp {input.placeholder} "$TARGET_PATH"
         fi

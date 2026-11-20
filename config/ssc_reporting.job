@@ -1,0 +1,204 @@
+# =========================================================================================================================
+# VIROnator Reporting Job Template
+
+job_name=MCBiobank_REPORTING
+job_identifier=MCBiobank_[SAMPLE]
+machine_type=n2-standard-16
+
+
+####
+#### Buckets
+####
+
+input_bucket=gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/jobexec_vironator_{dataset}_{genome_build}/output
+output_bucket=gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/jobexec_reporting_{dataset}_{genome_build}/output
+log_bucket=gs://ml-phi-staff-m277455-p-rsa-us-central1-p-a3d4/jobexec_reporting_{dataset}_{genome_build}/logs
+
+####
+#### Tools
+####
+
+repo=gs://ml-65e4-phi-biotools-p-rsa-us-central1-p/jobexec/repositories/rocky8.repo
+tool=samtools
+
+####
+#### Post-Job Configuration
+####
+
+clear_output=true
+clear_input=true 
+
+
+####
+#### Script to run
+####
+
+commands_start
+
+# Automatically load environment modules if Lmod/Modules are available on node
+if command -v module >/dev/null 2>&1 || [ -f /usr/share/modules/init/bash ]; then
+    [ -f /usr/share/modules/init/bash ] && . /usr/share/modules/init/bash 2>/dev/null || true
+    module load samtools bwa python 2>/dev/null || true
+fi
+
+set -ex
+
+echo "Start: $(date)"
+
+# Consolidated global variables
+REF_HUMAN_NO_EBV="/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla_no_ebv_modified.renamed.fa"
+REF_VIR_CONT="/mnt/disks/staff/refs/HumanViral_Reference_02-07-2022_modified_Addgene_iGEM_DNASU_GenScript_NEB_SnapGene_curated_sanitized_mm39_modified.fa"
+REF_HUMAN_FULL="/mnt/disks/staff/refs/GRCh38_full_analysis_set_plus_decoy_hla_modified.renamed.fa"
+
+VIRAL_RENAME_MAP="/mnt/disks/staff/refs/{db_name}_map.tsv"
+VIRAL_BED="/mnt/disks/staff/refs/{db_name}.bed"
+TAXONOMY_INDEX="/mnt/disks/staff/refs/{db_name}_taxonomy_index.tsv"
+SAMPLE_METADATA="/mnt/disks/staff/refs/{dataset}_{genome_build}_master_coverage.tsv"
+SAMPLE_COL="sample"
+PHASE_COL="phase"
+PROJECT_COL="project"
+
+BWA_BIN="/mnt/disks/staff/bin/bwa"
+PYTHON_BIN="python3"
+if [ ! -x "${PYTHON_BIN}" ] && ! command -v "${PYTHON_BIN}" >/dev/null 2>&1; then
+    if command -v python3 >/dev/null 2>&1; then
+        PYTHON_BIN="python3"
+    elif command -v python >/dev/null 2>&1; then
+        PYTHON_BIN="python"
+    fi
+fi
+
+REPORT_SCRIPT="/mnt/disks/staff/scripts/generate_report.py"
+COMBINED_REFS_DIR="/mnt/disks/staff/refs/"
+
+# Dynamic calculation of COMBINED_REF
+BASENAME_HUMAN=$(basename "${REF_HUMAN_NO_EBV}")
+BASENAME_HUMAN_NOEXT=$(printf '%s' "${BASENAME_HUMAN}" | sed -e 's/\.fa$//' -e 's/\.renamed$//')
+BASENAME_VIR_CONT=$(basename "${REF_VIR_CONT}")
+BASENAME_VIR_CONT_NOEXT=$(printf '%s' "${BASENAME_VIR_CONT}" | sed -e 's/\.fa$//' -e 's/\.renamed$//')
+COMBINED_BASENAME="combined_${BASENAME_HUMAN_NOEXT}_${BASENAME_VIR_CONT_NOEXT}.fa"
+COMBINED_REF="${COMBINED_REFS_DIR}/${COMBINED_BASENAME}"
+PHASE=""
+PROJECT=""
+
+# Support plus delimiter (PHASE+PROJECT+SAMPLE or PHASE+SAMPLE) in sample list
+RAW_SAMPLE="[SAMPLE]"
+if [[ "${RAW_SAMPLE}" == *"+"* ]]; then
+    IFS='+' read -r -a PARTS <<< "${RAW_SAMPLE}"
+    if [ ${#PARTS[@]} -ge 3 ]; then
+        PHASE="${PARTS[0]}"
+        PROJECT="${PARTS[1]}"
+        SAMPLE="${PARTS[2]}"
+    elif [ ${#PARTS[@]} -eq 2 ]; then
+        PHASE="${PARTS[0]}"
+        PROJECT=""
+        SAMPLE="${PARTS[1]}"
+    fi
+    echo "[PARSER] Extracted from token -> PHASE: '${PHASE}', PROJECT: '${PROJECT}', SAMPLE: '${SAMPLE}'"
+else
+    SAMPLE="${RAW_SAMPLE}"
+fi
+
+# Directory paths
+if [ -z "${PHASE}" ] || [ "${PHASE}" = "none" ] || [ "${PHASE}" = "0" ]; then
+    PHASE_SUBDIR=""
+else
+    PHASE_CLEAN="${PHASE#phase}"
+    if [[ "${PHASE_CLEAN}" =~ ^[0-9]+(-[0-9]+)?$ ]]; then
+        PHASE_SUBDIR="phase${PHASE_CLEAN}"
+    else
+        PHASE_SUBDIR="${PHASE}"
+    fi
+fi
+
+if [ -z "${PROJECT}" ] || [ "${PROJECT}" = "base" ] || [ "${PROJECT}" = "none" ]; then
+    PROJECT_SUBDIR=""
+else
+    PROJECT_SUBDIR="${PROJECT}"
+fi
+
+if [ -n "${PHASE_SUBDIR}" ] && [ -n "${PROJECT_SUBDIR}" ]; then
+    VIRONATOR_DIR="/mnt/disks/staff/{dataset}_{genome_build}_vironator/${PHASE_SUBDIR}/${PROJECT_SUBDIR}/${SAMPLE}"
+    REPORT_DIR="/mnt/disks/staff/{dataset}_{genome_build}_reports/${PHASE_SUBDIR}/${PROJECT_SUBDIR}/${SAMPLE}"
+elif [ -n "${PHASE_SUBDIR}" ]; then
+    VIRONATOR_DIR="/mnt/disks/staff/{dataset}_{genome_build}_vironator/${PHASE_SUBDIR}/${SAMPLE}"
+    REPORT_DIR="/mnt/disks/staff/{dataset}_{genome_build}_reports/${PHASE_SUBDIR}/${SAMPLE}"
+elif [ -n "${PROJECT_SUBDIR}" ]; then
+    VIRONATOR_DIR="/mnt/disks/staff/{dataset}_{genome_build}_vironator/${PROJECT_SUBDIR}/${SAMPLE}"
+    REPORT_DIR="/mnt/disks/staff/{dataset}_{genome_build}_reports/${PROJECT_SUBDIR}/${SAMPLE}"
+else
+    VIRONATOR_DIR="/mnt/disks/staff/{dataset}_{genome_build}_vironator/${SAMPLE}"
+    REPORT_DIR="/mnt/disks/staff/{dataset}_{genome_build}_reports/${SAMPLE}"
+fi
+# Smart fallback lookup if exact VIRONATOR_DIR is missing
+if [ ! -d "${VIRONATOR_DIR}" ]; then
+    VIRONATOR_BASE="/mnt/disks/staff/{dataset}_{genome_build}_vironator"
+    # Strictly match exact sample directory name only
+    FOUND_SAMPLE_DIR=$(find "${VIRONATOR_BASE}" -mindepth 1 -maxdepth 3 -type d -name "${SAMPLE}" 2>/dev/null | awk -v tgt="${SAMPLE}" '{
+        n = split($0, a, "/");
+        if (a[n] == tgt) { print $0; exit }
+    }')
+    if [ -n "${FOUND_SAMPLE_DIR}" ] && [ -d "${FOUND_SAMPLE_DIR}" ]; then
+        echo "[DIAGNOSTIC] Exact VIRONATOR_DIR not found (${VIRONATOR_DIR}), found strictly matched directory via lookup: ${FOUND_SAMPLE_DIR}"
+        VIRONATOR_DIR="${FOUND_SAMPLE_DIR}"
+        # Always mirror the relative subfolder hierarchy of the found VIRONATOR_DIR into REPORT_DIR
+        PARENT_DIR=$(dirname "${FOUND_SAMPLE_DIR}")
+        REL_SUBDIR="${PARENT_DIR#${VIRONATOR_BASE}}"
+        REL_SUBDIR="${REL_SUBDIR#/}"
+        if [ -n "${REL_SUBDIR}" ]; then
+            REPORT_DIR="/mnt/disks/staff/{dataset}_{genome_build}_reports/${REL_SUBDIR}/${SAMPLE}"
+            echo "[DIAGNOSTIC] Auto-inferred subfolder from vironator dir -> REPORT_DIR: ${REPORT_DIR}"
+        fi
+    fi
+fi
+
+OUT_REPORT="${REPORT_DIR}/${SAMPLE}_viral_report.tsv"
+
+mkdir -p "${REPORT_DIR}"
+
+# Delete existing report TSV file if present to prevent duplicate findings upon re-running
+if [ -f "${OUT_REPORT}" ]; then
+    echo "[CLEANUP] Existing TSV report found: ${OUT_REPORT}. Removing file before generating fresh report..."
+    rm -f "${OUT_REPORT}"
+fi
+
+echo "VIRONATOR INPUT DIR: ${VIRONATOR_DIR}"
+echo "OUTPUT REPORT: ${OUT_REPORT}"
+echo "COMBINED REF: ${COMBINED_REF}"
+
+if [ ! -d "${VIRONATOR_DIR}" ]; then
+    echo "[WARNING] VIRONATOR INPUT DIR does not exist: ${VIRONATOR_DIR}"
+fi
+
+ENABLE_SPATIAL_METRICS="on"
+COVERAGE_NBINS="10"
+MIN_GENOME_LENGTH_FOR_BINNING="1000"
+COVERAGE_BREADTH_BIN_THRESHOLD="0.10"
+COVERAGE_FLAT_BIN_THRESHOLD="10.0"
+
+# Run consolidated Python reporting script (unbuffered live diagnostic logging)
+PYTHONUNBUFFERED=1 "${PYTHON_BIN}" "${REPORT_SCRIPT}" \
+    --sample-id "${SAMPLE}" \
+    --phase "${PHASE}" \
+    --project "${PROJECT}" \
+    --vironator-dir "${VIRONATOR_DIR}" \
+    --out-file "${OUT_REPORT}" \
+    --combined-ref "${COMBINED_REF}" \
+    --human-ref-fai "${REF_HUMAN_FULL}.fai" \
+    --rename-map "${VIRAL_RENAME_MAP}" \
+    --viral-bed "${VIRAL_BED}" \
+    --taxonomy-index "${TAXONOMY_INDEX}" \
+    --metadata "${SAMPLE_METADATA}" \
+    --sample-col "${SAMPLE_COL}" \
+    --phase-col "${PHASE_COL}" \
+    --project-col "${PROJECT_COL}" \
+    --enable-spatial-metrics "${ENABLE_SPATIAL_METRICS}" \
+    --coverage-nbins "${COVERAGE_NBINS}" \
+    --min-genome-length-for-binning "${MIN_GENOME_LENGTH_FOR_BINNING}" \
+    --coverage-breadth-bin-threshold "${COVERAGE_BREADTH_BIN_THRESHOLD}" \
+    --coverage-flat-bin-threshold "${COVERAGE_FLAT_BIN_THRESHOLD}" 2>&1
+
+echo "Reporting Completed Successfully for ${SAMPLE}"
+echo "End: $(date)"
+
+# =========================================================================================================================

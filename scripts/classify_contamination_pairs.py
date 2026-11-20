@@ -66,7 +66,7 @@ def main():
     parser.add_argument("--plasmid-contigs", required=True, help="1-column vector/plasmid contig names")
     parser.add_argument("--mouse-contigs", required=True, help="1-column mouse contig names")
     parser.add_argument("--min-len", type=int, default=50, help="Minimum aligned bases (default: 50)")
-    parser.add_argument("--max-nm", type=int, default=3, help="Maximum NM edit distance (default: 3, for NM <= 3)")
+    parser.add_argument("--max-nm", type=int, default=8, help="Maximum NM edit distance (default: 8, for NM <= 8)")
     parser.add_argument("--min-mapq", type=int, default=20, help="Minimum MAPQ for confident host/mouse (default: 20)")
     parser.add_argument("--keep-plasmid-unmapped", action="store_true", default=False, help="Keep vector-unmapped pairs (default: False)")
     parser.add_argument("--out-clean-keep", required=True, help="Output file for clean viral read IDs")
@@ -165,10 +165,10 @@ def main():
     # Key: (sorted_mate1, sorted_mate2) -> (action, rationale)
     DECISION_RULES = {
         ("VIRUS", "VIRUS"): ("KEEP", "Confirmed viral pair"),
-        ("MOUSE", "VIRUS"): ("KEEP", "Host-virus integration junction"),
-        ("MOUSE_WEAK", "VIRUS"): ("KEEP", "Potential divergent integration junction"),
         ("UNMAPPED", "VIRUS"): ("KEEP", "Divergent viral strain or novel junction"),
-        ("VECTOR_WEAK", "VIRUS"): ("KEEP", "Short micro-homology; viral signal retained for Step 4/6"),
+        ("MOUSE", "VIRUS"): ("DISCARD", "Host genomic contamination with viral misassignment"),
+        ("MOUSE_WEAK", "VIRUS"): ("DISCARD", "Host genomic contamination with weak viral cross-match"),
+        ("VECTOR_WEAK", "VIRUS"): ("DISCARD", "Vector contamination with weak viral cross-match"),
         ("VECTOR", "VIRUS"): ("DISCARD", "Recombinant vector backbone carrying viral promoter/gene"),
         ("VECTOR", "VECTOR"): ("DISCARD", "Pure vector contaminant"),
         ("VECTOR", "VECTOR_WEAK"): ("DISCARD", "Vector contaminant with one degraded mate"),
